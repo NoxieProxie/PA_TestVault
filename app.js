@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = 'snapshot taken 25 Nov 2026, 17:49';
+const BUILD_AT = 'snapshot taken 25 Nov 2026, 18:10';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -157,6 +157,7 @@ function navTabs(){
   T.push({k:'Items', h:`<button class="nb calcnb" data-view="items">&#128270; Items</button>`});
   T.push({k:'Loadout', h:`<button class="nb calcnb" data-view="gear">&#128737; Loadout</button>`});
   T.push({k:'Calculator', h:`<button class="nb calcnb" data-view="calc">&#129518; Calculator</button>`});
+  if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
     T.push({k:'My Pages', h:`<div class="drop"><button class="nb">&#9998; My Pages <span class="car">&#9662;</span></button><div class="menu"><a class="mi hi" data-newpage="1">&#65291; New page</a><div class="mn">Pages you write yourself show up here.</div></div></div>`});
   for (const t of TOPS){
@@ -279,7 +280,7 @@ function toast(msg){
 
 /* ---------- browsers ---------- */
 const ROLES=[['tank','Tank'],['bruiser','Bruiser'],['melee','Melee'],['ranged','Ranged'],['healer','Healer'],['caster','Caster']];
-const MODES=['Expeditions & raids','3v3 Arenas','Outpost Rush','Capture the Flag','Wars','Open-world PvP','Open-world PvE'].map(m=>[m,m]);
+const MODES=['Expeditions & raids','3v3 Arenas','Outpost Rush','Capture the Flag','Wars','Duels','FFA zone','Influence races','Open-world PvP','Open-world PvE'].map(m=>[m,m]);
 // the "| Modes |" row of a build note -> ['3v3 Arenas', 'Outpost Rush', ...]
 function noteModes(body){
   const m=body.match(/^\|\s*Modes\s*\|(.*)\|\s*$/m); if(!m) return [];
@@ -383,10 +384,11 @@ function openView(v,push=true){
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
   if(push && current) hist.push(current);
   current={kind:'view',v};
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
+  if(v==='myloadouts') myLoEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -1010,6 +1012,9 @@ function viewGear(){
       ${Object.keys(byGroup).sort().map(g=>`<optgroup label="${esc(g)}">`+byGroup[g].map(p=>`<option value="${esc(p.name)}">${esc(p.name)}${p.fromNote?'':' (no loadout table)'}</option>`).join('')+`</optgroup>`).join('')}
     </select>
     <button class="mini go" id="loadpreset">Load</button>
+    <span class="losep"></span>
+    <input id="loname" class="loname" placeholder="Name this loadout">
+    <button class="mini go" id="losave">&#128190; Save</button>
     <button class="mini" id="clearload">Empty everything</button>
     ${G.note?`<span class="loadnote">${esc(G.note)}</span>`:''}
   </div>
@@ -1091,6 +1096,7 @@ function gearEvents(){
     }
     saveG(); openView('gear',false); });
   document.querySelectorAll('[data-gt]').forEach(el=>el.onchange=()=>{ G.attrs[el.dataset.gt]=Math.max(0,parseInt(el.value)||0); saveG(); openView('gear',false); });
+  const lsv=document.getElementById('losave'); if(lsv) lsv.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname').value); };
   const ms=document.getElementById('modesel'); if(ms) ms.onchange=()=>{ G.mode=ms.value; saveG(); openView('gear',false); };
   const lp=document.getElementById('loadpreset');
   if(lp) lp.onclick=()=>{
@@ -1150,6 +1156,88 @@ function gearEvents(){
     saveC(); openView('calc'); toast('Totals copied into the calculator');
   };
 }
+
+/* ================= your loadouts: saved in this browser, shared by link ================= */
+const PUBLIC_SITE='https://noxieproxie.github.io/PA_TestVault/';
+let MYLO=LS.get('nw_myloadouts',[]);
+const saveMYLO=()=>LS.set('nw_myloadouts',MYLO);
+function snapG(){ const g=JSON.parse(JSON.stringify(G)); delete g.note; delete g.mode; return g; }
+function saveCurrentLoadout(name){
+  name=(name||'').trim()||`${G.w1} + ${G.w2}`;
+  const ex=MYLO.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  const rec={id:ex?ex.id:('l'+Date.now()), name, saved:new Date().toISOString(), g:snapG()};
+  if(ex) Object.assign(ex,rec); else MYLO.unshift(rec);
+  saveMYLO(); topnav(); toast(ex?`Updated “${name}”`:`Saved “${name}” to Your loadouts`); return rec;
+}
+function applyLo(g,label){
+  LS.set('nw_gear_prev', snapG());   // keep what was in the builder, just in case
+  const mode=G.mode; Object.keys(G).forEach(k=>delete G[k]); Object.assign(G, JSON.parse(JSON.stringify(g)), {mode});
+  ARMOR_SLOTS.forEach(s=>{ if(G.armor[s].ch===undefined) G.armor[s].ch=''; }); JEW_SLOTS.forEach(s=>{ if(G.jew[s].ch===undefined) G.jew[s].ch=''; });
+  if(!G.abil) G.abil={1:[],2:[]}; if(!G.trees) G.trees={1:[],2:[]}; if(!G.attrs) G.attrs={STR:0,DEX:0,INT:0,FOC:0,CON:0};
+  G.note=`Loaded “${label}”.`; saveG();
+}
+async function encodeLo(rec){
+  let bytes=new TextEncoder().encode(JSON.stringify({v:1,n:rec.name,by:rec.by||'',g:rec.g})), tag='j';
+  if(typeof CompressionStream!=='undefined'){ try{ const cs=new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw')); bytes=new Uint8Array(await new Response(cs).arrayBuffer()); tag='z'; }catch(e){} }
+  let s=''; for(let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]);
+  return tag+btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function decodeLo(str){
+  const tag=str[0]; let b=str.slice(1).replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4) b+='=';
+  let bytes=Uint8Array.from(atob(b),c=>c.charCodeAt(0));
+  if(tag==='z'){ const ds=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')); bytes=new Uint8Array(await new Response(ds).arrayBuffer()); }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function shareBase(){ return /github\.io$/.test(location.hostname) ? location.href.split('#')[0] : PUBLIC_SITE; }
+async function shareLink(rec){ return shareBase()+'#lo='+(await encodeLo(rec)); }
+async function copyText(t){ try{ await navigator.clipboard.writeText(t); return true; }catch(e){ return false; } }
+async function openSharedLo(code){
+  try{ const d=await decodeLo(code); applyLo(d.g, d.n+(d.by?' by '+d.by:''));
+    G.note=`Shared loadout “${d.n}”${d.by?' by '+d.by:''}. Press 💾 Save to keep a copy in Your loadouts.`; saveG();
+    openView('gear',false); toast('Opened a shared loadout'); }
+  catch(e){ toast('That loadout link is damaged or incomplete'); }
+}
+function communityLos(){
+  const p=NAMES['Community Loadouts']; if(!p) return [];
+  return tableRows(META[p].body).slice(1).map(r=>{ const m=r.join(' ').match(/#lo=([A-Za-z0-9_-]+)/); return m?{name:r[0].replace(/\[|\]/g,''),by:r[1]||'',mode:r[2]||'',code:m[1]}:null; }).filter(Boolean);
+}
+function myLoMenu(){
+  const com=communityLos();
+  return `<a class="mi hi" data-view="myloadouts">&#128190; Save or manage loadouts&hellip;</a>`+
+    (MYLO.length?`<div class="mh">Saved on this device</div>`+MYLO.slice(0,15).map(x=>`<a class="mi" data-lo="${esc(x.id)}">${esc(x.name)}</a>`).join(''):`<div class="mn">Nothing saved yet. Build one in Loadout, then Save.</div>`)+
+    (com.length?`<div class="mh">Community</div>`+com.map((x,i)=>`<a class="mi" data-colo="${i}">${esc(x.name)}${x.by?` <i class="dimtx">${esc(x.by)}</i>`:''}</a>`).join(''):'');
+}
+function viewMyLo(){
+  const com=communityLos();
+  const card=x=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.g.w1)} + ${esc(x.g.w2)} &middot; saved ${new Date(x.saved).toLocaleDateString()}</div></div>
+    <div class="lobtns"><button class="mini go" data-lo="${esc(x.id)}">Load</button><button class="mini" data-loshare="${esc(x.id)}">&#128279; Share link</button><button class="mini" data-lodel="${esc(x.id)}">Delete</button></div>
+    <input class="lolink" id="ll_${esc(x.id)}" readonly hidden></div>`;
+  return `<h1>Your loadouts</h1>
+  <p class="lede">Save what's in the loadout builder, come back to it later, or share it.</p>
+  <div class="slot wide losave"><input id="loname2" placeholder="Name it, e.g. OPR point tank" value=""><button class="mini go" id="losave2">&#128190; Save current loadout</button></div>
+  <div class="callout note mini-co"><span class="ci">&#128274;</span><div><p><b>Private by default.</b> Saved loadouts stay in this browser on this device; nobody else can see them.
+    <b>To share one</b>, use <b>Share link</b> and send it to a friend: the link opens the loadout for them, and they can save their own copy.
+    <b>To make one public</b> for everyone on the site, send the link to the site owner. They add it to <a class="wl" data-note="Community Loadouts">Community Loadouts</a>.</p></div></div>
+  <h2>Saved on this device (${MYLO.length})</h2>
+  ${MYLO.length?MYLO.map(card).join(''):'<p class="dimtx">Nothing saved yet.</p>'}
+  <h2>Community loadouts (${com.length})</h2>
+  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button></div></div>`).join(''):'<p class="dimtx">None yet.</p>'}`;
+}
+function myLoEvents(){
+  const b=document.getElementById('losave2'); if(b) b.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname2').value); openView('myloadouts',false); };
+  document.querySelectorAll('[data-lodel]').forEach(el=>el.onclick=()=>{ const x=MYLO.find(y=>y.id===el.dataset.lodel); if(!x) return;
+    if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to delete'; return; }
+    MYLO=MYLO.filter(y=>y.id!==x.id); saveMYLO(); topnav(); openView('myloadouts',false); toast('Deleted “'+x.name+'”'); });
+  document.querySelectorAll('[data-loshare]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.loshare); if(!x) return;
+    const link=await shareLink(x); const box=document.getElementById('ll_'+x.id); box.hidden=false; box.value=link; box.select();
+    toast((await copyText(link))?'Share link copied':'Link shown below: press Ctrl+C to copy'); });
+}
+document.addEventListener('click',e=>{
+  const a=e.target.closest('[data-lo]');
+  if(a){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); const x=MYLO.find(y=>y.id===a.dataset.lo); if(x){ applyLo(x.g,x.name); openView('gear'); } return; }
+  const c=e.target.closest('[data-colo]');
+  if(c){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); const x=communityLos()[+c.dataset.colo]; if(x) openSharedLo(x.code); }
+});
 
 /* ================= owner content + customise panel ================= */
 let CDB=null, CUSER=null, IS_OWNER=false, CMODE='loading';   // 'db' | 'local' | 'loading'
@@ -1511,7 +1599,8 @@ async function initCustom(){
   try { TREES = await (await fetch('trees.json')).json(); } catch(e){ TREES = null; }
   reindex(); topnav();
   const h=(location.hash||'').replace('#','');
-  if(['builds','bosses','calc','gear','items'].includes(h)) openView(h,false);
+  if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
+  else if(['builds','bosses','calc','gear','items','myloadouts'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);

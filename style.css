@@ -281,3 +281,7 @@ body.light .edbanner{background:#fbf6ea}
 #draftbar .mini{white-space:nowrap}
 #stagebar{position:sticky;top:0;z-index:70;background:#b8322f;color:#fff;text-align:center;font-weight:700;padding:6px;letter-spacing:.04em}
 .isrc{font-size:12.5px;color:var(--gold2,#e8d9a8);margin:4px 0}
+.losep{flex:0 0 12px}.loname{max-width:200px}
+.locard{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;margin:8px 0;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.lobtns{display:flex;gap:6px}.lolink{flex-basis:100%;font-size:12px}
+.losave{display:flex;gap:8px;align-items:center;margin-bottom:12px}.losave input{flex:1;max-width:340px}
