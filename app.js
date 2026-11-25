@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-25 21:15';
+const BUILD_AT = '2026-11-25 21:20';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1249,8 +1249,10 @@ function renderAcct(){
   if(!u){ el.innerHTML=`<a class="acctin" id="acctlogin" href="${esc(loginHref())}" title="Log in with Discord"><span class="dlogo">&#9673;</span> Log in</a>`;
     document.getElementById('acctlogin').onclick=rememberReturn; return; }
   const own=!!(OWNER&&OWNER.owner);
-  el.innerHTML=`<div class="drop acctd"><button class="nb acctnb" title="${esc(u.name)}"><img class="av" src="${esc(dAvatar(u))}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"><span class="acn">${esc(u.name)}</span>${own?'<span class="ownb">owner</span>':''}<span class="car">&#9662;</span></button>
+  const letter=esc((u.name||'?').trim().charAt(0).toUpperCase()||'?');
+  el.innerHTML=`<div class="drop right acctd"><button class="nb acctnb" title="${esc(u.name)}"><span class="avw"><span class="avl">${letter}</span>${u.av?`<img class="av" src="${esc(dAvatar(u))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:''}</span><span class="acn">${esc(u.name)}</span>${own?'<span class="ownb">owner</span>':''}<span class="car">&#9662;</span></button>
     <div class="menu"><div class="mh">Logged in with Discord</div><div class="mn"><b>${esc(u.name)}</b> <span class="dimtx">@${esc(u.user||'')}</span></div>
+      ${u.av?'':`<div class="mn tiny">No profile picture yet: log out and back in to load it.</div>`}
       <a class="mi" data-view="myloadouts">&#128190; Your loadouts</a>
       ${own?`<a class="mi" data-view="review">&#128229; Review submissions</a><div class="mn tiny">You can edit this site: use <b>&#9998; Edit</b> on any page, <b>&#9881;</b> (top right) for the look, and drag tabs to reorder.</div>`:''}
       <a class="mi" id="acctout">&#8617; Log out</a></div></div>`;
@@ -1266,7 +1268,7 @@ function handleAuthHash(h){
   return false;
 }
 async function submitViaHelper(rec){
-  const u=dUser(); if(!u){ toast('Log in with Discord first (button above)'); return; }
+  const u=dUser(); if(!u){ toast('Log in with Discord first (top right)'); return; }
   const code=await encodeLo(rec);
   const r=await fetch(CFG.worker+'/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:dPass(),name:rec.name,mode:rec.mode,code,weapons:rec.g.w1+' + '+rec.g.w2})});
   let d={}; try{ d=await r.json(); }catch(e){}
@@ -1395,8 +1397,7 @@ function viewMyLo(){
     <tr><td>Send it to a friend</td><td><b>Share link</b>, then paste it to them</td><td>Whoever has the link</td></tr>
     <tr><td>Put it on the site for everyone</td><td><b>Submit to Community</b> ${CFG.worker?'(log in with Discord first)':'(needs a free GitHub account)'}</td><td>Everyone, once the site owner approves it</td></tr>
   </tbody></table></div>
-  ${CFG.worker?(()=>{ const u=dUser(); return u?`<div class="slot wide losave dlogin">&#9989; Logged in with Discord as <b>${esc(u.name)}</b> <span class="dimtx">@${esc(u.user)}</span><button class="mini" id="dlogout">Log out</button></div>`
-     :`<div class="slot wide losave dlogin"><a class="dbtn" href="${esc(CFG.worker)}/login">Log in with Discord</a><span class="dimtx">Only needed to submit loadouts to Community. We only see your Discord name.</span></div>`; })():''}
+  ${CFG.worker&&!dUser()?`<div class="callout note mini-co"><span class="ci">&#128273;</span><div><p><b>Log in</b> with Discord (top right) to share your builds with everyone in Community loadouts. Saving on this device works without logging in.</p></div></div>`:''}
   <h2>Saved on this device (${MYLO.length})</h2>
   ${MYLO.length?MYLO.map(card).join(''):'<p class="dimtx">Nothing saved yet.</p>'}
   <h2>Community loadouts (${com.length})</h2>
