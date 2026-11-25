@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-25 21:20';
+const BUILD_AT = '2026-11-25 21:26';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1252,7 +1252,7 @@ function renderAcct(){
   const letter=esc((u.name||'?').trim().charAt(0).toUpperCase()||'?');
   el.innerHTML=`<div class="drop right acctd"><button class="nb acctnb" title="${esc(u.name)}"><span class="avw"><span class="avl">${letter}</span>${u.av?`<img class="av" src="${esc(dAvatar(u))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:''}</span><span class="acn">${esc(u.name)}</span>${own?'<span class="ownb">owner</span>':''}<span class="car">&#9662;</span></button>
     <div class="menu"><div class="mh">Logged in with Discord</div><div class="mn"><b>${esc(u.name)}</b> <span class="dimtx">@${esc(u.user||'')}</span></div>
-      ${u.av?'':`<div class="mn tiny">No profile picture yet: log out and back in to load it.</div>`}
+      ${u.av?'':`<div class="mn tiny">No profile picture in this login. ${(OWNER&&OWNER.owner)?'Check the helper page says <b>Version 3</b>, then log out and back in.':'Log out and back in to load it.'}</div>`}
       <a class="mi" data-view="myloadouts">&#128190; Your loadouts</a>
       ${own?`<a class="mi" data-view="review">&#128229; Review submissions</a><div class="mn tiny">You can edit this site: use <b>&#9998; Edit</b> on any page, <b>&#9881;</b> (top right) for the look, and drag tabs to reorder.</div>`:''}
       <a class="mi" id="acctout">&#8617; Log out</a></div></div>`;
