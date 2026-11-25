@@ -1,0 +1,28 @@
+{
+ "docs": {
+  "site/settings": {
+   "brand": "New World · S10 Nighthaven",
+   "accent": "#d9a84e",
+   "theme": "dark",
+   "font": "m",
+   "width": "normal",
+   "hidden": [],
+   "order": [
+    "Home",
+    "Items",
+    "Loadout",
+    "Calculator",
+    "Your loadouts",
+    "References",
+    "Gear Grind",
+    "Bosses",
+    "Expeditions",
+    "PvP",
+    "Builds",
+    "My Pages"
+   ],
+   "start": "New World Home",
+   "icons": true
+  }
+ }
+}
