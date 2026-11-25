@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = 'snapshot taken 25 Nov 2026, 18:54';
+const BUILD_AT = '2026-11-25 20:28';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1236,8 +1236,9 @@ const dPass=()=>LS.get('nw_discord','');
 function dUser(){ const p=dPass(); if(!p) return null; try{ let s=p.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
   const o=JSON.parse(decodeURIComponent(escape(atob(s)))); if(o.exp<Date.now()){ LS.del('nw_discord'); return null; } return o; }catch(e){ return null; } }
 function handleAuthHash(h){
-  if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); const u=dUser(); try{ history.replaceState(null,'','#myloadouts'); }catch(e){}
-    openView('myloadouts',false); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
+  if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); OWNER=null; const u=dUser(); const after=LS.get('nw_after_login','')==='review'?'review':'myloadouts'; LS.del('nw_after_login');
+    try{ history.replaceState(null,'','#'+after); }catch(e){}
+    openView(after,false); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
   if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); toast('Discord login did not finish. Try again.'); return true; }
   return false;
 }
@@ -1248,13 +1249,28 @@ async function submitViaHelper(rec){
   let d={}; try{ d=await r.json(); }catch(e){}
   if(r.ok) toast('Submitted! The site owner will review it.'); else { if(r.status===401) LS.del('nw_discord'); toast(d.error||('Could not submit ('+r.status+')')); openView('myloadouts',false); }
 }
+/* Owner actions through the helper (Discord login, no GitHub token in the browser) */
+let OWNER=null;   // null = not checked yet, {owner:true/false,name}
+async function ownerApi(action, data={}){
+  const r=await fetch(CFG.worker+'/owner',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:dPass(),action,...data})});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(r.status===401){ LS.del('nw_discord'); OWNER=null; }
+  if(!r.ok) throw new Error(d.error||('helper said '+r.status));
+  return d;
+}
+const viaHelper=()=>!!(CFG.worker && dUser() && OWNER && OWNER.owner);
+async function checkOwner(){
+  if(!CFG.worker || !dUser()){ OWNER=null; return; }
+  try{ OWNER=await ownerApi('whoami'); }catch(e){ OWNER={owner:false, err:e.message}; }
+  if(current?.kind==='view'&&current.v==='review'){ openView('review',false); }
+}
 async function submitIssueUrl(rec){
   const link=await shareLink(rec);
   const body=`**Loadout:** ${rec.name}\n**Weapons:** ${rec.g.w1} + ${rec.g.w2}\n**Mode:** ${rec.mode||'(say which mode it is for)'}\n**By:** (your in-game name)\n\nOpen it: ${link}\n\n_Submitted from the New World vault site. The site owner reviews it before it appears in Community loadouts._`;
   return `https://github.com/${GH.owner}/${GH.repo}/issues/new?title=${encodeURIComponent('[Loadout] '+rec.name)}&body=${encodeURIComponent(body)}`;
 }
 async function listSubmissions(){
-  const l=await gh('/issues?state=open&per_page=50');
+  const l=viaHelper()?(await ownerApi('submissions')).issues.map(i=>({...i,user:{login:i.login}})):await gh('/issues?state=open&per_page=50');
   return l.filter(i=>!i.pull_request && /^\[Loadout\]/i.test(i.title)).map(i=>{
     const m=(i.body||'').match(/#lo=([A-Za-z0-9_-]+)/); const by=((i.body||'').match(/\*\*By:\*\*\s*(.+)/)||[,''])[1].trim();
     const mode=((i.body||'').match(/\*\*Mode:\*\*\s*(.+)/)||[,''])[1].trim();
@@ -1269,19 +1285,32 @@ async function writeCommunity(fn, msg){
   COMMUNITY=list; topnav();
 }
 async function publishToCommunity(entry, issueNum){
+  if(viaHelper()){ const d=await ownerApi('publish',{entry,issue:issueNum||0}); COMMUNITY=d.community; topnav(); return; }
   await writeCommunity(l=>{ l=l.filter(x=>x.code!==entry.code); l.unshift({name:entry.name, by:entry.by||'', mode:entry.mode||'', code:entry.code, added:new Date().toISOString().slice(0,10)}); return l; }, 'Community loadout: '+entry.name);
   if(issueNum){ try{ await gh('/issues/'+issueNum+'/comments',{method:'POST',body:JSON.stringify({body:'Published to Community loadouts. Thanks!'})});
     await gh('/issues/'+issueNum,{method:'PATCH',body:JSON.stringify({state:'closed',state_reason:'completed'})}); }catch(e){} }
 }
+async function removeFromCommunity(code){
+  if(viaHelper()){ const d=await ownerApi('remove',{code}); COMMUNITY=d.community; topnav(); return; }
+  await writeCommunity(l=>l.filter(x=>x.code!==code),'Remove community loadout');
+}
 async function rejectSubmission(num){
+  if(viaHelper()){ await ownerApi('reject',{issue:num}); return; }
   await gh('/issues/'+num+'/comments',{method:'POST',body:JSON.stringify({body:'Thanks for sending this in. It wasn\'t added to Community loadouts this time.'})});
   await gh('/issues/'+num,{method:'PATCH',body:JSON.stringify({state:'closed',state_reason:'not_planned'})});
 }
 let SUBS=null, SUBERR='';
 function viewReview(){
-  const t=ghToken();
+  const t=ghToken(), u=CFG.worker?dUser():null, helper=viaHelper();
   const tokenBox=`<div class="slot wide losave"><input id="ghtok" type="password" placeholder="Paste your GitHub token here" value=""><button class="mini go" id="ghtoksave">Save token</button>${t?'<button class="mini" id="ghtokdel">Forget token</button>':''}</div>`;
-  if(!t) return `<h1>Review submissions</h1>
+  if(CFG.worker && !helper && !t){
+    const msg=!u?`<p class="lede">This is your inbox for loadouts people submit. Log in with Discord to review and publish them. Only the site owner's Discord account can do this.</p>
+        <div class="slot wide losave dlogin"><a class="dbtn" id="revlogin" href="${esc(CFG.worker)}/login">Log in with Discord</a></div>`
+      :OWNER===null?`<p class="dimtx">Checking your Discord login&hellip;</p>`
+      :`<p class="lede">You're logged in with Discord as <b>${esc(u.name)}</b>, but only the site owner can review submissions.</p>${OWNER.err?`<p class="bad">${esc(OWNER.err)}</p>`:''}<div class="slot wide losave dlogin"><button class="mini" id="revlogout">Log out</button></div>`;
+    return `<h1>Review submissions</h1>${msg}<details class="tiny dimtx"><summary>Use a GitHub token instead</summary>${tokenBox}</details>`;
+  }
+  if(!t && !helper) return `<h1>Review submissions</h1>
     <p class="lede">This is your inbox for loadouts people submit. To publish or reject from here, the page needs a GitHub token that can edit your site's repo. It's saved only in this browser.</p>
     <div class="callout note mini-co"><span class="ci">&#128273;</span><div><p><b>Make the token once:</b> on GitHub, open your picture &rarr; <b>Settings &rarr; Developer settings &rarr; Personal access tokens &rarr; Fine-grained tokens &rarr; Generate new token</b>. Name it "New World site", pick <b>Only select repositories &rarr; ${GH.repo}</b>, and under <b>Repository permissions</b> set <b>Contents: Read and write</b> and <b>Issues: Read and write</b>. Generate, copy it, and paste it below.</p></div></div>${tokenBox}`;
   const rows=SUBS===null?'<p class="dimtx">Loading submissions&hellip;</p>':SUBERR?`<p class="bad">Couldn't read submissions: ${esc(SUBERR)}</p>`:
@@ -1296,7 +1325,7 @@ function viewReview(){
   <div class="slot wide losave"><input id="addlink" placeholder="Paste a share link someone sent you"><input id="addname" placeholder="Name" style="max-width:180px"><input id="addby" placeholder="By" style="max-width:140px">${loTagSelect('addmode')}<button class="mini go" id="addpub">Publish</button></div>
   <h2>Published (${com.length})</h2>
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button><button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
-  <h2>Token</h2>${tokenBox}<p class="dimtx tiny">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
+  ${helper?`<div class="slot wide losave dlogin">&#9989; Reviewing as <b>${esc(OWNER.name||u.name)}</b> (Discord)<button class="mini" id="revlogout">Log out</button></div>`:`<h2>Token</h2>${tokenBox}`}<p class="dimtx tiny">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
 }
 async function refreshSubs(){ SUBS=null; SUBERR=''; try{ SUBS=await listSubmissions(); }catch(e){ SUBS=[]; SUBERR=e.message; } if(current?.kind==='view'&&current.v==='review') openView('review',false); }
 function reviewEvents(){
@@ -1304,18 +1333,21 @@ function reviewEvents(){
   on('ghtoksave',()=>{ const v=document.getElementById('ghtok').value.trim(); if(!v) return; LS.set('nw_gh_token',v); toast('Token saved in this browser'); refreshSubs(); openView('review',false); });
   on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('review',false); });
   on('subrefresh',refreshSubs);
-  const busy=async(el,f,ok)=>{ el.disabled=true; try{ await f(); toast(ok); }catch(e){ toast('GitHub said: '+e.message); } await refreshSubs(); };
+  on('revlogout',()=>{ LS.del('nw_discord'); OWNER=null; SUBS=null; topnav(); openView('review',false); });
+  const rl=document.getElementById('revlogin'); if(rl) rl.addEventListener('click',()=>LS.set('nw_after_login','review'));
+  const busy=async(el,f,ok)=>{ el.disabled=true; try{ await f(); toast(ok); }catch(e){ toast((viaHelper()?'':'GitHub said: ')+e.message); } await refreshSubs(); };
   document.querySelectorAll('[data-subprev]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subprev]; openSharedLo(s.code); });
   document.querySelectorAll('[data-subpub]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subpub]; busy(el,()=>publishToCommunity({name:s.title,by:s.by||s.user,mode:s.mode,code:s.code},s.num),'Published “'+s.title+'”'); });
   document.querySelectorAll('[data-subrej]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to reject'; return; } const s=SUBS[+el.dataset.subrej]; busy(el,()=>rejectSubmission(s.num),'Rejected'); });
-  document.querySelectorAll('[data-comdel]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to remove'; return; } const c=el.dataset.comdel; busy(el,()=>writeCommunity(l=>l.filter(x=>x.code!==c),'Remove community loadout'),'Removed'); });
+  document.querySelectorAll('[data-comdel]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to remove'; return; } const c=el.dataset.comdel; busy(el,()=>removeFromCommunity(c),'Removed'); });
   document.querySelectorAll('[data-colo2]').forEach(el=>el.onclick=()=>openSharedLo(el.dataset.colo2));
   on('addpub',async()=>{ const m=document.getElementById('addlink').value.match(/#lo=([A-Za-z0-9_-]+)/); if(!m){ toast('That isn\'t a loadout share link'); return; }
     let name=document.getElementById('addname').value.trim(); try{ if(!name) name=(await decodeLo(m[1])).n; }catch(e){}
     let mode=document.getElementById('addmode').value; try{ if(!mode) mode=(await decodeLo(m[1])).m||''; }catch(e){}
     if(!mode){ toast('Pick what it is for (open world, M3, OPR...)'); return; }
     busy(document.getElementById('addpub'),()=>publishToCommunity({name:name||'Shared loadout',by:document.getElementById('addby').value.trim(),mode,code:m[1]}),'Published'); });
-  if(ghToken() && SUBS===null) refreshSubs();
+  if(CFG.worker && dUser() && OWNER===null) checkOwner();
+  else if((viaHelper()||ghToken()) && SUBS===null) refreshSubs();
 }
 function myLoMenu(){
   const com=communityLos();
@@ -1353,7 +1385,7 @@ function myLoEvents(){
     if(!x.mode){ toast('Load it and save it again with "Made for…" picked, so people can find it'); return; }
     if(CFG.worker){ el.disabled=true; await submitViaHelper(x); el.disabled=false; return; }
     window.open(await submitIssueUrl(x),'_blank','noopener'); toast('GitHub opened in a new tab: press "Submit new issue" there'); });
-  const lo=document.getElementById('dlogout'); if(lo) lo.onclick=()=>{ LS.del('nw_discord'); openView('myloadouts',false); toast('Logged out'); };
+  const lo=document.getElementById('dlogout'); if(lo) lo.onclick=()=>{ LS.del('nw_discord'); OWNER=null; openView('myloadouts',false); toast('Logged out'); };
   document.querySelectorAll('[data-loshare]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.loshare); if(!x) return;
     const link=await shareLink(x); const box=document.getElementById('ll_'+x.id); box.hidden=false; box.value=link; box.select();
     toast((await copyText(link))?'Share link copied':'Link shown below: press Ctrl+C to copy'); });
