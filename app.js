@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-25 20:28';
+const BUILD_AT = '2026-11-25 21:15';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -223,11 +223,11 @@ function renderDataMenu(){
   document.getElementById('datamenu').innerHTML =
     `<div class="mh">Loaded</div>
      <div class="mn"><b>${n} pages</b> &middot; ${SRC==='snapshot'?'built-in snapshot':SRC==='saved'?'your folder, saved to the page':'your own folder'}<br>${esc(SRC_AT)}</div>
-     ${(typeof canWrite==='function'&&canWrite())?`<a class="mi hi" id="pickfolder">&#128193; Load my vault folder&hellip;</a>`:`<div class="mn tiny">&#128274; Read-only. Only the page's owner can change what's shown here.</div>`}
-     ${(typeof canWrite==='function'&&canWrite())?`<div class="mn tiny">Pick the <b>New World</b> folder in your vault. ${(typeof CMODE!=='undefined'&&CMODE==='db'&&IS_OWNER)?'The pages are saved into this page\'s own storage, so they stay put between sessions and show on every device. Only you can change them.':'The page reads the .md files in your browser and remembers them in this browser.'}</div>`:''}
-     ${SRC!=='snapshot'&&typeof canWrite==='function'&&canWrite()?`<a class="mi" id="resetdata">&#8634; Back to the built-in snapshot</a>`:''}
+     ${(typeof canWrite==='function'&&canWrite()&&!GHMODE)?`<a class="mi hi" id="pickfolder">&#128193; Load my vault folder&hellip;</a>`:`<div class="mn tiny">&#128274; Read-only. Only the page's owner can change what's shown here.</div>`}
+     ${(typeof canWrite==='function'&&canWrite()&&!GHMODE)?`<div class="mn tiny">Pick the <b>New World</b> folder in your vault. ${(typeof CMODE!=='undefined'&&CMODE==='db'&&IS_OWNER)?'The pages are saved into this page\'s own storage, so they stay put between sessions and show on every device. Only you can change them.':'The page reads the .md files in your browser and remembers them in this browser.'}</div>`:''}
+     ${SRC!=='snapshot'&&typeof canWrite==='function'&&canWrite()&&!GHMODE?`<a class="mi" id="resetdata">&#8634; Back to the built-in snapshot</a>`:''}
      ${(typeof canWrite==='function'&&canWrite())?`<div class="mh">Adding or changing things</div>
-     <div class="mn tiny"><b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}`;
+     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}`;
   const pf=document.getElementById('pickfolder'); if (pf) pf.onclick=pickFolder;
   const rd=document.getElementById('resetdata');
   if (rd) rd.onclick=async ()=>{ LS.del('nw_vault'); LS.del('nw_vault_at'); if(typeof clearVaultDb==='function') await clearVaultDb(); location.reload(); };
@@ -437,7 +437,7 @@ document.addEventListener('keydown',e=>{
 /* drag a folder or files onto the page */
 ['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
 document.addEventListener('drop', async e=>{
-  if(!(typeof canWrite==='function'&&canWrite())) return;
+  if(!(typeof canWrite==='function'&&canWrite()) || GHMODE) return;
   const items=[...(e.dataTransfer?.items||[])].map(i=>i.webkitGetAsEntry?.()).filter(Boolean);
   if(!items.length) return;
   const obj={};
@@ -1235,10 +1235,33 @@ async function loadCommunity(){
 const dPass=()=>LS.get('nw_discord','');
 function dUser(){ const p=dPass(); if(!p) return null; try{ let s=p.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
   const o=JSON.parse(decodeURIComponent(escape(atob(s)))); if(o.exp<Date.now()){ LS.del('nw_discord'); return null; } return o; }catch(e){ return null; } }
+function dAvatar(u){
+  if(u&&u.av) return 'https://cdn.discordapp.com/avatars/'+encodeURIComponent(u.id)+'/'+encodeURIComponent(u.av)+'.png?size=64';
+  let n=0; try{ n=Number((BigInt(u.id)>>22n)%6n); }catch(e){}
+  return 'https://cdn.discordapp.com/embed/avatars/'+n+'.png';
+}
+function loginHref(){ return CFG.worker+'/login'; }
+function rememberReturn(){ LS.set('nw_after_login',(location.hash||'').replace('#','')||'myloadouts'); }
+function renderAcct(){
+  const el=document.getElementById('acct'); if(!el) return;
+  if(!CFG.worker){ el.innerHTML=''; return; }
+  const u=dUser();
+  if(!u){ el.innerHTML=`<a class="acctin" id="acctlogin" href="${esc(loginHref())}" title="Log in with Discord"><span class="dlogo">&#9673;</span> Log in</a>`;
+    document.getElementById('acctlogin').onclick=rememberReturn; return; }
+  const own=!!(OWNER&&OWNER.owner);
+  el.innerHTML=`<div class="drop acctd"><button class="nb acctnb" title="${esc(u.name)}"><img class="av" src="${esc(dAvatar(u))}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"><span class="acn">${esc(u.name)}</span>${own?'<span class="ownb">owner</span>':''}<span class="car">&#9662;</span></button>
+    <div class="menu"><div class="mh">Logged in with Discord</div><div class="mn"><b>${esc(u.name)}</b> <span class="dimtx">@${esc(u.user||'')}</span></div>
+      <a class="mi" data-view="myloadouts">&#128190; Your loadouts</a>
+      ${own?`<a class="mi" data-view="review">&#128229; Review submissions</a><div class="mn tiny">You can edit this site: use <b>&#9998; Edit</b> on any page, <b>&#9881;</b> (top right) for the look, and drag tabs to reorder.</div>`:''}
+      <a class="mi" id="acctout">&#8617; Log out</a></div></div>`;
+  document.getElementById('acctout').onclick=()=>{ LS.del('nw_discord'); location.reload(); };
+}
 function handleAuthHash(h){
-  if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); OWNER=null; const u=dUser(); const after=LS.get('nw_after_login','')==='review'?'review':'myloadouts'; LS.del('nw_after_login');
+  if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); OWNER=null; const u=dUser(); const after=LS.get('nw_after_login','')||'myloadouts'; LS.del('nw_after_login');
     try{ history.replaceState(null,'','#'+after); }catch(e){}
-    openView(after,false); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
+    if(['builds','bosses','calc','gear','items','myloadouts','review'].includes(after)) openView(after,false);
+    else { const hit=Object.keys(NAMES).find(n=>slug(n)===after); hit?openNote(hit,false):openView('myloadouts',false); }
+    renderAcct(); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
   if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); toast('Discord login did not finish. Try again.'); return true; }
   return false;
 }
@@ -1262,6 +1285,7 @@ const viaHelper=()=>!!(CFG.worker && dUser() && OWNER && OWNER.owner);
 async function checkOwner(){
   if(!CFG.worker || !dUser()){ OWNER=null; return; }
   try{ OWNER=await ownerApi('whoami'); }catch(e){ OWNER={owner:false, err:e.message}; }
+  renderAcct();
   if(current?.kind==='view'&&current.v==='review'){ openView('review',false); }
 }
 async function submitIssueUrl(rec){
@@ -1325,7 +1349,10 @@ function viewReview(){
   <div class="slot wide losave"><input id="addlink" placeholder="Paste a share link someone sent you"><input id="addname" placeholder="Name" style="max-width:180px"><input id="addby" placeholder="By" style="max-width:140px">${loTagSelect('addmode')}<button class="mini go" id="addpub">Publish</button></div>
   <h2>Published (${com.length})</h2>
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button><button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
-  ${helper?`<div class="slot wide losave dlogin">&#9989; Reviewing as <b>${esc(OWNER.name||u.name)}</b> (Discord)<button class="mini" id="revlogout">Log out</button></div>`:`<h2>Token</h2>${tokenBox}`}<p class="dimtx tiny">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
+  ${helper?`<div class="slot wide losave dlogin">&#9989; Reviewing as <b>${esc(OWNER.name||u.name)}</b> (Discord)<button class="mini" id="revlogout">Log out</button></div>`
+    :`${CFG.worker?`<h2>Discord login</h2>${!u?`<div class="slot wide losave dlogin"><a class="dbtn" id="revlogin" href="${esc(CFG.worker)}/login">Log in with Discord</a><span class="dimtx">Review and publish without a GitHub token. Once it works you can click Forget token below.</span></div>`
+      :OWNER===null?`<p class="dimtx">Checking your Discord login&hellip;</p>`
+      :`<div class="slot wide losave dlogin">Logged in with Discord as <b>${esc(u.name)}</b>, but that account isn't set as the site owner (OWNER_DISCORD_ID).${OWNER.err?` <span class="bad">${esc(OWNER.err)}</span>`:''}<button class="mini" id="revlogout">Log out</button></div>`}`:''}<h2>Token</h2>${tokenBox}`}<p class="dimtx tiny">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
 }
 async function refreshSubs(){ SUBS=null; SUBERR=''; try{ SUBS=await listSubmissions(); }catch(e){ SUBS=[]; SUBERR=e.message; } if(current?.kind==='view'&&current.v==='review') openView('review',false); }
 function reviewEvents(){
@@ -1333,7 +1360,7 @@ function reviewEvents(){
   on('ghtoksave',()=>{ const v=document.getElementById('ghtok').value.trim(); if(!v) return; LS.set('nw_gh_token',v); toast('Token saved in this browser'); refreshSubs(); openView('review',false); });
   on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('review',false); });
   on('subrefresh',refreshSubs);
-  on('revlogout',()=>{ LS.del('nw_discord'); OWNER=null; SUBS=null; topnav(); openView('review',false); });
+  on('revlogout',()=>{ LS.del('nw_discord'); location.reload(); });
   const rl=document.getElementById('revlogin'); if(rl) rl.addEventListener('click',()=>LS.set('nw_after_login','review'));
   const busy=async(el,f,ok)=>{ el.disabled=true; try{ await f(); toast(ok); }catch(e){ toast((viaHelper()?'':'GitHub said: ')+e.message); } await refreshSubs(); };
   document.querySelectorAll('[data-subprev]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subprev]; openSharedLo(s.code); });
@@ -1385,7 +1412,8 @@ function myLoEvents(){
     if(!x.mode){ toast('Load it and save it again with "Made for…" picked, so people can find it'); return; }
     if(CFG.worker){ el.disabled=true; await submitViaHelper(x); el.disabled=false; return; }
     window.open(await submitIssueUrl(x),'_blank','noopener'); toast('GitHub opened in a new tab: press "Submit new issue" there'); });
-  const lo=document.getElementById('dlogout'); if(lo) lo.onclick=()=>{ LS.del('nw_discord'); OWNER=null; openView('myloadouts',false); toast('Logged out'); };
+  const lo=document.getElementById('dlogout'); if(lo) lo.onclick=()=>{ LS.del('nw_discord'); location.reload(); };
+  const li=document.querySelector('.dlogin a.dbtn'); if(li && !li.id) li.addEventListener('click',()=>LS.set('nw_after_login','myloadouts'));
   document.querySelectorAll('[data-loshare]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.loshare); if(!x) return;
     const link=await shareLink(x); const box=document.getElementById('ll_'+x.id); box.hidden=false; box.value=link; box.select();
     toast((await copyText(link))?'Share link copied':'Link shown below: press Ctrl+C to copy'); });
@@ -1406,7 +1434,8 @@ let CPAGES={}, CADD={}, COVR={};
 /* ---- draft mode: the owner's changes wait in drafts/ (only the owner can read them) until "Publish to live" ---- */
 let DRAFT_ON=LS.get('nw_draftmode', true), DRAFTS={}, LIVE={pages:{},overrides:{},addenda:{},site:null};
 const dkey=p=>p.replace(/\//g,'__');
-const drafting=()=>IS_OWNER && CMODE==='db' && DRAFT_ON;
+let GHMODE=false;   // GitHub Pages: page edits are saved to custom.json in the repo through the Discord helper
+const drafting=()=>IS_OWNER && CMODE==='db' && DRAFT_ON && !GHMODE;
 async function dbSet(path,data){ if(drafting()) await CDB.doc('drafts/'+dkey(path)).set({path,data,del:false,at:Date.now()}); else await CDB.doc(path).set(data); }
 async function dbDel(path){ if(drafting()) await CDB.doc('drafts/'+dkey(path)).set({path,data:null,del:true,at:Date.now()}); else await CDB.doc(path).delete(); }
 function overlay(coll){ const o=Object.assign({},LIVE[coll]);
@@ -1420,6 +1449,11 @@ function recompute(){
 const draftCount=()=>{ const l=Object.values(DRAFTS); const v=l.filter(d=>/^vault(meta)?\//.test(d.path)).length; return (l.length-v)+(v?1:0); };
 function renderDraftBar(){
   let b=document.getElementById('draftbar');
+  if(GHMODE){ if(!IS_OWNER || (!GHPENDING && !GHJUST)){ if(b) b.remove(); return; }
+    if(!b){ b=document.createElement('div'); b.id='draftbar'; document.body.appendChild(b); }
+    b.className='has';
+    b.innerHTML=GHPENDING?`<span>&#9998; Saving your change&hellip;</span>`:`<span>&#9989; Saved. Everyone sees it after GitHub rebuilds the site (a minute or two).</span>`;
+    return; }
   if(!(IS_OWNER&&CMODE==='db')){ if(b) b.remove(); return; }
   if(!b){ b=document.createElement('div'); b.id='draftbar'; document.body.appendChild(b); }
   const n=draftCount();
@@ -1674,6 +1708,45 @@ function openPanel(){
   };
 }
 
+/* ---- GitHub Pages store: same shape as the claude.ai db, kept in custom.json ---- */
+let GHPENDING=0, GHJUST=null;
+function ghStore(docs, writable){
+  const subs=[];
+  const snapDoc=p=>({exists:docs[p]!=null, id:p.split('/').pop(), data:()=>docs[p]});
+  const snapCol=c=>({docs:Object.keys(docs).filter(k=>k.startsWith(c+'/')&&!k.slice(c.length+1).includes('/')).map(k=>({id:k.slice(c.length+1), data:()=>docs[k]}))});
+  const fire=()=>subs.forEach(s=>{ try{ s.cb(s.doc?snapDoc(s.key):snapCol(s.key)); }catch(e){} });
+  let queue=[], waiters=[], timer=null;
+  const flush=async()=>{ timer=null; const ops=queue, w=waiters; queue=[]; waiters=[];
+    try{ await ownerApi('setdocs',{ops}); w.forEach(x=>x.res()); }
+    catch(e){ w.forEach(x=>x.rej(e)); toast('Not saved: '+e.message); }
+    GHPENDING=Math.max(0,GHPENDING-1); clearTimeout(GHJUST); GHJUST=setTimeout(()=>{ GHJUST=null; renderDraftBar(); },6000); renderDraftBar(); };
+  const write=(path,data)=>{
+    if(!writable) return Promise.reject(new Error('Only the site owner can save changes'));
+    if(!/^(site|pages|overrides|addenda)\//.test(path)) return Promise.reject(new Error('That can\'t be saved on this site'));
+    data=data==null?null:JSON.parse(JSON.stringify(data));
+    if(data==null) delete docs[path]; else docs[path]=data;
+    queue=queue.filter(o=>o.path!==path); queue.push({path,data}); fire();
+    if(!timer){ GHPENDING++; renderDraftBar(); }
+    return new Promise((res,rej)=>{ waiters.push({res,rej}); clearTimeout(timer); timer=setTimeout(flush,400); });
+  };
+  return {
+    doc:p=>({ set:d=>write(p,d), delete:()=>write(p,null), get:async()=>snapDoc(p),
+              onSnapshot:cb=>{ subs.push({doc:true,key:p,cb}); cb(snapDoc(p)); return ()=>{}; } }),
+    collection:c=>({ get:async()=>snapCol(c), onSnapshot:cb=>{ subs.push({doc:false,key:c,cb}); cb(snapCol(c)); return ()=>{}; } })
+  };
+}
+async function initGitHubStore(){
+  GHMODE=true; DRAFT_ON=false;
+  let docs=null, own=false;
+  if(dUser()){
+    await checkOwner();
+    if(OWNER&&OWNER.owner){ try{ docs=(await ownerApi('getcustom')).docs||{}; own=true; }catch(e){ toast('Couldn\'t load your saved edits: '+e.message); } }
+  }
+  if(!docs){ try{ const r=await fetch('custom.json',{cache:'no-cache'}); docs=r.ok?((await r.json()).docs||{}):{}; }catch(e){ docs={}; } }
+  CDB=ghStore(docs, own); IS_OWNER=own;
+  renderAcct();
+}
+
 /* ---- start-up ---- */
 /* ---------- vault kept in the page's own storage ---------- */
 async function saveVaultToDb(obj, at){
@@ -1718,6 +1791,7 @@ async function initCustom(){
   try { CUSER=await claude.use('user'); } catch(e){ CUSER=null; }
   try { CDB=await claude.use('db'); } catch(e){ CDB=null; }
   IS_OWNER = CUSER ? ((await CUSER.isOwner()) ?? false) : false;
+  if(!CDB && typeof CFG!=='undefined' && CFG.worker) await initGitHubStore();
   // A visitor never keeps a private copy of the vault: everyone sees the owner's version.
   if(!IS_OWNER){ LS.del('nw_vault'); LS.del('nw_vault_at'); LS.del('nw_custom'); LS.del('nw_site');
     if(SRC!=='snapshot'){ try{ const snap=await (await fetch('vault.json')).json(); applyData(snap,'snapshot',BUILD_AT,true); }catch(e){} } }
@@ -1756,7 +1830,7 @@ async function initCustom(){
   try { PRESETS = await (await fetch('gear_presets.json')).json(); } catch(e){ PRESETS = null; }
   if(typeof loadCommunity==='function') await loadCommunity();
   try { TREES = await (await fetch('trees.json')).json(); } catch(e){ TREES = null; }
-  reindex(); topnav();
+  reindex(); topnav(); if(typeof renderAcct==='function') renderAcct();
   const h=(location.hash||'').replace('#','');
   if(typeof handleAuthHash==='function' && handleAuthHash(h)){}
   else if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
