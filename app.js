@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = 'snapshot taken 25 Nov 2026, 16:07';
+const BUILD_AT = 'snapshot taken 25 Nov 2026, 17:49';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -131,7 +131,8 @@ let TOPS=[], TOP_BUILDS='Builds', TOP_BOSSES='Bosses';
 function reindex(){
   META={}; NAMES={};
   for (const p in DATA){
-    const raw=DATA[p]; let body=raw, tags=[], source='';
+    // anything wrapped in <!-- web-hide --> ... <!-- /web-hide --> stays in Obsidian only; other HTML comments are dropped too
+    const raw=DATA[p].replace(/<!--\s*web-hide[\s\S]*?<!--\s*\/web-hide\s*-->\n?/g,'').replace(/<!--[\s\S]*?-->/g,''); let body=raw, tags=[], source='';
     const fm=raw.match(/^---\n([\s\S]*?)\n---\n?/);
     if(fm){ body=raw.slice(fm[0].length);
       const t=fm[1].match(/tags:\s*\[(.*?)\]/); if(t) tags=t[1].split(',').map(s=>s.trim()).filter(Boolean);
