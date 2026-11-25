@@ -315,3 +315,16 @@ body.light .edbanner{background:#fbf6ea}
 .losub{margin-left:auto;color:var(--gold2)!important;font-size:13px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .losub:hover{text-decoration:underline}
 .loadnote{margin:2px 0 8px}
+
+/* every selection and text box looks like the loadout cards */
+:where(main) :where(input:not([type=checkbox],[type=radio],[type=range],[type=color]),select,textarea){background:var(--bg3);border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:6px 9px;font:inherit;font-size:13.5px}
+:where(main) :where(input,select,textarea):focus{outline:none;border-color:var(--gold)}
+.filters::before{content:attr(data-h);display:block;color:var(--gold);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.filters:not([data-h])::before{content:none}
+.fl{width:90px;font-size:11px;letter-spacing:.05em}
+.filters select{min-width:220px}
+.in>span{text-transform:uppercase;font-size:11px;letter-spacing:.05em}
+.in>span i{text-transform:none;letter-spacing:0}
+.lcard .two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.losave input:not([type=checkbox]){background:var(--bg3);border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:6px 9px;font:inherit;font-size:13.5px}
+.lcard input[type=checkbox]{accent-color:var(--gold)}

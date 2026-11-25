@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-25 22:09';
+const BUILD_AT = '2026-11-25 22:37';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -302,7 +302,7 @@ function viewBuilds(){
       <div class="cmeta">${['Role','Modes','Armor','Attributes'].filter(k=>q[k]).map(k=>`<span><b>${k}</b> ${inline(q[k])}</span>`).join('')}</div>
       <div class="ctags">${m.tags.filter(t=>!['new-world','builds'].includes(t)).map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>`; };
   return `<h1>Build browser</h1><p class="lede">${all.length} builds. Stack the filters, then click one.</p>
-   <div class="filters"><div class="frow"><span class="fl">Role</span>${chips('role',ROLES)}</div>
+   <div class="filters" data-h="Filter builds"><div class="frow"><span class="fl">Role</span>${chips('role',ROLES)}</div>
    <div class="frow"><span class="fl">Mode</span>${chips('mode',MODES)}</div>
    <div class="frow"><span class="fl">Weapon</span>${chips('weapon',WEAPONS)}</div>
    <button class="clear" id="clearf">Clear all</button></div>
@@ -322,7 +322,7 @@ function viewBosses(){
   const dmgs=['Slash','Thrust','Strike','Fire','Ice','Nature','Lightning','Void','Arcane'];
   const shown=rows.filter(r=>(!bfilt.exp||r.exp===bfilt.exp)&&(!bfilt.dmg||(r.exact+r.weak).toLowerCase().includes(bfilt.dmg.toLowerCase())));
   return `<h1>Boss browser</h1><p class="lede">${rows.length} bosses. Filter by expedition, or by what they take extra damage from.</p>
-  <div class="filters"><div class="frow"><span class="fl">Expedition</span>${['',...exps].map(e=>`<button class="chip ${bfilt.exp===e?'on':''}" data-bf="exp" data-v="${esc(e)}">${esc(label(e))||'All'}</button>`).join('')}</div>
+  <div class="filters" data-h="Filter bosses"><div class="frow"><span class="fl">Expedition</span>${['',...exps].map(e=>`<button class="chip ${bfilt.exp===e?'on':''}" data-bf="exp" data-v="${esc(e)}">${esc(label(e))||'All'}</button>`).join('')}</div>
   <div class="frow"><span class="fl">Weak to</span>${['',...dmgs].map(d=>`<button class="chip ${bfilt.dmg===d?'on':''}" data-bf="dmg" data-v="${d}">${d||'All'}</button>`).join('')}</div></div>
   <div class="count">${shown.length} of ${rows.length}</div>
   <div class="tw"><table><thead><tr><th>Boss</th><th>Expedition</th><th>Exact damage taken</th><th>Mitigation</th><th>Your job as tank</th></tr></thead><tbody>
@@ -678,7 +678,7 @@ function viewItems(){
     <button class="mini" data-ipg="1" ${IQ.page>=pages-1?'disabled':''}>Next &rarr;</button></div>`;
   return `<h1>Items</h1>
   <p class="lede">${ITEMDB.items.length.toLocaleString()} endgame items from your game's own item tables. Searches names, perks <i>and</i> where things drop, so "gorgon", "Refreshing" or "Chardis" all work.</p>
-  <div class="filters">
+  <div class="filters" data-h="Search items">
     <input id="iq" class="isearch" placeholder="Search items or perks, e.g. gorgon" value="${esc(IQ.q)}" autocomplete="off">
     <div class="frow"><span class="fl">Slot</span>${['',...slots].map(s=>`<button class="chip ${IQ.slot===s?'on':''}" data-is="${s}">${s||'All'}</button>`).join('')}</div>
     <div class="frow"><span class="fl">Type</span>${['',...rars].map(s=>`<button class="chip ${IQ.rar===s?'on':''}" data-ir="${s}">${s||'All'}</button>`).join('')}</div>
@@ -1457,7 +1457,11 @@ function viewReview(){
   <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button>${helper?(OWNER.discord?`<label class="dimtx"><input type="checkbox" id="dpost" ${LS.get('nw_dpost',true)?'checked':''}> Also post to Discord when I publish</label>`:`<span class="dimtx tiny">Add DISCORD_WEBHOOK_URL to the helper to post published loadouts to Discord.</span>`):''}</div>
   ${rows}
   <h2>Add one from a link</h2>
-  <div class="slot wide losave"><input id="addlink" placeholder="Paste a share link someone sent you"><input id="addname" placeholder="Name" style="max-width:180px"><input id="addby" placeholder="By" style="max-width:140px">${loTagSelect('addmode')}<button class="mini go" id="addpub">Publish</button></div>
+  <div class="slots lobar"><div class="slot lcard"><div class="sh">Publish a share link</div>
+    <label class="lof"><span>Share link</span><input id="addlink" class="pk" placeholder="Paste a share link someone sent you"></label>
+    <div class="two"><label class="lof"><span>Name</span><input id="addname" class="pk" placeholder="Leave blank to use its own name"></label><label class="lof"><span>By</span><input id="addby" class="pk" placeholder="Who made it"></label></div>
+    <label class="lof"><span>Made for</span>${loTagSelect('addmode')}</label>
+    <div class="lbtns"><button class="mini go" id="addpub">Publish</button></div></div></div>
   <h2>Published (${com.length})</h2>
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
   ${helper?`<div class="slot wide losave dlogin">&#9989; Reviewing as <b>${esc(OWNER.name||u.name)}</b> (Discord)<button class="mini" id="revlogout">Log out</button></div>`
@@ -1506,7 +1510,10 @@ function viewMyLo(){
     <input class="lolink" id="ll_${esc(x.id)}" readonly hidden></div>`;
   return `<h1>Your loadouts</h1>
   <p class="lede">Save what's in the loadout builder, come back to it later, or share it.</p>
-  <div class="slot wide losave"><input id="loname2" placeholder="Name it, e.g. OPR point tank" value="">${loTagSelect('lomode2')}<button class="mini go" id="losave2">&#128190; Save current loadout</button></div>
+  <div class="slots lobar"><div class="slot lcard"><div class="sh">Save what's in the builder</div>
+    <label class="lof"><span>Name</span><input id="loname2" class="pk loname" placeholder="e.g. OPR point tank" value=""></label>
+    <label class="lof"><span>Made for</span>${loTagSelect('lomode2')}</label>
+    <div class="lbtns"><button class="mini go" id="losave2">&#128190; Save current loadout</button></div></div></div>
   <div class="tw"><table><thead><tr><th>You want to&hellip;</th><th>Do this</th><th>Who sees it</th></tr></thead><tbody>
     <tr><td>Keep it for yourself</td><td><b>Save</b></td><td>Only you, in this browser</td></tr>
     <tr><td>Send it to a friend</td><td><b>Share link</b>, then paste it to them</td><td>Whoever has the link</td></tr>
