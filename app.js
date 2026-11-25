@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = 'snapshot taken 25 Nov 2026, 18:20';
+const BUILD_AT = 'snapshot taken 25 Nov 2026, 18:54';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -999,22 +999,27 @@ function viewGear(){
     ${pin2(`jew.${s}.p2`,G.jew[s].p2,'jewd','Perk 2')}
     ${pin2(`jew.${s}.ch`,G.jew[s].ch,'chA','Charm')}</div>`;
   const chosen=allChosen().filter(c=>c.p);
-  const byGroup={}; const allP=notePresets();
+  const byGroup={}; const allP=notePresets(); const com=communityLos();
   const modeList=MODES.map(x=>x[0]).filter(m=>allP.some(p=>(p.modes||[]).includes(m)));
-  if(G.mode&&!modeList.includes(G.mode)) G.mode='';
-  allP.filter(p=>!G.mode||(p.modes||[]).includes(G.mode)).forEach(p=>{ const k=G.mode||p.folder; (byGroup[k]=byGroup[k]||[]).push(p); });
+  const comTags=LO_TAGS.filter(t=>com.some(x=>loTags(x.mode).includes(t)));
+  const isCom=/^community/.test(G.mode||''), comTag=isCom?(G.mode.split(':')[1]||''):'';
+  if(G.mode&&!isCom&&!modeList.includes(G.mode)) G.mode='';
+  if(isCom){ com.filter(x=>!comTag||loTags(x.mode).includes(comTag)).forEach(x=>{ const k=comTag||'Community'; (byGroup[k]=byGroup[k]||[]).push({name:x.name+(x.by?' · '+x.by:''), value:'c:'+x.code, fromNote:true}); }); }
+  else allP.filter(p=>!G.mode||(p.modes||[]).includes(G.mode)).forEach(p=>{ const k=G.mode||p.folder; (byGroup[k]=byGroup[k]||[]).push(p); });
   return gemW+gemA+gemJ+charm1+charm2+offd+armd+jewd+chA+itDL+`<h1>Loadout builder</h1>
   <p class="lede">Equip the slots, or load one of your own builds and tweak it. Perk, gem and charm lists are the real Season 10 ones from your game-data export &mdash; start typing in any field to filter.</p>
   <div class="presetbar">
     <span class="fl">Mode</span>
-    <select id="modesel"><option value="">All builds</option>${modeList.map(m=>`<option ${G.mode===m?'selected':''}>${esc(m)}</option>`).join('')}</select>
+    <select id="modesel"><option value="">All vault builds</option><optgroup label="Vault builds by mode">${modeList.map(m=>`<option ${G.mode===m?'selected':''}>${esc(m)}</option>`).join('')}</optgroup>
+      <optgroup label="Community (${com.length})"><option value="community" ${G.mode==='community'?'selected':''}>Community: all</option>${comTags.map(t=>`<option value="community:${esc(t)}" ${G.mode==='community:'+t?'selected':''}>Community: ${esc(t)}</option>`).join('')}</optgroup></select>
     <span class="fl">Load a build</span>
     <select id="presetsel"><option value="">&mdash; pick one &mdash;</option>
-      ${Object.keys(byGroup).sort().map(g=>`<optgroup label="${esc(g)}">`+byGroup[g].map(p=>`<option value="${esc(p.name)}">${esc(p.name)}${p.fromNote?'':' (no loadout table)'}</option>`).join('')+`</optgroup>`).join('')}
+      ${isCom&&!Object.keys(byGroup).length?'<option disabled>No community loadouts yet</option>':''}${Object.keys(byGroup).sort().map(g=>`<optgroup label="${esc(g)}">`+byGroup[g].map(p=>`<option value="${esc(p.value||p.name)}">${esc(p.name)}${p.fromNote?'':' (no loadout table)'}</option>`).join('')+`</optgroup>`).join('')}
     </select>
     <button class="mini go" id="loadpreset">Load</button>
     <span class="losep"></span>
     <input id="loname" class="loname" placeholder="Name this loadout">
+    ${loTagSelect('lomode')}
     <button class="mini go" id="losave">&#128190; Save</button>
     <button class="mini" id="clearload">Empty everything</button>
     ${G.note?`<span class="loadnote">${esc(G.note)}</span>`:''}
@@ -1097,11 +1102,12 @@ function gearEvents(){
     }
     saveG(); openView('gear',false); });
   document.querySelectorAll('[data-gt]').forEach(el=>el.onchange=()=>{ G.attrs[el.dataset.gt]=Math.max(0,parseInt(el.value)||0); saveG(); openView('gear',false); });
-  const lsv=document.getElementById('losave'); if(lsv) lsv.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname').value); };
+  const lsv=document.getElementById('losave'); if(lsv) lsv.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname').value, document.getElementById('lomode').value); };
   const ms=document.getElementById('modesel'); if(ms) ms.onchange=()=>{ G.mode=ms.value; saveG(); openView('gear',false); };
   const lp=document.getElementById('loadpreset');
   if(lp) lp.onclick=()=>{
     const n=document.getElementById('presetsel').value;
+    if(n.startsWith('c:')){ openSharedLo(n.slice(2)); return; }
     const L=parseLoadout(n);
     if(L&&Object.keys(L.slots).length){ applyLoadout(n,L); saveG(); openView('gear',false); toast('Loaded '+n+': every slot filled'); return; }
     const p=(PRESETS||[]).find(x=>x.name===n); if(!p) return;
@@ -1163,10 +1169,14 @@ const PUBLIC_SITE='https://noxieproxie.github.io/PA_TestVault/';
 let MYLO=LS.get('nw_myloadouts',[]);
 const saveMYLO=()=>LS.set('nw_myloadouts',MYLO);
 function snapG(){ const g=JSON.parse(JSON.stringify(G)); delete g.note; delete g.mode; return g; }
-function saveCurrentLoadout(name){
+const LO_TAGS=['Open-world PvE','Open-world PvP','Expeditions (normal)','Mutations M1','Mutations M2','Mutations M3','Raids','Catacombs','Outpost Rush','3v3 Arenas','Capture the Flag','Duels','FFA zone','Wars','Influence races'];
+const loTags=s=>(s||'').split(/\s*[,·]\s*/).map(x=>x.trim()).filter(Boolean);
+function loTagSelect(id,val){ return `<select id="${id}" class="lomode" title="What is this loadout for?"><option value="">Made for&hellip; (pick one)</option>${LO_TAGS.map(t=>`<option ${val===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`; }
+function saveCurrentLoadout(name, mode){
+  if(!mode){ toast('Pick what the loadout is for (open world, M3, OPR, war...) first'); const s=document.querySelector('.lomode'); if(s) s.focus(); return null; }
   name=(name||'').trim()||`${G.w1} + ${G.w2}`;
   const ex=MYLO.find(x=>x.name.toLowerCase()===name.toLowerCase());
-  const rec={id:ex?ex.id:('l'+Date.now()), name, saved:new Date().toISOString(), g:snapG()};
+  const rec={id:ex?ex.id:('l'+Date.now()), name, mode, saved:new Date().toISOString(), g:snapG()};
   if(ex) Object.assign(ex,rec); else MYLO.unshift(rec);
   saveMYLO(); topnav(); toast(ex?`Updated “${name}”`:`Saved “${name}” to Your loadouts`); return rec;
 }
@@ -1178,7 +1188,7 @@ function applyLo(g,label){
   G.note=`Loaded “${label}”.`; saveG();
 }
 async function encodeLo(rec){
-  let bytes=new TextEncoder().encode(JSON.stringify({v:1,n:rec.name,by:rec.by||'',g:rec.g})), tag='j';
+  let bytes=new TextEncoder().encode(JSON.stringify({v:1,n:rec.name,by:rec.by||'',m:rec.mode||'',g:rec.g})), tag='j';
   if(typeof CompressionStream!=='undefined'){ try{ const cs=new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw')); bytes=new Uint8Array(await new Response(cs).arrayBuffer()); tag='z'; }catch(e){} }
   let s=''; for(let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]);
   return tag+btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -1194,7 +1204,7 @@ async function shareLink(rec){ return shareBase()+'#lo='+(await encodeLo(rec)); 
 async function copyText(t){ try{ await navigator.clipboard.writeText(t); return true; }catch(e){ return false; } }
 async function openSharedLo(code){
   try{ const d=await decodeLo(code); applyLo(d.g, d.n+(d.by?' by '+d.by:''));
-    G.note=`Shared loadout “${d.n}”${d.by?' by '+d.by:''}. Press 💾 Save to keep a copy in Your loadouts.`; saveG();
+    G.note=`Shared loadout “${d.n}”${d.by?' by '+d.by:''}${d.m?' ('+d.m+')':''}. Press 💾 Save to keep a copy in Your loadouts.`; saveG();
     openView('gear',false); toast('Opened a shared loadout'); }
   catch(e){ toast('That loadout link is damaged or incomplete'); }
 }
@@ -1216,7 +1226,28 @@ async function gh(path, opts={}){
   return r.status===204?null:r.json();
 }
 const b64e=s=>btoa(unescape(encodeURIComponent(s))), b64d=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
-async function loadCommunity(){ try{ const r=await fetch('community.json',{cache:'no-cache'}); if(r.ok) COMMUNITY=await r.json(); }catch(e){} }
+let CFG={worker:''};   // site-config.json: {"worker":"https://...workers.dev"} turns on Discord login
+async function loadCommunity(){
+  try{ const r=await fetch('community.json',{cache:'no-cache'}); if(r.ok) COMMUNITY=await r.json(); }catch(e){}
+  try{ const r=await fetch('site-config.json',{cache:'no-cache'}); if(r.ok) CFG=Object.assign(CFG,await r.json()); }catch(e){}
+  CFG.worker=(CFG.worker||'').replace(/\/+$/,'');
+}
+const dPass=()=>LS.get('nw_discord','');
+function dUser(){ const p=dPass(); if(!p) return null; try{ let s=p.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+  const o=JSON.parse(decodeURIComponent(escape(atob(s)))); if(o.exp<Date.now()){ LS.del('nw_discord'); return null; } return o; }catch(e){ return null; } }
+function handleAuthHash(h){
+  if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); const u=dUser(); try{ history.replaceState(null,'','#myloadouts'); }catch(e){}
+    openView('myloadouts',false); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
+  if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); toast('Discord login did not finish. Try again.'); return true; }
+  return false;
+}
+async function submitViaHelper(rec){
+  const u=dUser(); if(!u){ toast('Log in with Discord first (button above)'); return; }
+  const code=await encodeLo(rec);
+  const r=await fetch(CFG.worker+'/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:dPass(),name:rec.name,mode:rec.mode,code,weapons:rec.g.w1+' + '+rec.g.w2})});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(r.ok) toast('Submitted! The site owner will review it.'); else { if(r.status===401) LS.del('nw_discord'); toast(d.error||('Could not submit ('+r.status+')')); openView('myloadouts',false); }
+}
 async function submitIssueUrl(rec){
   const link=await shareLink(rec);
   const body=`**Loadout:** ${rec.name}\n**Weapons:** ${rec.g.w1} + ${rec.g.w2}\n**Mode:** ${rec.mode||'(say which mode it is for)'}\n**By:** (your in-game name)\n\nOpen it: ${link}\n\n_Submitted from the New World vault site. The site owner reviews it before it appears in Community loadouts._`;
@@ -1262,7 +1293,7 @@ function viewReview(){
   <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button></div>
   ${rows}
   <h2>Add one from a link</h2>
-  <div class="slot wide losave"><input id="addlink" placeholder="Paste a share link someone sent you"><input id="addname" placeholder="Name" style="max-width:180px"><input id="addby" placeholder="By" style="max-width:140px"><button class="mini go" id="addpub">Publish</button></div>
+  <div class="slot wide losave"><input id="addlink" placeholder="Paste a share link someone sent you"><input id="addname" placeholder="Name" style="max-width:180px"><input id="addby" placeholder="By" style="max-width:140px">${loTagSelect('addmode')}<button class="mini go" id="addpub">Publish</button></div>
   <h2>Published (${com.length})</h2>
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button><button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
   <h2>Token</h2>${tokenBox}<p class="dimtx tiny">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
@@ -1281,28 +1312,32 @@ function reviewEvents(){
   document.querySelectorAll('[data-colo2]').forEach(el=>el.onclick=()=>openSharedLo(el.dataset.colo2));
   on('addpub',async()=>{ const m=document.getElementById('addlink').value.match(/#lo=([A-Za-z0-9_-]+)/); if(!m){ toast('That isn\'t a loadout share link'); return; }
     let name=document.getElementById('addname').value.trim(); try{ if(!name) name=(await decodeLo(m[1])).n; }catch(e){}
-    busy(document.getElementById('addpub'),()=>publishToCommunity({name:name||'Shared loadout',by:document.getElementById('addby').value.trim(),code:m[1]}),'Published'); });
+    let mode=document.getElementById('addmode').value; try{ if(!mode) mode=(await decodeLo(m[1])).m||''; }catch(e){}
+    if(!mode){ toast('Pick what it is for (open world, M3, OPR...)'); return; }
+    busy(document.getElementById('addpub'),()=>publishToCommunity({name:name||'Shared loadout',by:document.getElementById('addby').value.trim(),mode,code:m[1]}),'Published'); });
   if(ghToken() && SUBS===null) refreshSubs();
 }
 function myLoMenu(){
   const com=communityLos();
   return `<a class="mi hi" data-view="myloadouts">&#128190; Save or manage loadouts&hellip;</a>`+
     (MYLO.length?`<div class="mh">Saved on this device</div>`+MYLO.slice(0,15).map(x=>`<a class="mi" data-lo="${esc(x.id)}">${esc(x.name)}</a>`).join(''):`<div class="mn">Nothing saved yet. Build one in Loadout, then Save.</div>`)+
-    (com.length?`<div class="mh">Community</div>`+com.map((x,i)=>`<a class="mi" data-colo="${i}">${esc(x.name)}${x.by?` <i class="dimtx">${esc(x.by)}</i>`:''}</a>`).join(''):'');
+    (com.length?`<div class="mh">Community</div>`+com.slice(0,15).map((x,i)=>`<a class="mi" data-colo="${i}">${esc(x.name)}${x.mode?` <i class="dimtx">${esc(x.mode)}</i>`:''}</a>`).join(''):'');
 }
 function viewMyLo(){
   const com=communityLos();
-  const card=x=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.g.w1)} + ${esc(x.g.w2)} &middot; saved ${new Date(x.saved).toLocaleDateString()}</div></div>
+  const card=x=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${x.mode?`<span class="tag">${esc(x.mode)}</span> `:''}${esc(x.g.w1)} + ${esc(x.g.w2)} &middot; saved ${new Date(x.saved).toLocaleDateString()}</div></div>
     <div class="lobtns"><button class="mini go" data-lo="${esc(x.id)}">Load</button><button class="mini" data-loshare="${esc(x.id)}">&#128279; Share link</button><button class="mini" data-losub="${esc(x.id)}">&#127760; Submit to Community</button><button class="mini" data-lodel="${esc(x.id)}">Delete</button></div>
     <input class="lolink" id="ll_${esc(x.id)}" readonly hidden></div>`;
   return `<h1>Your loadouts</h1>
   <p class="lede">Save what's in the loadout builder, come back to it later, or share it.</p>
-  <div class="slot wide losave"><input id="loname2" placeholder="Name it, e.g. OPR point tank" value=""><button class="mini go" id="losave2">&#128190; Save current loadout</button></div>
+  <div class="slot wide losave"><input id="loname2" placeholder="Name it, e.g. OPR point tank" value="">${loTagSelect('lomode2')}<button class="mini go" id="losave2">&#128190; Save current loadout</button></div>
   <div class="tw"><table><thead><tr><th>You want to&hellip;</th><th>Do this</th><th>Who sees it</th></tr></thead><tbody>
     <tr><td>Keep it for yourself</td><td><b>Save</b></td><td>Only you, in this browser</td></tr>
     <tr><td>Send it to a friend</td><td><b>Share link</b>, then paste it to them</td><td>Whoever has the link</td></tr>
-    <tr><td>Put it on the site for everyone</td><td><b>Submit to Community</b> (needs a free GitHub account)</td><td>Everyone, once the site owner approves it</td></tr>
+    <tr><td>Put it on the site for everyone</td><td><b>Submit to Community</b> ${CFG.worker?'(log in with Discord first)':'(needs a free GitHub account)'}</td><td>Everyone, once the site owner approves it</td></tr>
   </tbody></table></div>
+  ${CFG.worker?(()=>{ const u=dUser(); return u?`<div class="slot wide losave dlogin">&#9989; Logged in with Discord as <b>${esc(u.name)}</b> <span class="dimtx">@${esc(u.user)}</span><button class="mini" id="dlogout">Log out</button></div>`
+     :`<div class="slot wide losave dlogin"><a class="dbtn" href="${esc(CFG.worker)}/login">Log in with Discord</a><span class="dimtx">Only needed to submit loadouts to Community. We only see your Discord name.</span></div>`; })():''}
   <h2>Saved on this device (${MYLO.length})</h2>
   ${MYLO.length?MYLO.map(card).join(''):'<p class="dimtx">Nothing saved yet.</p>'}
   <h2>Community loadouts (${com.length})</h2>
@@ -1310,12 +1345,15 @@ function viewMyLo(){
   <p class="dimtx tiny" style="margin-top:24px"><a class="wl" data-view="review">Site owner: review submissions &rarr;</a></p>`;
 }
 function myLoEvents(){
-  const b=document.getElementById('losave2'); if(b) b.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname2').value); openView('myloadouts',false); };
+  const b=document.getElementById('losave2'); if(b) b.onclick=()=>{ if(saveCurrentLoadout(document.getElementById('loname2').value, document.getElementById('lomode2').value)) openView('myloadouts',false); };
   document.querySelectorAll('[data-lodel]').forEach(el=>el.onclick=()=>{ const x=MYLO.find(y=>y.id===el.dataset.lodel); if(!x) return;
     if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to delete'; return; }
     MYLO=MYLO.filter(y=>y.id!==x.id); saveMYLO(); topnav(); openView('myloadouts',false); toast('Deleted “'+x.name+'”'); });
   document.querySelectorAll('[data-losub]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.losub); if(!x) return;
+    if(!x.mode){ toast('Load it and save it again with "Made for…" picked, so people can find it'); return; }
+    if(CFG.worker){ el.disabled=true; await submitViaHelper(x); el.disabled=false; return; }
     window.open(await submitIssueUrl(x),'_blank','noopener'); toast('GitHub opened in a new tab: press "Submit new issue" there'); });
+  const lo=document.getElementById('dlogout'); if(lo) lo.onclick=()=>{ LS.del('nw_discord'); openView('myloadouts',false); toast('Logged out'); };
   document.querySelectorAll('[data-loshare]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.loshare); if(!x) return;
     const link=await shareLink(x); const box=document.getElementById('ll_'+x.id); box.hidden=false; box.value=link; box.select();
     toast((await copyText(link))?'Share link copied':'Link shown below: press Ctrl+C to copy'); });
@@ -1688,7 +1726,8 @@ async function initCustom(){
   try { TREES = await (await fetch('trees.json')).json(); } catch(e){ TREES = null; }
   reindex(); topnav();
   const h=(location.hash||'').replace('#','');
-  if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
+  if(typeof handleAuthHash==='function' && handleAuthHash(h)){}
+  else if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
   else if(['builds','bosses','calc','gear','items','myloadouts','review'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);

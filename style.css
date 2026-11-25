@@ -285,3 +285,7 @@ body.light .edbanner{background:#fbf6ea}
 .locard{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;margin:8px 0;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
 .lobtns{display:flex;gap:6px}.lolink{flex-basis:100%;font-size:12px}
 .losave{display:flex;gap:8px;align-items:center;margin-bottom:12px}.losave input{flex:1;max-width:340px}
+.lomode{max-width:190px}
+.dlogin{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.dbtn{background:#5865F2;color:#fff!important;padding:7px 14px;border-radius:8px;font-weight:600;text-decoration:none}
+.dbtn:hover{filter:brightness(1.1)}
