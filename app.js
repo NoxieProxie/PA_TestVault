@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-25 21:26';
+const BUILD_AT = '2026-11-25 21:37';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1008,21 +1008,23 @@ function viewGear(){
   else allP.filter(p=>!G.mode||(p.modes||[]).includes(G.mode)).forEach(p=>{ const k=G.mode||p.folder; (byGroup[k]=byGroup[k]||[]).push(p); });
   return gemW+gemA+gemJ+charm1+charm2+offd+armd+jewd+chA+itDL+`<h1>Loadout builder</h1>
   <p class="lede">Equip the slots, or load one of your own builds and tweak it. Perk, gem and charm lists are the real Season 10 ones from your game-data export &mdash; start typing in any field to filter.</p>
-  <div class="presetbar">
-    <span class="fl">Mode</span>
+  <div class="lobar">
+   <div class="lorow"><span class="lohd">Start from a build</span>
+    <label class="lof"><span>Mode</span>
     <select id="modesel"><option value="">All vault builds</option><optgroup label="Vault builds by mode">${modeList.map(m=>`<option ${G.mode===m?'selected':''}>${esc(m)}</option>`).join('')}</optgroup>
-      <optgroup label="Community (${com.length})"><option value="community" ${G.mode==='community'?'selected':''}>Community: all</option>${comTags.map(t=>`<option value="community:${esc(t)}" ${G.mode==='community:'+t?'selected':''}>Community: ${esc(t)}</option>`).join('')}</optgroup></select>
-    <span class="fl">Load a build</span>
+      <optgroup label="Community (${com.length})"><option value="community" ${G.mode==='community'?'selected':''}>Community: all</option>${comTags.map(t=>`<option value="community:${esc(t)}" ${G.mode==='community:'+t?'selected':''}>Community: ${esc(t)}</option>`).join('')}</optgroup></select></label>
+    <label class="lof"><span>Build</span>
     <select id="presetsel"><option value="">&mdash; pick one &mdash;</option>
       ${isCom&&!Object.keys(byGroup).length?'<option disabled>No community loadouts yet</option>':''}${Object.keys(byGroup).sort().map(g=>`<optgroup label="${esc(g)}">`+byGroup[g].map(p=>`<option value="${esc(p.value||p.name)}">${esc(p.name)}${p.fromNote?'':' (no loadout table)'}</option>`).join('')+`</optgroup>`).join('')}
-    </select>
+    </select></label>
     <button class="mini go" id="loadpreset">Load</button>
-    <span class="losep"></span>
-    <input id="loname" class="loname" placeholder="Name this loadout">
-    ${loTagSelect('lomode')}
+    <button class="mini" id="clearload">Empty everything</button></div>
+   <div class="lorow"><span class="lohd">Save this loadout</span>
+    <label class="lof"><span>Name</span><input id="loname" class="loname" placeholder="e.g. OPR point tank"></label>
+    <label class="lof"><span>Made for</span>${loTagSelect('lomode')}</label>
     <button class="mini go" id="losave">&#128190; Save</button>
-    <button class="mini" id="clearload">Empty everything</button>
-    ${G.note?`<span class="loadnote">${esc(G.note)}</span>`:''}
+    <a class="losub" data-view="myloadouts">&#127760; Submit your loadouts here &rarr;</a></div>
+    ${G.note?`<div class="loadnote">${esc(G.note)}</div>`:''}
   </div>
   <div class="gearwrap">
     <div>
@@ -1380,7 +1382,7 @@ function reviewEvents(){
 }
 function myLoMenu(){
   const com=communityLos();
-  return `<a class="mi hi" data-view="myloadouts">&#128190; Save or manage loadouts&hellip;</a>`+
+  return `<a class="mi hi" data-view="myloadouts">&#128190; Manage loadouts</a>`+
     (MYLO.length?`<div class="mh">Saved on this device</div>`+MYLO.slice(0,15).map(x=>`<a class="mi" data-lo="${esc(x.id)}">${esc(x.name)}</a>`).join(''):`<div class="mn">Nothing saved yet. Build one in Loadout, then Save.</div>`)+
     (com.length?`<div class="mh">Community</div>`+com.slice(0,15).map((x,i)=>`<a class="mi" data-colo="${i}">${esc(x.name)}${x.mode?` <i class="dimtx">${esc(x.mode)}</i>`:''}</a>`).join(''):'');
 }
