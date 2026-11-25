@@ -304,3 +304,14 @@ body.light .edbanner{background:#fbf6ea}
 .acctnb .acn{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .ownb{font-size:10px;text-transform:uppercase;letter-spacing:.06em;background:var(--gold);color:#16130c;padding:1px 6px;border-radius:999px;font-weight:700}
 @media (max-width:700px){ .acctnb .acn{display:none} }
+
+/* Loadout builder top bar: same cards as the weapon slots */
+.lobar{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));margin:14px 0 6px}
+.lcard{gap:9px}
+.lof{display:flex;flex-direction:column;gap:4px}
+.lof>span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.lcard .pk,.lcard select,.lcard .loname{width:100%;max-width:none}
+.lbtns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:2px}
+.losub{margin-left:auto;color:var(--gold2)!important;font-size:13px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.losub:hover{text-decoration:underline}
+.loadnote{margin:2px 0 8px}

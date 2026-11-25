@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-25 21:37';
+const BUILD_AT = '2026-11-25 22:09';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -860,20 +860,20 @@ function pin2(path, val, listId, ph){
   const ic=icoFor(val);
   return `<div class="pkrow">${ic?`<img class="ico" src="${ic}" alt="">`:'<span class="ico none"></span>'}<input class="pk" list="${listId}" data-g="${path}" value="${esc(val||'')}" placeholder="${ph}"></div>`;
 }
-function allChosen(){
+function allChosen(g=G){
   const out=[];
   const add=(name, where)=>{ if(!name) return; const p=perkByName(name); out.push({name, where, p}); };
-  add(G.w1gem,'Weapon 1 gem'); add(G.w2gem,'Weapon 2 gem');
-  add(G.w1perk,'Weapon 1 charm'); add(G.w2perk,'Weapon 2 charm');
-  add(G.w1off,'Weapon 1 charm 2'); add(G.w2off,'Weapon 2 charm 2');
+  add(g.w1gem,'Weapon 1 gem'); add(g.w2gem,'Weapon 2 gem');
+  add(g.w1perk,'Weapon 1 charm'); add(g.w2perk,'Weapon 2 charm');
+  add(g.w1off,'Weapon 1 charm 2'); add(g.w2off,'Weapon 2 charm 2');
   ['w1p1','w1p2','w1p3'].forEach(k=>add(G[k],'Weapon 1')); ['w2p1','w2p2','w2p3'].forEach(k=>add(G[k],'Weapon 2'));
-  ARMOR_SLOTS.forEach(s=>{ const a=G.armor[s]; add(a.gem,s+' gem'); add(a.p1,s); add(a.p2,s); add(a.p3,s); add(a.ch,s+' charm'); });
-  JEW_SLOTS.forEach(s=>{ const j=G.jew[s]; add(j.gem,s+' gem'); add(j.p1,s); add(j.p2,s); add(j.ch,s+' charm'); });
+  ARMOR_SLOTS.forEach(s=>{ const a=g.armor[s]; add(a.gem,s+' gem'); add(a.p1,s); add(a.p2,s); add(a.p3,s); add(a.ch,s+' charm'); });
+  JEW_SLOTS.forEach(s=>{ const j=g.jew[s]; add(j.gem,s+' gem'); add(j.p1,s); add(j.p2,s); add(j.ch,s+' charm'); });
   return out;
 }
-function totals(){
+function totals(g=G){
   const t={fort:0,emp:0,rend:0,dmg:0,crit:0,critd:0,ls:0,abs:0,wkn:0}, contrib=[];
-  allChosen().forEach(c=>{
+  allChosen(g).forEach(c=>{
     if(!c.p||!c.p.f) return;
     Object.keys(c.p.f).forEach(k=>{ if(k in t){ t[k]+=c.p.f[k]; contrib.push({k,v:c.p.f[k],n:c.name,w:c.where}); } });
   });
@@ -1008,24 +1008,20 @@ function viewGear(){
   else allP.filter(p=>!G.mode||(p.modes||[]).includes(G.mode)).forEach(p=>{ const k=G.mode||p.folder; (byGroup[k]=byGroup[k]||[]).push(p); });
   return gemW+gemA+gemJ+charm1+charm2+offd+armd+jewd+chA+itDL+`<h1>Loadout builder</h1>
   <p class="lede">Equip the slots, or load one of your own builds and tweak it. Perk, gem and charm lists are the real Season 10 ones from your game-data export &mdash; start typing in any field to filter.</p>
-  <div class="lobar">
-   <div class="lorow"><span class="lohd">Start from a build</span>
-    <label class="lof"><span>Mode</span>
-    <select id="modesel"><option value="">All vault builds</option><optgroup label="Vault builds by mode">${modeList.map(m=>`<option ${G.mode===m?'selected':''}>${esc(m)}</option>`).join('')}</optgroup>
+  <div class="slots lobar">
+   <div class="slot lcard"><div class="sh">Start from a build</div>
+    <label class="lof"><span>Mode</span><select id="modesel"><option value="">All vault builds</option><optgroup label="Vault builds by mode">${modeList.map(m=>`<option ${G.mode===m?'selected':''}>${esc(m)}</option>`).join('')}</optgroup>
       <optgroup label="Community (${com.length})"><option value="community" ${G.mode==='community'?'selected':''}>Community: all</option>${comTags.map(t=>`<option value="community:${esc(t)}" ${G.mode==='community:'+t?'selected':''}>Community: ${esc(t)}</option>`).join('')}</optgroup></select></label>
-    <label class="lof"><span>Build</span>
-    <select id="presetsel"><option value="">&mdash; pick one &mdash;</option>
+    <label class="lof"><span>Build</span><select id="presetsel"><option value="">&mdash; pick one &mdash;</option>
       ${isCom&&!Object.keys(byGroup).length?'<option disabled>No community loadouts yet</option>':''}${Object.keys(byGroup).sort().map(g=>`<optgroup label="${esc(g)}">`+byGroup[g].map(p=>`<option value="${esc(p.value||p.name)}">${esc(p.name)}${p.fromNote?'':' (no loadout table)'}</option>`).join('')+`</optgroup>`).join('')}
-    </select></label>
-    <button class="mini go" id="loadpreset">Load</button>
-    <button class="mini" id="clearload">Empty everything</button></div>
-   <div class="lorow"><span class="lohd">Save this loadout</span>
-    <label class="lof"><span>Name</span><input id="loname" class="loname" placeholder="e.g. OPR point tank"></label>
+</select></label>
+    <div class="lbtns"><button class="mini go" id="loadpreset">Load</button><button class="mini" id="clearload">Empty everything</button></div></div>
+   <div class="slot lcard"><div class="sh">Save this loadout</div>
+    <label class="lof"><span>Name</span><input id="loname" class="pk loname" placeholder="e.g. OPR point tank"></label>
     <label class="lof"><span>Made for</span>${loTagSelect('lomode')}</label>
-    <button class="mini go" id="losave">&#128190; Save</button>
-    <a class="losub" data-view="myloadouts">&#127760; Submit your loadouts here &rarr;</a></div>
-    ${G.note?`<div class="loadnote">${esc(G.note)}</div>`:''}
+    <div class="lbtns"><button class="mini go" id="losave">&#128190; Save</button><a class="losub" data-view="myloadouts">&#127760; Submit your loadouts here &rarr;</a></div></div>
   </div>
+    ${G.note?`<div class="loadnote">${esc(G.note)}</div>`:''}
   <div class="gearwrap">
     <div>
       <h2>&#9876; Weapons</h2><div class="slots">${wrow(1)}${wrow(2)}</div>
@@ -1228,6 +1224,116 @@ async function gh(path, opts={}){
   return r.status===204?null:r.json();
 }
 const b64e=s=>btoa(unescape(encodeURIComponent(s))), b64d=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
+/* ---------- pictures of a loadout for Discord posts (drawn on a canvas, sent as PNG) ---------- */
+const RARCOL={Artifact:'#e8913a',Named:'#d9a84e',Set:'#5fbf6a',PVP:'#d65c5c',Faction:'#6fa8dc'};
+const _imgC={};
+function loadImg(src){ if(!src) return Promise.resolve(null); if(!_imgC[src]) _imgC[src]=new Promise(res=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>res(null); im.src=src; }); return _imgC[src]; }
+async function drawItemIcon(cx,it,x,y,sz){
+  if(!ITEMDB||!it||it.x<0||!SPRITES.length) return false;
+  const T=ITEMDB.tile, C=ITEMDB.cols, sheet=Math.floor(it.x/ITEMDB.per), j=it.x%ITEMDB.per;
+  const im=await loadImg(SPRITES[sheet]); if(!im) return false;
+  cx.drawImage(im,(j%C)*T,Math.floor(j/C)*T,T,T,x,y,sz,sz); return true;
+}
+function fitText(cx,t,w){ t=String(t||''); if(cx.measureText(t).width<=w) return t; while(t.length>1&&cx.measureText(t+'…').width>w) t=t.slice(0,-1); return t+'…'; }
+function rrect(cx,x,y,w,h,r){ cx.beginPath(); cx.moveTo(x+r,y); cx.arcTo(x+w,y,x+w,y+h,r); cx.arcTo(x+w,y+h,x,y+h,r); cx.arcTo(x,y+h,x,y,r); cx.arcTo(x,y,x+w,y,r); cx.closePath(); }
+const FONT='"Segoe UI",Roboto,Arial,sans-serif';
+function cardBase(w,h,title,sub){
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const cx=cv.getContext('2d');
+  const gr=cx.createLinearGradient(0,0,0,h); gr.addColorStop(0,'#1a1f2a'); gr.addColorStop(1,'#10141c'); cx.fillStyle=gr; cx.fillRect(0,0,w,h);
+  cx.fillStyle='#d9a84e'; cx.fillRect(0,0,w,4);
+  cx.font='700 26px '+FONT; cx.fillStyle='#f0d9a8'; cx.textBaseline='top'; cx.fillText(fitText(cx,title,w-48),24,18);
+  if(sub){ cx.font='15px '+FONT; cx.fillStyle='#9aa3b2'; cx.fillText(fitText(cx,sub,w-48),24,52); }
+  return {cv,cx};
+}
+async function gearCard(rec){
+  const g=rec.g, rows=[];
+  const perks=(...l)=>l.filter(Boolean);
+  rows.push({h:'Weapons'});
+  rows.push({slot:'Weapon 1 · '+g.w1, item:g.w1item, gem:g.w1gem, perks:perks(g.w1p1,g.w1p2,g.w1p3), ch:perks(g.w1perk,g.w1off).join(', ')});
+  if(g.w1==='Sword and Shield') rows.push({slot:'Shield', item:g.shield});
+  rows.push({slot:'Weapon 2 · '+g.w2, item:g.w2item, gem:g.w2gem, perks:perks(g.w2p1,g.w2p2,g.w2p3), ch:perks(g.w2perk,g.w2off).join(', ')});
+  rows.push({h:'Armour'});
+  ARMOR_SLOTS.forEach(sl=>{ const a=g.armor[sl]||{}; rows.push({slot:sl+(a.wt?' · '+a.wt:''), item:a.item, gem:a.gem, perks:perks(a.p1,a.p2,a.p3), ch:a.ch}); });
+  rows.push({h:'Jewelry'});
+  JEW_SLOTS.forEach(sl=>{ const a=g.jew[sl]||{}; rows.push({slot:sl, item:a.item, gem:a.gem, perks:perks(a.p1,a.p2), ch:a.ch}); });
+  const W=1000, RH=58, HH=34;
+  const H=96+rows.reduce((t,r)=>t+(r.h?HH:RH),0)+120;
+  const {cv,cx}=cardBase(W,H,rec.name,[rec.mode,rec.by?'by '+rec.by:''].filter(Boolean).join('  ·  '));
+  let y=88;
+  for(const r of rows){
+    if(r.h){ cx.font='700 13px '+FONT; cx.fillStyle='#d9a84e'; cx.fillText(r.h.toUpperCase(),24,y+12); cx.fillStyle='#2a3140'; cx.fillRect(24+cx.measureText(r.h.toUpperCase()).width+10,y+19,W-60-cx.measureText(r.h.toUpperCase()).width,1); y+=HH; continue; }
+    cx.fillStyle='#161b25'; rrect(cx,20,y+3,W-40,RH-6,8); cx.fill();
+    const it=r.item?itemByName(r.item):null;
+    cx.fillStyle='#232a37'; rrect(cx,28,y+8,42,42,6); cx.fill();
+    await drawItemIcon(cx,it,29,y+9,40);
+    cx.font='12px '+FONT; cx.fillStyle='#8a93a3'; cx.fillText(fitText(cx,r.slot,250),82,y+9);
+    cx.font='600 16px '+FONT; cx.fillStyle=it?(RARCOL[it.r]||'#e8e4da'):(r.item?'#e8e4da':'#6b7383');
+    cx.fillText(fitText(cx,r.item||'Any',260),82,y+27);
+    // gem + perks + charm with small icons
+    let x=360; const line=[];
+    if(r.gem) line.push({t:r.gem,gem:1}); (r.perks||[]).forEach(p=>line.push({t:p})); if(r.ch) line.push({t:r.ch,ch:1});
+    cx.font='13.5px '+FONT;
+    for(const p of line){
+      if(x>W-60) break;
+      const ic=icoFor(p.t); const im=ic?await loadImg(ic):null;
+      if(im){ cx.drawImage(im,x,y+19,20,20); x+=24; }
+      cx.fillStyle=p.gem?'#7fc4e8':p.ch?'#c9a6ff':'#d6d0c4';
+      const t=fitText(cx,p.t.replace(/\s{2,}.*/,''),Math.min(210,W-40-x)); cx.fillText(t,x,y+21); x+=cx.measureText(t).width+18;
+    }
+    y+=RH;
+  }
+  // attributes, rune and perk totals
+  y+=8; cx.fillStyle='#161b25'; rrect(cx,20,y,W-40,96,8); cx.fill();
+  cx.font='700 13px '+FONT; cx.fillStyle='#d9a84e'; cx.fillText('ATTRIBUTES',36,y+12); cx.fillText('HEARTRUNE',560,y+12);
+  const at=g.attrs||{}; let ax=36;
+  ['STR','DEX','INT','FOC','CON'].forEach(k=>{ cx.font='12px '+FONT; cx.fillStyle='#8a93a3'; cx.fillText(k,ax,y+36); cx.font='700 20px '+FONT; cx.fillStyle='#e8e4da'; cx.fillText(String(at[k]||0),ax,y+52); ax+=96; });
+  cx.font='600 16px '+FONT; cx.fillStyle='#e8e4da'; cx.fillText(fitText(cx,[g.runev,g.rune].filter(Boolean).join(' ')||'—',400),560,y+36);
+  const T=totals(g).t, lb={fort:'Fortify',emp:'Empower',rend:'Rend',dmg:'Damage',crit:'Crit',critd:'Crit dmg',ls:'Lifesteal',abs:'Absorb',wkn:'Weaken'};
+  const tl=Object.keys(lb).filter(k=>T[k]).map(k=>lb[k]+' '+(+T[k].toFixed(1))+'%');
+  cx.font='13.5px '+FONT; cx.fillStyle='#9aa3b2'; cx.fillText(fitText(cx,tl.length?'From perks: '+tl.join(' · '):'',W-600),560,y+62);
+  return cv;
+}
+async function treesCard(rec){
+  const g=rec.g, ws=[1,2].map(n=>({n,wt:g['w'+n],picks:new Set((g.trees||{})[n]||[]),ab:((g.abil||{})[n]||[])}));
+  const P=50, C=22, TW=260, BW=2*TW+20, W=24*2+BW*2+30, H=540;
+  const {cv,cx}=cardBase(W,H,rec.name+'  ·  skill trees',ws.map(w=>w.wt).join('  +  '));
+  for(const [wi,w] of ws.entries()){
+    const ox=24+wi*(BW+30), oy=88, tr=(TREES||{})[w.wt]||[];
+    const pts=tr.reduce((s,t)=>s+t.nodes.filter(nd=>w.picks.has(nd.n)).length,0);
+    cx.font='700 17px '+FONT; cx.fillStyle='#f0d9a8'; cx.fillText(w.wt,ox,oy); const tw=cx.measureText(w.wt).width;
+    cx.font='14px '+FONT; cx.fillStyle=pts>19?'#e06c6c':'#9aa3b2'; cx.fillText(pts+' / 19 points',ox+tw+12,oy+2);
+    // chosen abilities
+    let ax=ox; cx.font='13px '+FONT;
+    for(const a of w.ab){ const ic=icoFor(a,w.wt), im=ic?await loadImg(ic):null; if(im) cx.drawImage(im,ax,oy+26,22,22); cx.fillStyle='#d6d0c4'; const t=fitText(cx,a,140); cx.fillText(t,ax+(im?26:0),oy+30); ax+=(im?26:0)+cx.measureText(t).width+16; }
+    for(const [ti,t] of tr.entries()){
+      const tx=ox+ti*(TW+20), ty=oy+62;
+      cx.fillStyle='#161b25'; rrect(cx,tx,ty,TW,H-ty-14,10); cx.fill();
+      const n=t.nodes.filter(nd=>w.picks.has(nd.n)).length;
+      cx.font='600 13px '+FONT; cx.fillStyle='#d9a84e'; cx.fillText(fitText(cx,t.t+'  ·  '+n,TW-20),tx+10,ty+8);
+      const gx=tx+8, gy=ty+34, at={}; t.nodes.forEach(nd=>at[nd.n]=nd);
+      t.nodes.filter(nd=>nd.k==='A').forEach(a=>{ const ch=[a].concat(t.nodes.filter(x=>x.k==='U'&&x.p===a.n).sort((x,y)=>x.r-y.r));
+        for(let i=1;i<ch.length;i++){ const p=ch[i-1], q=ch[i], lit=w.picks.has(p.n)&&w.picks.has(q.n);
+          cx.strokeStyle=lit?'#d9a84e':'#2c3443'; cx.lineWidth=lit?3:2; cx.beginPath(); cx.moveTo(gx+p.c*P+C,gy+p.r*P+C); cx.lineTo(gx+q.c*P+C,gy+q.r*P+C); cx.stroke(); } });
+      for(const nd of t.nodes){
+        const on=w.picks.has(nd.n), r=nd.k==='X'?21:nd.k==='A'?19:15, x=gx+nd.c*P+C, y=gy+nd.r*P+C;
+        cx.save(); cx.globalAlpha=on?1:.28;
+        cx.beginPath(); cx.arc(x,y,r,0,7); cx.fillStyle='#0d1118'; cx.fill();
+        const ic=icoFor(nd.n,w.wt), im=ic?await loadImg(ic):null;
+        if(im){ cx.save(); cx.beginPath(); cx.arc(x,y,r-2,0,7); cx.clip(); cx.drawImage(im,x-r+2,y-r+2,(r-2)*2,(r-2)*2); cx.restore(); }
+        cx.beginPath(); cx.arc(x,y,r,0,7); cx.lineWidth=on?3:1.5; cx.strokeStyle=on?(nd.k==='X'?'#ff9d4d':'#d9a84e'):'#3a4252'; cx.stroke();
+        cx.restore();
+      }
+    }
+  }
+  return cv;
+}
+const cvB64=cv=>cv.toDataURL('image/png').split(',')[1];
+async function loPictures(rec){ return [{name:'gear.png',data:cvB64(await gearCard(rec))},{name:'trees.png',data:cvB64(await treesCard(rec))}]; }
+async function announceToDiscord(entry){
+  const rec=await decodeLo(entry.code); rec.name=entry.name||rec.n; rec.mode=entry.mode||rec.m||''; rec.by=entry.by||rec.by||'';
+  const images=await loPictures(rec);
+  return ownerApi('announce',{entry:{name:rec.name,by:rec.by,mode:rec.mode,code:entry.code,did:entry.did||'',weapons:rec.g.w1+' + '+rec.g.w2,rune:[rec.g.runev,rec.g.rune].filter(Boolean).join(' '),site:shareBase()},images});
+}
 let CFG={worker:''};   // site-config.json: {"worker":"https://...workers.dev"} turns on Discord login
 async function loadCommunity(){
   try{ const r=await fetch('community.json',{cache:'no-cache'}); if(r.ok) COMMUNITY=await r.json(); }catch(e){}
@@ -1302,7 +1408,8 @@ async function listSubmissions(){
   return l.filter(i=>!i.pull_request && /^\[Loadout\]/i.test(i.title)).map(i=>{
     const m=(i.body||'').match(/#lo=([A-Za-z0-9_-]+)/); const by=((i.body||'').match(/\*\*By:\*\*\s*(.+)/)||[,''])[1].trim();
     const mode=((i.body||'').match(/\*\*Mode:\*\*\s*(.+)/)||[,''])[1].trim();
-    return {num:i.number, title:i.title.replace(/^\[Loadout\]\s*/i,''), user:i.user.login, by:/^\(your/.test(by)?'':by, mode:/^\(say/.test(mode)?'':mode, code:m?m[1]:'', url:i.html_url, at:i.created_at};
+    const did=((i.body||'').match(/\(id (\d{5,25})\)/)||[,''])[1];
+    return {num:i.number, did, title:i.title.replace(/^\[Loadout\]\s*/i,''), user:i.user.login, by:/^\(your/.test(by)?'':by, mode:/^\(say/.test(mode)?'':mode, code:m?m[1]:'', url:i.html_url, at:i.created_at};
   });
 }
 async function writeCommunity(fn, msg){
@@ -1347,12 +1454,12 @@ function viewReview(){
   const com=communityLos().filter(x=>x.src==='site');
   return `<h1>Review submissions</h1>
   <p class="lede">Loadouts people have submitted. <b>Preview</b> opens one in the builder, <b>Publish</b> puts it in Community loadouts for everyone, <b>Reject</b> closes it with a polite note.</p>
-  <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button></div>
+  <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button>${helper?(OWNER.discord?`<label class="dimtx"><input type="checkbox" id="dpost" ${LS.get('nw_dpost',true)?'checked':''}> Also post to Discord when I publish</label>`:`<span class="dimtx tiny">Add DISCORD_WEBHOOK_URL to the helper to post published loadouts to Discord.</span>`):''}</div>
   ${rows}
   <h2>Add one from a link</h2>
   <div class="slot wide losave"><input id="addlink" placeholder="Paste a share link someone sent you"><input id="addname" placeholder="Name" style="max-width:180px"><input id="addby" placeholder="By" style="max-width:140px">${loTagSelect('addmode')}<button class="mini go" id="addpub">Publish</button></div>
   <h2>Published (${com.length})</h2>
-  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button><button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
+  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
   ${helper?`<div class="slot wide losave dlogin">&#9989; Reviewing as <b>${esc(OWNER.name||u.name)}</b> (Discord)<button class="mini" id="revlogout">Log out</button></div>`
     :`${CFG.worker?`<h2>Discord login</h2>${!u?`<div class="slot wide losave dlogin"><a class="dbtn" id="revlogin" href="${esc(CFG.worker)}/login">Log in with Discord</a><span class="dimtx">Review and publish without a GitHub token. Once it works you can click Forget token below.</span></div>`
       :OWNER===null?`<p class="dimtx">Checking your Discord login&hellip;</p>`
@@ -1368,7 +1475,12 @@ function reviewEvents(){
   const rl=document.getElementById('revlogin'); if(rl) rl.addEventListener('click',()=>LS.set('nw_after_login','review'));
   const busy=async(el,f,ok)=>{ el.disabled=true; try{ await f(); toast(ok); }catch(e){ toast((viaHelper()?'':'GitHub said: ')+e.message); } await refreshSubs(); };
   document.querySelectorAll('[data-subprev]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subprev]; openSharedLo(s.code); });
-  document.querySelectorAll('[data-subpub]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subpub]; busy(el,()=>publishToCommunity({name:s.title,by:s.by||s.user,mode:s.mode,code:s.code},s.num),'Published “'+s.title+'”'); });
+  const wantPost=()=>viaHelper()&&OWNER.discord&&LS.get('nw_dpost',true);
+  const postAfter=async e=>{ if(!wantPost()) return; try{ toast('Posting to Discord…'); await announceToDiscord(e); toast('Posted “'+e.name+'” to Discord'); }catch(err){ toast('Published, but the Discord post failed: '+err.message); } };
+  const dp=document.getElementById('dpost'); if(dp) dp.onchange=()=>LS.set('nw_dpost',dp.checked);
+  document.querySelectorAll('[data-subpub]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subpub]; const e={name:s.title,by:s.by||s.user,mode:s.mode,code:s.code,did:s.did}; busy(el,async()=>{ await publishToCommunity(e,s.num); await postAfter(e); },'Published “'+s.title+'”'); });
+  document.querySelectorAll('[data-dpost]').forEach(el=>el.onclick=async()=>{ const x=communityLos().find(c=>c.code===el.dataset.dpost); if(!x) return; el.disabled=true; el.textContent='Posting…';
+    try{ await announceToDiscord(x); toast('Posted “'+x.name+'” to Discord'); el.textContent='Posted ✓'; }catch(err){ toast('Discord post failed: '+err.message); el.disabled=false; el.textContent='📣 Post to Discord'; } });
   document.querySelectorAll('[data-subrej]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to reject'; return; } const s=SUBS[+el.dataset.subrej]; busy(el,()=>rejectSubmission(s.num),'Rejected'); });
   document.querySelectorAll('[data-comdel]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to remove'; return; } const c=el.dataset.comdel; busy(el,()=>removeFromCommunity(c),'Removed'); });
   document.querySelectorAll('[data-colo2]').forEach(el=>el.onclick=()=>openSharedLo(el.dataset.colo2));
@@ -1376,7 +1488,8 @@ function reviewEvents(){
     let name=document.getElementById('addname').value.trim(); try{ if(!name) name=(await decodeLo(m[1])).n; }catch(e){}
     let mode=document.getElementById('addmode').value; try{ if(!mode) mode=(await decodeLo(m[1])).m||''; }catch(e){}
     if(!mode){ toast('Pick what it is for (open world, M3, OPR...)'); return; }
-    busy(document.getElementById('addpub'),()=>publishToCommunity({name:name||'Shared loadout',by:document.getElementById('addby').value.trim(),mode,code:m[1]}),'Published'); });
+    const e={name:name||'Shared loadout',by:document.getElementById('addby').value.trim(),mode,code:m[1]};
+    busy(document.getElementById('addpub'),async()=>{ await publishToCommunity(e); await postAfter(e); },'Published'); });
   if(CFG.worker && dUser() && OWNER===null) checkOwner();
   else if((viaHelper()||ghToken()) && SUBS===null) refreshSubs();
 }
@@ -1837,6 +1950,8 @@ async function initCustom(){
   const h=(location.hash||'').replace('#','');
   if(typeof handleAuthHash==='function' && handleAuthHash(h)){}
   else if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
+  else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
+    if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
   else if(['builds','bosses','calc','gear','items','myloadouts','review'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
