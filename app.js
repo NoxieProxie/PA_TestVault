@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = 'snapshot taken 25 Nov 2026, 18:10';
+const BUILD_AT = 'snapshot taken 25 Nov 2026, 18:20';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -384,11 +384,12 @@ function openView(v,push=true){
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
   if(push && current) hist.push(current);
   current={kind:'view',v};
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='review'?viewReview():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
   if(v==='myloadouts') myLoEvents();
+  if(v==='review') reviewEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -1197,9 +1198,91 @@ async function openSharedLo(code){
     openView('gear',false); toast('Opened a shared loadout'); }
   catch(e){ toast('That loadout link is damaged or incomplete'); }
 }
+let COMMUNITY=[];   // community.json in the GitHub repo, written by the owner's Review page
 function communityLos(){
-  const p=NAMES['Community Loadouts']; if(!p) return [];
-  return tableRows(META[p].body).slice(1).map(r=>{ const m=r.join(' ').match(/#lo=([A-Za-z0-9_-]+)/); return m?{name:r[0].replace(/\[|\]/g,''),by:r[1]||'',mode:r[2]||'',code:m[1]}:null; }).filter(Boolean);
+  const out=COMMUNITY.map(x=>({...x, src:'site'}));
+  const p=NAMES['Community Loadouts'];
+  if(p) tableRows(META[p].body).slice(1).forEach(r=>{ const m=r.join(' ').match(/#lo=([A-Za-z0-9_-]+)/); if(m && !out.some(x=>x.code===m[1])) out.push({name:r[0].replace(/\[|\]/g,''),by:r[1]||'',mode:r[2]||'',code:m[1],src:'note'}); });
+  return out;
+}
+/* ---------- GitHub: submissions are issues, the community list is community.json ---------- */
+const GH={owner:'NoxieProxie', repo:'PA_TestVault'};
+const ghToken=()=>LS.get('nw_gh_token','');
+async function gh(path, opts={}){
+  const h={'Accept':'application/vnd.github+json'}; const t=ghToken(); if(t) h.Authorization='Bearer '+t;
+  if(opts.body) h['Content-Type']='application/json';
+  const r=await fetch('https://api.github.com/repos/'+GH.owner+'/'+GH.repo+path,{...opts,headers:h,cache:'no-store'});
+  if(!r.ok){ let m=''; try{ m=(await r.json()).message; }catch(e){} throw new Error(r.status+' '+(m||r.statusText)); }
+  return r.status===204?null:r.json();
+}
+const b64e=s=>btoa(unescape(encodeURIComponent(s))), b64d=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,''))));
+async function loadCommunity(){ try{ const r=await fetch('community.json',{cache:'no-cache'}); if(r.ok) COMMUNITY=await r.json(); }catch(e){} }
+async function submitIssueUrl(rec){
+  const link=await shareLink(rec);
+  const body=`**Loadout:** ${rec.name}\n**Weapons:** ${rec.g.w1} + ${rec.g.w2}\n**Mode:** ${rec.mode||'(say which mode it is for)'}\n**By:** (your in-game name)\n\nOpen it: ${link}\n\n_Submitted from the New World vault site. The site owner reviews it before it appears in Community loadouts._`;
+  return `https://github.com/${GH.owner}/${GH.repo}/issues/new?title=${encodeURIComponent('[Loadout] '+rec.name)}&body=${encodeURIComponent(body)}`;
+}
+async function listSubmissions(){
+  const l=await gh('/issues?state=open&per_page=50');
+  return l.filter(i=>!i.pull_request && /^\[Loadout\]/i.test(i.title)).map(i=>{
+    const m=(i.body||'').match(/#lo=([A-Za-z0-9_-]+)/); const by=((i.body||'').match(/\*\*By:\*\*\s*(.+)/)||[,''])[1].trim();
+    const mode=((i.body||'').match(/\*\*Mode:\*\*\s*(.+)/)||[,''])[1].trim();
+    return {num:i.number, title:i.title.replace(/^\[Loadout\]\s*/i,''), user:i.user.login, by:/^\(your/.test(by)?'':by, mode:/^\(say/.test(mode)?'':mode, code:m?m[1]:'', url:i.html_url, at:i.created_at};
+  });
+}
+async function writeCommunity(fn, msg){
+  let sha=null, list=[];
+  try{ const f=await gh('/contents/community.json'); sha=f.sha; list=JSON.parse(b64d(f.content)); }catch(e){ if(!/^404/.test(e.message)) throw e; }
+  list=fn(list);
+  await gh('/contents/community.json',{method:'PUT',body:JSON.stringify({message:msg, content:b64e(JSON.stringify(list,null,1)), ...(sha?{sha}:{}), branch:'main'})});
+  COMMUNITY=list; topnav();
+}
+async function publishToCommunity(entry, issueNum){
+  await writeCommunity(l=>{ l=l.filter(x=>x.code!==entry.code); l.unshift({name:entry.name, by:entry.by||'', mode:entry.mode||'', code:entry.code, added:new Date().toISOString().slice(0,10)}); return l; }, 'Community loadout: '+entry.name);
+  if(issueNum){ try{ await gh('/issues/'+issueNum+'/comments',{method:'POST',body:JSON.stringify({body:'Published to Community loadouts. Thanks!'})});
+    await gh('/issues/'+issueNum,{method:'PATCH',body:JSON.stringify({state:'closed',state_reason:'completed'})}); }catch(e){} }
+}
+async function rejectSubmission(num){
+  await gh('/issues/'+num+'/comments',{method:'POST',body:JSON.stringify({body:'Thanks for sending this in. It wasn\'t added to Community loadouts this time.'})});
+  await gh('/issues/'+num,{method:'PATCH',body:JSON.stringify({state:'closed',state_reason:'not_planned'})});
+}
+let SUBS=null, SUBERR='';
+function viewReview(){
+  const t=ghToken();
+  const tokenBox=`<div class="slot wide losave"><input id="ghtok" type="password" placeholder="Paste your GitHub token here" value=""><button class="mini go" id="ghtoksave">Save token</button>${t?'<button class="mini" id="ghtokdel">Forget token</button>':''}</div>`;
+  if(!t) return `<h1>Review submissions</h1>
+    <p class="lede">This is your inbox for loadouts people submit. To publish or reject from here, the page needs a GitHub token that can edit your site's repo. It's saved only in this browser.</p>
+    <div class="callout note mini-co"><span class="ci">&#128273;</span><div><p><b>Make the token once:</b> on GitHub, open your picture &rarr; <b>Settings &rarr; Developer settings &rarr; Personal access tokens &rarr; Fine-grained tokens &rarr; Generate new token</b>. Name it "New World site", pick <b>Only select repositories &rarr; ${GH.repo}</b>, and under <b>Repository permissions</b> set <b>Contents: Read and write</b> and <b>Issues: Read and write</b>. Generate, copy it, and paste it below.</p></div></div>${tokenBox}`;
+  const rows=SUBS===null?'<p class="dimtx">Loading submissions&hellip;</p>':SUBERR?`<p class="bad">Couldn't read submissions: ${esc(SUBERR)}</p>`:
+    (SUBS.length?SUBS.map((s,i)=>`<div class="locard"><div><b>${esc(s.title)}</b><div class="dimtx">from ${esc(s.by||s.user)}${s.mode?' &middot; '+esc(s.mode):''} &middot; ${new Date(s.at).toLocaleDateString()} &middot; <a href="${esc(s.url)}" target="_blank" rel="noopener">issue #${s.num}</a></div>${s.code?'':'<div class="bad">No loadout link found in this submission</div>'}</div>
+      <div class="lobtns">${s.code?`<button class="mini" data-subprev="${i}">Preview</button><button class="mini go" data-subpub="${i}">Publish</button>`:''}<button class="mini" data-subrej="${i}">Reject</button></div></div>`).join(''):'<p class="dimtx">No submissions waiting.</p>');
+  const com=communityLos().filter(x=>x.src==='site');
+  return `<h1>Review submissions</h1>
+  <p class="lede">Loadouts people have submitted. <b>Preview</b> opens one in the builder, <b>Publish</b> puts it in Community loadouts for everyone, <b>Reject</b> closes it with a polite note.</p>
+  <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button></div>
+  ${rows}
+  <h2>Add one from a link</h2>
+  <div class="slot wide losave"><input id="addlink" placeholder="Paste a share link someone sent you"><input id="addname" placeholder="Name" style="max-width:180px"><input id="addby" placeholder="By" style="max-width:140px"><button class="mini go" id="addpub">Publish</button></div>
+  <h2>Published (${com.length})</h2>
+  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button><button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
+  <h2>Token</h2>${tokenBox}<p class="dimtx tiny">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
+}
+async function refreshSubs(){ SUBS=null; SUBERR=''; try{ SUBS=await listSubmissions(); }catch(e){ SUBS=[]; SUBERR=e.message; } if(current?.kind==='view'&&current.v==='review') openView('review',false); }
+function reviewEvents(){
+  const on=(id,f)=>{ const e=document.getElementById(id); if(e) e.onclick=f; };
+  on('ghtoksave',()=>{ const v=document.getElementById('ghtok').value.trim(); if(!v) return; LS.set('nw_gh_token',v); toast('Token saved in this browser'); refreshSubs(); openView('review',false); });
+  on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('review',false); });
+  on('subrefresh',refreshSubs);
+  const busy=async(el,f,ok)=>{ el.disabled=true; try{ await f(); toast(ok); }catch(e){ toast('GitHub said: '+e.message); } await refreshSubs(); };
+  document.querySelectorAll('[data-subprev]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subprev]; openSharedLo(s.code); });
+  document.querySelectorAll('[data-subpub]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subpub]; busy(el,()=>publishToCommunity({name:s.title,by:s.by||s.user,mode:s.mode,code:s.code},s.num),'Published “'+s.title+'”'); });
+  document.querySelectorAll('[data-subrej]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to reject'; return; } const s=SUBS[+el.dataset.subrej]; busy(el,()=>rejectSubmission(s.num),'Rejected'); });
+  document.querySelectorAll('[data-comdel]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to remove'; return; } const c=el.dataset.comdel; busy(el,()=>writeCommunity(l=>l.filter(x=>x.code!==c),'Remove community loadout'),'Removed'); });
+  document.querySelectorAll('[data-colo2]').forEach(el=>el.onclick=()=>openSharedLo(el.dataset.colo2));
+  on('addpub',async()=>{ const m=document.getElementById('addlink').value.match(/#lo=([A-Za-z0-9_-]+)/); if(!m){ toast('That isn\'t a loadout share link'); return; }
+    let name=document.getElementById('addname').value.trim(); try{ if(!name) name=(await decodeLo(m[1])).n; }catch(e){}
+    busy(document.getElementById('addpub'),()=>publishToCommunity({name:name||'Shared loadout',by:document.getElementById('addby').value.trim(),code:m[1]}),'Published'); });
+  if(ghToken() && SUBS===null) refreshSubs();
 }
 function myLoMenu(){
   const com=communityLos();
@@ -1210,24 +1293,29 @@ function myLoMenu(){
 function viewMyLo(){
   const com=communityLos();
   const card=x=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.g.w1)} + ${esc(x.g.w2)} &middot; saved ${new Date(x.saved).toLocaleDateString()}</div></div>
-    <div class="lobtns"><button class="mini go" data-lo="${esc(x.id)}">Load</button><button class="mini" data-loshare="${esc(x.id)}">&#128279; Share link</button><button class="mini" data-lodel="${esc(x.id)}">Delete</button></div>
+    <div class="lobtns"><button class="mini go" data-lo="${esc(x.id)}">Load</button><button class="mini" data-loshare="${esc(x.id)}">&#128279; Share link</button><button class="mini" data-losub="${esc(x.id)}">&#127760; Submit to Community</button><button class="mini" data-lodel="${esc(x.id)}">Delete</button></div>
     <input class="lolink" id="ll_${esc(x.id)}" readonly hidden></div>`;
   return `<h1>Your loadouts</h1>
   <p class="lede">Save what's in the loadout builder, come back to it later, or share it.</p>
   <div class="slot wide losave"><input id="loname2" placeholder="Name it, e.g. OPR point tank" value=""><button class="mini go" id="losave2">&#128190; Save current loadout</button></div>
-  <div class="callout note mini-co"><span class="ci">&#128274;</span><div><p><b>Private by default.</b> Saved loadouts stay in this browser on this device; nobody else can see them.
-    <b>To share one</b>, use <b>Share link</b> and send it to a friend: the link opens the loadout for them, and they can save their own copy.
-    <b>To make one public</b> for everyone on the site, send the link to the site owner. They add it to <a class="wl" data-note="Community Loadouts">Community Loadouts</a>.</p></div></div>
+  <div class="tw"><table><thead><tr><th>You want to&hellip;</th><th>Do this</th><th>Who sees it</th></tr></thead><tbody>
+    <tr><td>Keep it for yourself</td><td><b>Save</b></td><td>Only you, in this browser</td></tr>
+    <tr><td>Send it to a friend</td><td><b>Share link</b>, then paste it to them</td><td>Whoever has the link</td></tr>
+    <tr><td>Put it on the site for everyone</td><td><b>Submit to Community</b> (needs a free GitHub account)</td><td>Everyone, once the site owner approves it</td></tr>
+  </tbody></table></div>
   <h2>Saved on this device (${MYLO.length})</h2>
   ${MYLO.length?MYLO.map(card).join(''):'<p class="dimtx">Nothing saved yet.</p>'}
   <h2>Community loadouts (${com.length})</h2>
-  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button></div></div>`).join(''):'<p class="dimtx">None yet.</p>'}`;
+  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button></div></div>`).join(''):'<p class="dimtx">None yet.</p>'}
+  <p class="dimtx tiny" style="margin-top:24px"><a class="wl" data-view="review">Site owner: review submissions &rarr;</a></p>`;
 }
 function myLoEvents(){
   const b=document.getElementById('losave2'); if(b) b.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname2').value); openView('myloadouts',false); };
   document.querySelectorAll('[data-lodel]').forEach(el=>el.onclick=()=>{ const x=MYLO.find(y=>y.id===el.dataset.lodel); if(!x) return;
     if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to delete'; return; }
     MYLO=MYLO.filter(y=>y.id!==x.id); saveMYLO(); topnav(); openView('myloadouts',false); toast('Deleted “'+x.name+'”'); });
+  document.querySelectorAll('[data-losub]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.losub); if(!x) return;
+    window.open(await submitIssueUrl(x),'_blank','noopener'); toast('GitHub opened in a new tab: press "Submit new issue" there'); });
   document.querySelectorAll('[data-loshare]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.loshare); if(!x) return;
     const link=await shareLink(x); const box=document.getElementById('ll_'+x.id); box.hidden=false; box.value=link; box.select();
     toast((await copyText(link))?'Share link copied':'Link shown below: press Ctrl+C to copy'); });
@@ -1587,7 +1675,7 @@ async function initCustom(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
   if(saved && Object.keys(saved).length){ DATA=saved; SRC='folder'; SRC_AT=savedAt||'earlier'; }
   else {
-    try { DATA=await (await fetch('vault.json')).json(); SRC='snapshot'; SRC_AT=BUILD_AT; }
+    try { DATA=await (await fetch('vault.json',{cache:'no-cache'})).json(); SRC='snapshot'; SRC_AT=BUILD_AT; }
     catch(err){ document.getElementById('main').innerHTML='<h1>Could not load the data</h1><p class="lede">'+err+'</p>'; return; }
   }
   try { CALC = await (await fetch('calc.json')).json(); } catch(e){ CALC = null; }
@@ -1596,11 +1684,12 @@ async function initCustom(){
   try { ITEMDB = await (await fetch('items.json')).json();
         for(let k=0;k<ITEMDB.sheets;k++){ const b=await (await fetch('items_'+k+'.webp')).blob(); SPRITES.push(URL.createObjectURL(b)); } } catch(e){ ITEMDB = null; }
   try { PRESETS = await (await fetch('gear_presets.json')).json(); } catch(e){ PRESETS = null; }
+  if(typeof loadCommunity==='function') await loadCommunity();
   try { TREES = await (await fetch('trees.json')).json(); } catch(e){ TREES = null; }
   reindex(); topnav();
   const h=(location.hash||'').replace('#','');
   if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
-  else if(['builds','bosses','calc','gear','items','myloadouts'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);
