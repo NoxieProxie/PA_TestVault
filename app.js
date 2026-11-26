@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 16:34';
+const BUILD_AT = '2026-11-26 16:50';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -162,6 +162,7 @@ function navTabs(){
   T.push({k:'Loadout', h:`<button class="nb calcnb" data-view="gear">&#128737; Loadout</button>`});
   T.push({k:'Calculator', h:`<button class="nb calcnb" data-view="calc">&#129518; Calculator</button>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
+  if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">&#128736; Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
     T.push({k:'My Pages', h:`<div class="drop"><button class="nb">&#9998; My Pages <span class="car">&#9662;</span></button><div class="menu"><a class="mi hi" data-newpage="1">&#65291; New page</a><div class="mn">Pages you write yourself show up here.</div></div></div>`});
   for (const t of TOPS){
@@ -1415,7 +1416,7 @@ const viaHelper=()=>!!(CFG.worker && dUser() && OWNER && OWNER.owner);
 async function checkOwner(){
   if(!CFG.worker || !dUser()){ OWNER=null; return; }
   try{ OWNER=await ownerApi('whoami'); }catch(e){ OWNER={owner:false, err:e.message}; }
-  renderAcct();
+  renderAcct(); if(OWNER&&OWNER.owner&&typeof topnav==='function') topnav();
   if(current?.kind==='view'&&current.v==='admin'){ openView('admin',false); }
 }
 async function submitIssueUrl(rec){

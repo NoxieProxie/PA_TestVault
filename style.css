@@ -339,3 +339,5 @@ body.light .edbanner{background:#fbf6ea}
 .stline{font-size:14.5px}
 .stinc{border-top:1px solid var(--line);padding-top:8px;margin-top:4px}
 .stups{margin:6px 0 0 18px;padding:0;font-size:13px}.stups li{margin:4px 0}.stups div{color:var(--dim)}
+
+.admnb{color:var(--gold)!important;font-weight:600}
