@@ -68,8 +68,8 @@
  },
  "live": {
   "presence": {
-   "type": "custom",
-   "text": "New World"
+   "type": "playing",
+   "text": "https://noxieproxie.github.io/PA_TestVault/"
   },
   "spam": {
    "on": true,
