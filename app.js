@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 theme';
+const BUILD_AT = '2026-11-26 nav';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -158,10 +158,14 @@ function navTabs(){
   const hid=(typeof SITE!=='undefined'&&SITE.hidden)||[];
   const T=[];
   T.push({k:'Home', h:`<button class="nb" data-note="${esc((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home')}">&#127968; Home</button>`});
-  T.push({k:'Items', h:`<button class="nb calcnb" data-view="items">&#128270; Items</button>`});
-  T.push({k:'Loadout', h:`<button class="nb calcnb" data-view="gear">&#128737; Loadout</button>`});
-  T.push({k:'Calculator', h:`<button class="nb calcnb" data-view="calc">&#129518; Calculator</button>`});
-  if(!TOPS.some(t=>/craft/i.test(t))) T.push({k:'Crafting', h:`<button class="nb calcnb" data-view="craft">&#9874;&#65039; Crafting</button>`});
+  const tool=(v,n,d)=>`<a class="mi tl2" data-view="${v}"><b>${n}</b><span>${d}</span></a>`;
+  T.push({k:'Tools', h:`<div class="drop"><button class="nb">Tools <span class="car">&#9662;</span></button><div class="menu">
+    ${tool('items','Items','Search every weapon, armour piece and perk')}
+    ${tool('gear','Loadout builder','Plan gear, perks and attributes, then share it')}
+    ${tool('calc','Calculator','Real damage and health, against raid bosses too')}
+    ${tool('craft','Recipe finder','Every recipe, with a shopping list')}
+    ${tool('builds','Build browser','Filter every build by role, mode and weapon')}
+    ${tool('bosses','Boss browser','Filter bosses by expedition and weakness')}</div></div>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
   if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">&#128736; Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
@@ -175,14 +179,17 @@ function navTabs(){
                : /craft/i.test(t) ? `<a class="mi hi" data-view="craft">&#9874;&#65039; Recipe finder (every recipe, with shopping lists)</a>`
                : (/my pages/i.test(t) && typeof canWrite==='function' && canWrite()) ? `<a class="mi hi" data-newpage="1">&#65291; New page</a>` : '';
     let menu = extra;
-    for (const g of Object.keys(groups).sort()){
-      if (g) menu += `<div class="mh">${esc(label(g))}</div>`;
-      menu += groups[g].map(p=>`<a class="mi" data-note="${esc(META[p].name)}">${esc(META[p].name)}</a>`).join('');
+    const fold = paths.length>12 && Object.keys(groups).some(g=>g);   // long menus: sub-folders start folded, click a heading to open it
+    const items = l => l.map(p=>`<a class="mi" data-note="${esc(META[p].name)}">${esc(META[p].name)}</a>`).join('');
+    for (const g of Object.keys(groups).sort((a,b)=>(a?1:0)-(b?1:0)||a.localeCompare(b))){
+      if (!g) { menu += items(groups[g]); continue; }
+      menu += fold ? `<div class="fold"><button class="mh tg" aria-expanded="false">${esc(label(g))} <span class="cnt">${groups[g].length}</span></button><div class="grp">${items(groups[g])}</div></div>`
+                   : `<div class="mh">${esc(label(g))}</div>`+items(groups[g]);
     }
     T.push({k:label(t), h:`<div class="drop"><button class="nb">${iconOf(t)} ${esc(label(t))} <span class="car">&#9662;</span></button><div class="menu">${menu}</div></div>`});
   }
   const order=(typeof SITE!=='undefined'&&SITE.order)||[];
-  const pos=k=>{ const i=order.indexOf(k); return i<0?1000:i; };
+  const pos=k=>{ let i=order.indexOf(k); if(i<0&&k==='Tools') i=order.indexOf('Items'); return i<0?1000:i; };
   const plain=h=>h.replace(/(<button class="nb[^"]*"[^>]*>)\s*(?:&#\d+;)+\s*/,'$1');
   return T.map((t,i)=>({...t,h:plain(t.h),i})).sort((a,b)=>pos(a.k)-pos(b.k)||a.i-b.i).map(t=>({...t,hidden:hid.includes(t.k)}));
 }
@@ -435,7 +442,10 @@ document.addEventListener('click', e=>{
   const dd=e.target.closest('.drop > .nb');
   if(dd){ const d=dd.parentElement; const was=d.classList.contains('open');
     document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
-    if(!was) d.classList.add('open'); e.stopPropagation(); return; }
+    if(!was){ d.classList.add('open'); const hb=document.querySelector('header').getBoundingClientRect().bottom; document.documentElement.style.setProperty('--hdr',Math.round(hb)+'px'); }
+    e.stopPropagation(); return; }
+  const tg=e.target.closest('.mh.tg');
+  if(tg){ const f=tg.parentElement; const o=!f.classList.contains('open'); f.classList.toggle('open',o); tg.setAttribute('aria-expanded',o); e.stopPropagation(); return; }
   if(!e.target.closest('.menu')) document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
   const n=e.target.closest('[data-note]');
   if(n){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));

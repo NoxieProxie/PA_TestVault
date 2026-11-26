@@ -498,3 +498,34 @@ td.r{color:var(--gold2)}
 .home .crumb{display:none}
 .home article>h2:first-of-type{margin-top:.4em}
 button,input,select,textarea{font-family:inherit}
+
+/* ---- back to the original neutral background (Nov 2026), fonts and teal links kept ---- */
+:root{--bg:#0f1115;--bg2:#161a21;--bg3:#1d222b;--line:#2a313d;--mute:#7d8796}
+header{background:linear-gradient(#181c24,#121620)}
+.menu{background:#1a1f28}
+.mi:hover{background:#242c38}
+tbody tr:hover{background:#191f28}
+th{border-bottom-color:#343c49}
+td{border-bottom-color:var(--line)}
+.in input,.in select,#bname,.presetbar select,.big{background:#121720}
+code,.tag{background:#242b36}
+#toast{background:#222b38}
+.card:hover,.hit:hover,.pg:hover{background:#1a1f28;border-color:#3f5a58}
+.tool:hover{background:#1d2330}
+::selection{background:#2d4f4b}
+
+/* ---- nav: Tools menu and folding sub-folders ---- */
+.mi.tl2{white-space:normal;padding:8px 14px}
+.mi.tl2 b{display:block;font-weight:600;color:var(--fg)}
+.mi.tl2 span{display:block;font-size:12.5px;color:var(--dim);line-height:1.35}
+.mi.tl2:hover b{color:var(--gold2)}
+.fold{border-top:1px solid #232a35}
+.mh.tg{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;cursor:pointer;text-align:left;font:600 13.5px var(--sans);color:var(--gold);padding:8px 14px}
+.mh.tg::before{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .15s;margin-right:2px}
+.fold.open>.mh.tg::before{transform:rotate(45deg)}
+.mh.tg:hover{background:#222935}
+.mh.tg .cnt{margin-left:auto;font-weight:400;font-size:12px;color:var(--mute)}
+.fold .grp{display:none;padding-bottom:4px}
+.fold.open .grp{display:block}
+.fold .grp .mi{padding-left:26px}
+@media(max-width:900px){ .menu{top:var(--hdr,110px);max-height:calc(100vh - var(--hdr,110px) - 12px);border-radius:10px} }
