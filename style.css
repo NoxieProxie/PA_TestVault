@@ -529,3 +529,18 @@ code,.tag{background:#242b36}
 .fold.open .grp{display:block}
 .fold .grp .mi{padding-left:26px}
 @media(max-width:900px){ .menu{top:var(--hdr,110px);max-height:calc(100vh - var(--hdr,110px) - 12px);border-radius:10px} }
+
+/* ---- build preview (Build browser "Gear" button) ---- */
+.card{position:relative}
+.peekbtn{float:right;margin:-2px -4px 6px 10px;display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--line);color:var(--dim);border-radius:7px;padding:4px 9px;font-size:12.5px;cursor:pointer}
+.peekbtn:hover{color:var(--azoth);border-color:var(--azoth)}
+.peekbg{position:fixed;inset:0;z-index:120;background:#05070acc;display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow-y:auto}
+.peekbox{background:var(--bg2);border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:12px;max-width:1060px;width:100%;box-shadow:0 24px 60px #000c}
+.peekhead{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.peekhead b{font:700 20px var(--serif);color:var(--gold2);margin-right:auto}
+.peektabs{display:flex;gap:6px}
+.peekx{background:none;border:0;color:var(--dim);font-size:26px;line-height:1;cursor:pointer;padding:0 4px}
+.peekx:hover{color:var(--fg)}
+.peekimg{padding:12px;text-align:center}
+.peekcv{max-width:100%;height:auto;border-radius:8px}
+@media(max-width:600px){ .peekhead b{flex-basis:100%} }

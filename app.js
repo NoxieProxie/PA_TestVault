@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 nav';
+const BUILD_AT = '2026-11-26 peek';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -312,7 +312,8 @@ function viewBuilds(){
   const card=p=>{ const m=META[p]; const q=kv(m.body);
     const title=(m.body.match(/^#\s+(.*)$/m)||[,m.name])[1];
     const sum=(m.body.split('\n').find(l=>l.trim()&&!/^[#>|]/.test(l)&&!l.startsWith('Related'))||'').replace(/\*\*/g,'');
-    return `<div class="card" data-note="${esc(m.name)}"><div class="ct">${inline(title)}</div>
+    const hasLo=/\n## Full loadout/.test('\n'+m.body);
+    return `<div class="card" data-note="${esc(m.name)}">${hasLo?`<button class="peekbtn" data-peek="${esc(m.name)}" title="See the gear" aria-label="See the gear for ${esc(m.name)}"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 4C5.5 4 2.4 7.4 1.4 10c1 2.6 4.1 6 8.6 6s7.6-3.4 8.6-6C17.6 7.4 14.5 4 10 4zm0 10a4 4 0 110-8 4 4 0 010 8zm0-2.2a1.8 1.8 0 100-3.6 1.8 1.8 0 000 3.6z" fill="currentColor"/></svg> Gear</button>`:''}<div class="ct">${inline(title)}</div>
       <div class="cs">${inline(sum.slice(0,165))}</div>
       <div class="cmeta">${['Role','Modes','Armor','Attributes'].filter(k=>q[k]).map(k=>`<span><b>${k}</b> ${inline(q[k])}</span>`).join('')}</div>
       <div class="ctags">${m.tags.filter(t=>!['new-world','builds'].includes(t)).map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>`; };
@@ -447,6 +448,8 @@ document.addEventListener('click', e=>{
   const tg=e.target.closest('.mh.tg');
   if(tg){ const f=tg.parentElement; const o=!f.classList.contains('open'); f.classList.toggle('open',o); tg.setAttribute('aria-expanded',o); e.stopPropagation(); return; }
   if(!e.target.closest('.menu')) document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
+  const pk=e.target.closest('[data-peek]');
+  if(pk){ e.preventDefault(); e.stopPropagation(); if(typeof peekBuild==='function') peekBuild(pk.dataset.peek); return; }
   const n=e.target.closest('[data-note]');
   if(n){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
     document.getElementById('q').value=''; openNote(n.dataset.note); return; }
@@ -2091,6 +2094,40 @@ document.addEventListener('click',e=>{
   const c=e.target.closest('[data-colo]');
   if(c){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); const x=communityLos()[+c.dataset.colo]; if(x) openSharedLo(x.code); }
 });
+
+/* ================= build preview: the same pictures as the Discord posts, for any build with a Full loadout ================= */
+function presetRec(name){
+  const L=parseLoadout(name); if(!L||!Object.keys(L.slots).length) return null;
+  const keep=JSON.stringify(G);
+  try { applyLoadout(name,L); return {name, mode:'', g:snapG()}; }
+  finally { const o=JSON.parse(keep); Object.keys(G).forEach(k=>delete G[k]); Object.assign(G,o); }
+}
+function closePeek(){ const m=document.getElementById('peek'); if(m) m.remove(); document.removeEventListener('keydown',peekKey); }
+function peekKey(e){ if(e.key==='Escape') closePeek(); }
+async function peekBuild(name, tab){
+  const rec=presetRec(name); if(!rec) return toast('This build has no Full loadout table yet');
+  closePeek();
+  const m=document.createElement('div'); m.id='peek'; m.className='peekbg';
+  m.innerHTML=`<div class="peekbox" role="dialog" aria-modal="true" aria-label="${esc(name)} loadout">
+    <div class="peekhead"><b>${esc(name)}</b>
+      <span class="peektabs"><button class="chip ${tab!=='trees'?'on':''}" data-pt="gear">Gear</button><button class="chip ${tab==='trees'?'on':''}" data-pt="trees">Skill trees</button></span>
+      <button class="mini go" data-pload="1">Open in loadout builder</button>
+      <button class="mini" data-pnote="1">Read the guide</button>
+      <button class="peekx" aria-label="Close">&times;</button></div>
+    <div class="peekimg"><p class="dimtx">Drawing the loadout&hellip;</p></div></div>`;
+  document.body.appendChild(m);
+  document.addEventListener('keydown',peekKey);
+  m.onclick=e=>{ if(e.target===m||e.target.closest('.peekx')) closePeek(); };
+  m.querySelectorAll('[data-pt]').forEach(b=>b.onclick=()=>peekBuild(name,b.dataset.pt));
+  m.querySelector('[data-pload]').onclick=()=>{ const L=parseLoadout(name); applyLoadout(name,L); saveG(); closePeek(); openView('gear'); toast('Loaded '+name+' into the loadout builder'); };
+  m.querySelector('[data-pnote]').onclick=()=>{ closePeek(); openNote(name); };
+  m.querySelector('.peekx').focus();
+  try {
+    const cv = tab==='trees' ? await treesCard(rec) : await gearCard(rec);
+    if(!document.body.contains(m)) return;
+    cv.className='peekcv'; const box=m.querySelector('.peekimg'); box.innerHTML=''; box.appendChild(cv);
+  } catch(e){ m.querySelector('.peekimg').innerHTML=`<p class="dimtx">Couldn't draw this loadout: ${esc(e.message||String(e))}</p>`; }
+}
 
 /* ================= owner content + customise panel ================= */
 let CDB=null, CUSER=null, IS_OWNER=false, CMODE='loading';   // 'db' | 'local' | 'loading'
