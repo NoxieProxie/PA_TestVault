@@ -65,5 +65,48 @@
   "kickAt": 0,
   "banAt": 0,
   "expireDays": 30
+ },
+ "live": {
+  "presence": {
+   "type": "watching",
+   "text": "New World"
+  },
+  "spam": {
+   "on": true,
+   "msgs": 6,
+   "secs": 5,
+   "timeout": 300
+  },
+  "dupes": {
+   "on": true,
+   "count": 3,
+   "secs": 30,
+   "timeout": 300
+  },
+  "violations": {
+   "on": true,
+   "count": 3,
+   "mins": 10,
+   "action": "timeout",
+   "timeout": 3600
+  },
+  "newacc": {
+   "on": false,
+   "days": 7,
+   "action": "log"
+  },
+  "welcome": {
+   "on": false,
+   "channel": "",
+   "text": "Welcome {user} to **{server}**! You are member #{count}."
+  },
+  "autoroles": [],
+  "logs": {
+   "joins": true,
+   "leaves": true,
+   "edits": true,
+   "deletes": true
+  },
+  "ignoreRoles": []
  }
 }
