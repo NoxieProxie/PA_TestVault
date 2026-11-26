@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 19:44';
+const BUILD_AT = '2026-11-26 19:49';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -129,7 +129,7 @@ function md(src){
 }
 
 /* ---------- index ---------- */
-const ICONS=[[/my pages/i,'&#9998;'],[/build/i,'&#9876;'],[/boss/i,'&#128128;'],[/expedition/i,'&#128506;'],[/pvp/i,'&#128481;'],[/war/i,'&#127984;'],[/outpost/i,'&#128681;'],[/gear/i,'&#127890;'],[/reference/i,'&#128214;']];
+const ICONS=[[/craft/i,'&#9874;&#65039;'],[/my pages/i,'&#9998;'],[/build/i,'&#9876;'],[/boss/i,'&#128128;'],[/expedition/i,'&#128506;'],[/pvp/i,'&#128481;'],[/war/i,'&#127984;'],[/outpost/i,'&#128681;'],[/gear/i,'&#127890;'],[/reference/i,'&#128214;']];
 const label = t => t.replace(/^\d+[\s._-]+/,'');
 let TOPS=[], TOP_BUILDS='Builds', TOP_BOSSES='Bosses';
 function reindex(){
@@ -161,7 +161,7 @@ function navTabs(){
   T.push({k:'Items', h:`<button class="nb calcnb" data-view="items">&#128270; Items</button>`});
   T.push({k:'Loadout', h:`<button class="nb calcnb" data-view="gear">&#128737; Loadout</button>`});
   T.push({k:'Calculator', h:`<button class="nb calcnb" data-view="calc">&#129518; Calculator</button>`});
-  T.push({k:'Crafting', h:`<button class="nb calcnb" data-view="craft">&#9874;&#65039; Crafting</button>`});
+  if(!TOPS.some(t=>/craft/i.test(t))) T.push({k:'Crafting', h:`<button class="nb calcnb" data-view="craft">&#9874;&#65039; Crafting</button>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
   if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">&#128736; Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
@@ -172,6 +172,7 @@ function navTabs(){
     paths.forEach(p=>{ const rel=p.slice(t.length+1); const sub=rel.includes('/')?rel.split('/')[0]:''; (groups[sub]=groups[sub]||[]).push(p); });
     const extra = /build/i.test(t) ? `<a class="mi hi" data-view="builds">&#9881; Build browser (filterable)</a>`
                : /boss/i.test(t) ? `<a class="mi hi" data-view="bosses">&#9881; Boss browser (filterable)</a>`
+               : /craft/i.test(t) ? `<a class="mi hi" data-view="craft">&#9874;&#65039; Recipe finder (every recipe, with shopping lists)</a>`
                : (/my pages/i.test(t) && typeof canWrite==='function' && canWrite()) ? `<a class="mi hi" data-newpage="1">&#65291; New page</a>` : '';
     let menu = extra;
     for (const g of Object.keys(groups).sort()){
