@@ -2,10 +2,10 @@
  "docs": {
   "site/settings": {
    "brand": "New World - S10 - WIP",
-   "accent": "#d9a84e",
+   "accent": "#6fa8dc",
    "theme": "dark",
-   "font": "m",
-   "width": "normal",
+   "font": "l",
+   "width": "wide",
    "hidden": [],
    "order": [
     "Home",
