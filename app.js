@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 calc v2';
+const BUILD_AT = '2026-11-26 theme';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -183,14 +183,15 @@ function navTabs(){
   }
   const order=(typeof SITE!=='undefined'&&SITE.order)||[];
   const pos=k=>{ const i=order.indexOf(k); return i<0?1000:i; };
-  return T.map((t,i)=>({...t,i})).sort((a,b)=>pos(a.k)-pos(b.k)||a.i-b.i).map(t=>({...t,hidden:hid.includes(t.k)}));
+  const plain=h=>h.replace(/(<button class="nb[^"]*"[^>]*>)\s*(?:&#\d+;)+\s*/,'$1');
+  return T.map((t,i)=>({...t,h:plain(t.h),i})).sort((a,b)=>pos(a.k)-pos(b.k)||a.i-b.i).map(t=>({...t,hidden:hid.includes(t.k)}));
 }
 function topnav(){
   const own=typeof canWrite==='function' && canWrite();
   let h = navTabs().filter(t=>!t.hidden).map(t=>`<span class="tabw" ${own?'draggable="true"':''} data-tabkey="${esc(t.k)}">${t.h}</span>`).join('');
   if(own) h += `<span class="dragtip">drag tabs to reorder</span>`;
   h += `<div class="drop right"><button class="nb" id="starbtn">&#9733; <span id="pincount"></span><span class="car">&#9662;</span></button><div class="menu" id="pinmenu"></div></div>`;
-  h += `<div class="drop right"><button class="nb">&#8635; Data<span class="car">&#9662;</span></button><div class="menu" id="datamenu"></div></div>`;
+  h += `<div class="drop right"><button class="nb">Data <span class="car">&#9662;</span></button><div class="menu" id="datamenu"></div></div>`;
   if(own) h += `<button class="nb" id="gearbtn" title="Customise">&#9881;</button>`;
   document.getElementById('topnav').innerHTML = h;
   renderPinMenu(); renderDataMenu();
@@ -358,6 +359,26 @@ function siblings(path){
   const dir=path.split('/').slice(0,-1).join('/');
   return Object.keys(META).filter(p=>p.split('/').slice(0,-1).join('/')===dir).sort();
 }
+
+/* ---------- front page ---------- */
+function homeHero(){
+  const days=Math.ceil((Date.UTC(2027,0,31)-Date.now())/864e5);
+  const end=days>1?`Season 10 Nighthaven is the last season. The servers close on 31 January 2027, ${days} days from now.`
+           :days===1?'The servers close tomorrow, 31 January 2027.':'The servers closed on 31 January 2027. This vault stays up as a record.';
+  const again=recent.filter(n=>NAMES[n]&&n!==(typeof SITE!=='undefined'&&SITE.start||'New World Home')).slice(0,5);
+  return `<section class="hero">
+    <h1>New World vault</h1>
+    <p class="sub">Builds, bosses, raids and gear for Season 10, worked out from the game's own data.</p>
+    <p class="end">${end}</p>
+    <div class="tools">
+      <button class="tool" data-view="items"><b>Find an item</b><span>Search every weapon, armour piece and perk.</span></button>
+      <button class="tool" data-view="gear"><b>Build a loadout</b><span>Plan gear, perks and attributes, then share it.</span></button>
+      <button class="tool" data-view="calc"><b>Work out damage</b><span>Real hits and health for your build, against raid bosses too.</span></button>
+      <button class="tool" data-view="craft"><b>Look up a recipe</b><span>Every recipe, with a shopping list.</span></button>
+    </div>
+    ${again.length?`<p class="again">Carry on reading: ${again.map(n=>`<a href="#" data-note="${esc(n)}">${esc(n)}</a>`).join('')}</p>`:''}
+  </section>`;
+}
 function openNote(name, push=true){
   const p=NAMES[name]; if(!p) return;
   if(push && current) hist.push(current);
@@ -368,7 +389,10 @@ function openNote(name, push=true){
   const prev=ix>0?META[sib[ix-1]].name:null, next=ix<sib.length-1?META[sib[ix+1]].name:null;
   const heads=[...m.body.matchAll(/^##\s+(.*)$/gm)].map(x=>x[1]);
   const toc=heads.length>2?`<aside class="toc"><div class="tl">On this page</div>${heads.map(h=>`<a href="#" data-anchor="${esc(slug(h))}">${inline(h)}</a>`).join('')}</aside>`:'';
-  document.getElementById('main').innerHTML=
+  const homeName=(typeof SITE!=='undefined'&&SITE.start&&NAMES[SITE.start])?SITE.start:'New World Home';
+  const isHome=name===homeName;
+  document.getElementById('main').classList.toggle('home',isHome);
+  document.getElementById('main').innerHTML=(isHome?homeHero():'')+
     `<div class="crumb"><span>${esc(sectionOf(p))}${m.folder.includes('/')?' &rsaquo; '+esc(label(m.folder.split('/').slice(1).join(' / '))):''}</span>
        ${typeof canWrite==='function'&&canWrite()?(m.custom?`<button class="pin" data-editpage="${esc(m.cid)}">&#9998; Edit</button>`:`<button class="pin" data-noteedit="${esc(name)}">&#9998; Edit</button>`):''}
        <button class="pin ${pinned?'on':''}" id="pinbtn">${pinned?'&#9733; Pinned':'&#9734; Pin'}</button></div>
@@ -392,6 +416,7 @@ function openView(v,push=true){
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
   if(push && current) hist.push(current);
   current={kind:'view',v};
+  document.getElementById('main').classList.remove('home');
   document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
@@ -2059,9 +2084,10 @@ document.addEventListener('click',e=>{
 
 /* ================= owner content + customise panel ================= */
 let CDB=null, CUSER=null, IS_OWNER=false, CMODE='loading';   // 'db' | 'local' | 'loading'
-const DEFAULT_SITE={brand:'New World · S10 Nighthaven', accent:'#d9a84e', theme:'dark', font:'m', width:'normal',
+const DEFAULT_SITE={brand:'New World vault', accent:'#cfa557', theme:'dark', font:'m', width:'normal',
   hidden:[], order:[], start:'New World Home', icons:true};
 let SITE=Object.assign({}, DEFAULT_SITE, LS.get('nw_site',{}));
+if(SITE.brand==='New World · S10 Nighthaven') SITE.brand=DEFAULT_SITE.brand;   // the old default title
 let CPAGES={}, CADD={}, COVR={};
 /* ---- draft mode: the owner's changes wait in drafts/ (only the owner can read them) until "Publish to live" ---- */
 let DRAFT_ON=LS.get('nw_draftmode', true), DRAFTS={}, LIVE={pages:{},overrides:{},addenda:{},site:null};
@@ -2132,7 +2158,8 @@ function applySite(){
   document.body.classList.remove('fs-s','fs-l'); if(SITE.font!=='m') document.body.classList.add('fs-'+SITE.font);
   document.body.classList.remove('w-wide','w-full'); if(SITE.width!=='normal') document.body.classList.add('w-'+SITE.width);
   document.body.classList.toggle('noicons', !SITE.icons);
-  const b=document.querySelector('.brand'); if(b) b.textContent=SITE.brand||DEFAULT_SITE.brand;
+  const b=document.querySelector('.brand'); if(b){ const t=(SITE.brand==='New World · S10 Nighthaven'?'':SITE.brand)||DEFAULT_SITE.brand;
+    b.innerHTML=esc(t)+(t===DEFAULT_SITE.brand?' <small>Season 10 Nighthaven</small>':''); }
 }
 async function saveSite(next){
   SITE=Object.assign({}, DEFAULT_SITE, next);
