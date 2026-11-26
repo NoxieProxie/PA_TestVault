@@ -1,0 +1,32 @@
+name: Report
+description: Share an idea, a bug or a data error
+labels: ["new"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type
+      options:
+        - Idea
+        - Bug
+        - Data error
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where did you see it?
+      placeholder: Crafting calculator
+  - type: input
+    id: item
+    attributes:
+      label: Item or recipe ID, if it applies
+      placeholder: Steelingot_Recipe
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What is wrong, or what would you like?
+      placeholder: Calculator says 2 Charcoal, in-game needs 1.
+    validations:
+      required: true
