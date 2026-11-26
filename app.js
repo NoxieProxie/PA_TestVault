@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 17:58';
+const BUILD_AT = '2026-11-26 18:14';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1456,6 +1456,86 @@ async function rejectSubmission(num){
   await gh('/issues/'+num,{method:'PATCH',body:JSON.stringify({state:'closed',state_reason:'not_planned'})});
 }
 let AMG=LS.get('nw_amguild',''), AM=null, AMERR='';
+/* ---- shared: server info for the Advanced rules and Role menus tabs ---- */
+let GI=null, GIERR='', ADVRES=null, RMMSG='';
+const rid6=()=>Math.random().toString(36).slice(2,8);
+function serverGate(){
+  if(!viaHelper()||!OWNER.bot||!OWNER.bot.token) return '<p class="dimtx">Set up the Discord bot first (Discord bot tab).</p>';
+  if(BOTCH===null) return BOTCHERR?`<p class="bad">${esc(BOTCHERR)}</p>`:'<p class="dimtx">Loading your servers&hellip;</p>';
+  if(!BOTCH.guilds.length) return '<p class="dimtx">The bot isn\'t in a server yet. Add it from the Discord bot tab.</p>';
+  if(!AMG||!BOTCH.guilds.some(g=>g.id===AMG)) AMG=BOTCH.guilds[0].id;
+  if(GI===null||GI.guild!==AMG) return GIERR?`<p class="bad">${esc(GIERR)}</p>`:'<p class="dimtx">Loading server details&hellip;</p>';
+  return '';
+}
+function serverPick(){ return BOTCH.guilds.length>1?`<label class="lof"><span>Server</span><select id="amguild">${BOTCH.guilds.map(g=>`<option value="${g.id}" ${g.id===AMG?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label>`:`<div class="dimtx">Server: <b>${esc(BOTCH.guilds[0].name)}</b></div>`; }
+async function loadGuildInfo(){ GIERR=''; const g=AMG; try{ const d=await ownerApi('guildinfo',{guild:g}); GI={guild:g,...d}; }catch(e){ GIERR=e.message; GI=null; }
+  if(current?.kind==='view'&&current.v==='admin'&&(ADMTAB==='advanced'||ADMTAB==='roles')) openView('admin',false); }
+const optsOf=(list,sel)=>list.map(x=>`<option value="${x.id}" ${(sel||[]).includes(x.id)?'selected':''}>${esc(x.name)}${x.cat?' ('+esc(x.cat)+')':''}</option>`).join('');
+
+/* ---- Advanced rules (YAGPDB-style rulesets) ---- */
+const ADV_T=[['words','Words or phrases'],['links','Links (except approved sites)'],['invites','Invites to other servers'],['sites','Banned websites'],['names','Usernames and nicknames']];
+const ADV_TO=[[0,'No timeout'],[60,'1 minute'],[300,'5 minutes'],[600,'10 minutes'],[3600,'1 hour'],[21600,'6 hours'],[86400,'1 day'],[604800,'1 week']];
+function advView(){
+  const gate=serverGate(); if(gate) return gate;
+  const A=GI.advanced, chOpts=sel=>`<optgroup label="Categories">${optsOf(GI.categories,sel)}</optgroup><optgroup label="Channels">${optsOf(GI.channels,sel)}</optgroup>`;
+  const lines=v=>esc((v||[]).join('\n'));
+  const rule=(r,i,k)=>{ const p=`${i}:${k}:`;
+    const listLabel={words:'Words or phrases (one per line; *word* also matches inside other words)',sites:'Websites (one per line)',names:'Words not allowed in names (one per line)'}[r.type];
+    return `<div class="advrule ${r.enabled?'':'off'}">
+      <div class="advhd"><input class="pk advname" data-adv="${p}name" value="${esc(r.name)}" placeholder="Rule name"><label class="amon"><input type="checkbox" data-adv="${p}enabled" ${r.enabled?'checked':''}> On</label><button class="mini" data-advdel="${i}:${k}">Delete rule</button></div>
+      <div class="two"><label class="lof"><span>Trigger</span><select data-adv="${p}type" data-advre="1">${ADV_T.map(([v,l])=>`<option value="${v}" ${r.type===v?'selected':''}>${l}</option>`).join('')}</select></label>
+        ${r.type==='names'?`<div class="dimtx tiny" style="align-self:end">Blocks members whose name contains these words from chatting until they change it.</div>`:`<label class="lof"><span>Then time them out for</span><select data-adv="${p}timeout">${ADV_TO.map(([v,l])=>`<option value="${v}" ${r.timeout===v?'selected':''}>${l}</option>`).join('')}</select></label>`}</div>
+      ${listLabel?`<label class="lof"><span>${listLabel}</span><textarea class="pk amta" data-adv="${p}list">${lines(r.list)}</textarea></label>`:''}
+      ${['links','invites','words','names'].includes(r.type)?`<label class="lof"><span>${r.type==='links'?'Approved sites':r.type==='invites'?'Allowed invite codes':'Let these through anyway'} (one per line)</span><textarea class="pk amta" data-adv="${p}allow">${lines(r.allow)}</textarea></label>`:''}
+      ${r.type==='words'||r.type==='names'?`<details class="tiny"><summary>Advanced: patterns (regex, up to 10)</summary><textarea class="pk amta" data-adv="${p}regex">${lines(r.regex)}</textarea></details>`:''}
+      <div class="two">${r.type!=='names'?`<label class="lof"><span>Message the member sees</span><input class="pk" data-adv="${p}message" maxlength="150" value="${esc(r.message)}" placeholder="Blocked by the server's rules."></label>`:'<span></span>'}
+        <label class="amon" style="align-self:end"><input type="checkbox" data-adv="${p}alert" ${r.alert?'checked':''}> Send an alert to the log channel</label></div></div>`; };
+  const rs=(x,i)=>`<div class="slot lcard advrs" style="grid-column:1/-1">
+     <div class="advhd"><span class="sh">Ruleset</span><input class="pk advname" data-adv="${i}::name" value="${esc(x.name)}" placeholder="Ruleset name"><label class="amon"><input type="checkbox" data-adv="${i}::enabled" ${x.enabled?'checked':''}> Enabled</label><button class="mini" data-advrsdel="${i}">Delete ruleset</button></div>
+     <div class="dimtx tiny">Ruleset conditions apply to every rule below.</div>
+     <div class="two"><label class="lof"><span>Ignore these roles</span><select multiple size="4" class="amms" data-adv="${i}::ignoreRoles">${optsOf(GI.roles,x.ignoreRoles)}</select></label>
+       <label class="lof"><span>Only active in (leave empty for everywhere)</span><select multiple size="4" class="amms" data-adv="${i}::onlyIn">${chOpts(x.onlyIn)}</select></label></div>
+     <label class="lof"><span>Alerts go to</span><select data-adv="${i}::alertChannel"><option value="">The mod log channel</option>${optsOf(GI.channels,[x.alertChannel])}</select></label>
+     <div class="sh" style="margin-top:6px">Rules</div>
+     ${x.rules.map((r,k)=>rule(r,i,k)).join('')||'<p class="dimtx">No rules yet.</p>'}
+     <div class="lbtns"><button class="mini" data-advadd="${i}">&#65291; Add rule</button></div></div>`;
+  return `<p class="dimtx">Like YAGPDB's Advanced Automoderator: group rules into rulesets, give each ruleset conditions (roles to ignore, where it's active) and give each rule a trigger and effects. The rules run inside Discord's AutoMod, so they work 24/7. Bots and admins are always ignored.</p>
+  <div class="slots lobar"><div class="slot lcard" style="grid-column:1/-1">${serverPick()}<p class="dimtx tiny">Discord allows 6 word/link rules per server in total (the AutoMod tab uses up to 4) and one username rule.</p></div>
+  ${A.rulesets.map(rs).join('')}</div>
+  <div class="lbtns" style="margin-top:12px"><button class="mini" id="advnewrs">&#65291; New ruleset</button><button class="mini go" id="advsave">&#128190; Save and apply to Discord</button><span id="advst" class="dimtx"></span></div>
+  ${ADVRES?`<div class="tw" style="margin-top:10px"><table><tbody>${ADVRES.map(r=>`<tr><td>${esc(r.rule)}</td><td class="${/fail/.test(r.status)?'bad':''}">${esc(r.status)}</td></tr>`).join('')||'<tr><td>No rules switched on.</td></tr>'}</tbody></table></div>`:''}`;
+}
+function advCollect(){
+  document.querySelectorAll('[data-adv]').forEach(el=>{ const [i,k,f]=el.dataset.adv.split(':'); const rs=GI.advanced.rulesets[+i]; if(!rs) return; const tgt=k===''?rs:rs.rules[+k]; if(!tgt) return;
+    let v; if(el.type==='checkbox') v=el.checked; else if(el.multiple) v=[...el.selectedOptions].map(o=>o.value); else if(el.tagName==='TEXTAREA') v=el.value.split('\n').map(x=>x.trim()).filter(Boolean); else v=el.value;
+    if(f==='timeout') v=+v; tgt[f]=v; });
+}
+
+/* ---- Role menus ---- */
+function rmView(){
+  const gate=serverGate(); if(gate) return gate;
+  const M=GI.rolemenus, top=GI.botTop;
+  const roleRow=(r,i,k)=>{ const ro=GI.roles.find(x=>x.id===r.id); const high=ro&&ro.position>=top;
+    return `<div class="rmrow"><select data-rm="${i}:${k}:id" data-rmre="1"><option value="">Pick a role…</option>${GI.roles.map(x=>`<option value="${x.id}" ${x.id===r.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+      <input class="pk" data-rm="${i}:${k}:emoji" value="${esc(r.emoji||'')}" placeholder="Emoji" maxlength="8" style="max-width:80px">
+      <input class="pk" data-rm="${i}:${k}:label" value="${esc(r.label||'')}" placeholder="Label">
+      <input class="pk" data-rm="${i}:${k}:desc" value="${esc(r.desc||'')}" placeholder="Description (menu only)">
+      <button class="mini" data-rmrdel="${i}:${k}">&times;</button>${high?'<div class="bad tiny" style="flex-basis:100%">This role is above the bot\'s role, so the bot can\'t give it. Drag the bot\'s role higher in Server Settings → Roles.</div>':''}</div>`; };
+  const menu=(m,i)=>`<div class="slot lcard" style="grid-column:1/-1">
+    <div class="advhd"><span class="sh">Role menu</span>${m.message?'<span class="tag">posted</span>':'<span class="tag">not posted yet</span>'}<button class="mini" data-rmdel="${i}">Delete menu</button></div>
+    <div class="two"><label class="lof"><span>Title</span><input class="pk" data-rm="${i}::title" value="${esc(m.title)}"></label>
+      <label class="lof"><span>Post in channel</span><select data-rm="${i}::channel"><option value="">Pick a channel…</option>${optsOf(GI.channels,[m.channel])}</select></label></div>
+    <label class="lof"><span>Text (Discord formatting works)</span><textarea class="pk amta" data-rm="${i}::text">${esc(m.text)}</textarea></label>
+    <label class="lof"><span>Style</span><select data-rm="${i}::mode"><option value="menu" ${m.mode==='menu'?'selected':''}>Dropdown menu (pick several)</option><option value="buttons" ${m.mode==='buttons'?'selected':''}>Buttons (click to add or remove)</option></select></label>
+    <div class="lof"><span>Roles (up to 25)</span></div>${m.roles.map((r,k)=>roleRow(r,i,k)).join('')}
+    <div class="lbtns"><button class="mini" data-rmradd="${i}">&#65291; Add role</button><button class="mini go" data-rmpost="${i}">${m.message?'Update in Discord':'Post to Discord'}</button><span class="dimtx" id="rmst${i}"></span></div></div>`;
+  return `<p class="dimtx">Post a message where members pick their own roles (for example Tank / Healer / DPS, or PvP / PvE pings). The bot needs the <b>Manage Roles</b> permission, and its role must sit above the roles it hands out.</p>
+  <div class="slots lobar"><div class="slot lcard" style="grid-column:1/-1">${serverPick()}</div>${M.map(menu).join('')}</div>
+  <div class="lbtns" style="margin-top:12px"><button class="mini" id="rmnew">&#65291; New role menu</button><span class="dimtx">${esc(RMMSG)}</span></div>`;
+}
+function rmCollect(){
+  document.querySelectorAll('[data-rm]').forEach(el=>{ const [i,k,f]=el.dataset.rm.split(':'); const m=GI.rolemenus[+i]; if(!m) return; const tgt=k===''?m:m.roles[+k]; if(!tgt) return; tgt[f]=el.value; });
+}
 function automodView(){
   if(!viaHelper()||!OWNER.bot||!OWNER.bot.token) return '<p class="dimtx">Set up the Discord bot first (Discord bot tab).</p>';
   if(BOTCH===null) return BOTCHERR?`<p class="bad">${esc(BOTCHERR)}</p>`:'<p class="dimtx">Loading your servers&hellip;</p>';
@@ -1536,7 +1616,7 @@ function botCard(b){
   </div>`;
 }
 async function loadBotChannels(){ BOTCH=null; BOTCHERR=''; try{ const d=await ownerApi('botchannels'); BOTCH=d; if(OWNER&&OWNER.bot){ OWNER.bot.channel=d.channel; OWNER.bot.log=d.log; } }catch(e){ BOTCHERR=e.message; }
-  if(current?.kind==='view'&&current.v==='admin'&&(ADMTAB==='bot'||ADMTAB==='automod')) openView('admin',false); }
+  if(current?.kind==='view'&&current.v==='admin'&&['bot','automod','advanced','roles'].includes(ADMTAB)) openView('admin',false); }
 let SUBS=null, SUBERR='', ADMTAB=LS.get('nw_admtab','subs');
 function viewReview(){
   const t=ghToken(), u=CFG.worker?dUser():null, helper=viaHelper();
@@ -1551,7 +1631,7 @@ function viewReview(){
     (SUBS.length?SUBS.map((s,i)=>`<div class="locard"><div><b>${esc(s.title)}</b><div class="dimtx">from ${esc(s.by||s.user)}${s.mode?' &middot; '+esc(s.mode):''} &middot; ${new Date(s.at).toLocaleDateString()} &middot; <a href="${esc(s.url)}" target="_blank" rel="noopener">issue #${s.num}</a></div>${s.code?'':'<div class="bad">No loadout link found in this submission</div>'}</div>
       <div class="lobtns">${s.code?`<button class="mini" data-subprev="${i}">Preview</button><button class="mini go" data-subpub="${i}">Publish</button>`:''}<button class="mini" data-subrej="${i}">Reject</button></div></div>`).join(''):'<p class="dimtx">No submissions waiting.</p>');
   const com=communityLos().filter(x=>x.src==='site');
-  const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
+  const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['advanced','&#129513; Advanced rules'],['roles','&#127917; Role menus'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
   <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
@@ -1571,6 +1651,8 @@ function viewReview(){
   if(ADMTAB==='bot') body=helper&&OWNER.bot?botCard(OWNER.bot).replace('<h2>Discord bot</h2>',''):`<p class="dimtx">The Discord bot settings need the Discord login (helper Version 5 or newer).</p>`;
   if(ADMTAB==='status') body=statusView();
   if(ADMTAB==='automod') body=automodView();
+  if(ADMTAB==='advanced') body=advView();
+  if(ADMTAB==='roles') body=rmView();
   if(ADMTAB==='helper') body=`<div class="slots lobar">
     <div class="slot lcard"><div class="sh">Helper status</div><pre class="helperst" id="helperst">${CFG.worker?'Checking&hellip;':'No helper set in site-config.json'}</pre>
       <div class="lbtns"><button class="mini" id="helperchk">&#8635; Check again</button>${CFG.worker?`<a class="mini" href="${esc(CFG.worker)}" target="_blank" rel="noopener">Open helper page</a>`:''}</div></div>
@@ -1608,7 +1690,32 @@ function reviewEvents(){
     try{ const d=await ownerApi('botsetup'); st.textContent=`Done: ${d.count} commands registered. They show up in Discord within a minute.`; }catch(e){ st.textContent='Failed: '+e.message; } bt.disabled=false; });
   if((ADMTAB==='bot'||ADMTAB==='automod') && viaHelper() && OWNER.bot && OWNER.bot.token && BOTCH===null && !BOTCHERR) loadBotChannels();
   if(ADMTAB==='automod' && BOTCH && BOTCH.guilds.length && (AM===null || (AM.guild!==AMG && AM.guild!=='_'))) loadAutomod();
-  const amg=document.getElementById('amguild'); if(amg) amg.onchange=()=>{ AMG=amg.value; LS.set('nw_amguild',AMG); AM=null; openView('admin',false); };
+  const amg=document.getElementById('amguild'); if(amg) amg.onchange=()=>{ AMG=amg.value; LS.set('nw_amguild',AMG); AM=null; GI=null; ADVRES=null; openView('admin',false); };
+  if((ADMTAB==='advanced'||ADMTAB==='roles') && viaHelper() && OWNER.bot && OWNER.bot.token && BOTCH===null && !BOTCHERR) loadBotChannels();
+  if((ADMTAB==='advanced'||ADMTAB==='roles') && BOTCH && BOTCH.guilds.length && (GI===null||GI.guild!==(AMG||BOTCH.guilds[0].id)) && !GIERR){ if(!AMG) AMG=BOTCH.guilds[0].id; loadGuildInfo(); }
+  if(ADMTAB==='advanced' && GI){
+    const re=()=>{ advCollect(); openView('admin',false); };
+    document.querySelectorAll('[data-advre]').forEach(el=>el.onchange=re);
+    on('advnewrs',()=>{ advCollect(); GI.advanced.rulesets.push({id:rid6(),name:'New ruleset',enabled:true,ignoreRoles:[],onlyIn:[],alertChannel:'',rules:[{id:rid6(),name:'New rule',enabled:true,type:'words',list:[],regex:[],allow:[],alert:true,timeout:0,message:''}]}); openView('admin',false); });
+    document.querySelectorAll('[data-advadd]').forEach(el=>el.onclick=()=>{ advCollect(); GI.advanced.rulesets[+el.dataset.advadd].rules.push({id:rid6(),name:'New rule',enabled:true,type:'words',list:[],regex:[],allow:[],alert:true,timeout:0,message:''}); openView('admin',false); });
+    document.querySelectorAll('[data-advdel]').forEach(el=>el.onclick=()=>{ advCollect(); const [i,k]=el.dataset.advdel.split(':'); GI.advanced.rulesets[+i].rules.splice(+k,1); openView('admin',false); });
+    document.querySelectorAll('[data-advrsdel]').forEach(el=>el.onclick=()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to delete'; return; } advCollect(); GI.advanced.rulesets.splice(+el.dataset.advrsdel,1); openView('admin',false); });
+    on('advsave',async()=>{ advCollect(); const st=document.getElementById('advst'), bt=document.getElementById('advsave'); bt.disabled=true; st.textContent='Applying to Discord…';
+      try{ const d=await ownerApi('advset',{guild:AMG,advanced:GI.advanced}); GI.advanced=d.advanced; ADVRES=d.results; toast('Advanced rules saved'); openView('admin',false); }catch(e){ st.textContent='Failed: '+e.message; bt.disabled=false; } });
+  }
+  if(ADMTAB==='roles' && GI){
+    const re=()=>{ rmCollect(); openView('admin',false); };
+    document.querySelectorAll('[data-rmre]').forEach(el=>el.onchange=()=>{ rmCollect(); const [i,k]=el.dataset.rm.split(':'); const r=GI.rolemenus[+i].roles[+k]; const ro=GI.roles.find(x=>x.id===r.id); if(ro&&!r.label) r.label=ro.name; openView('admin',false); });
+    on('rmnew',()=>{ rmCollect(); GI.rolemenus.push({id:rid6(),channel:'',message:'',title:'Pick your roles',text:'',mode:'menu',roles:[{id:'',label:'',desc:'',emoji:''}]}); openView('admin',false); });
+    document.querySelectorAll('[data-rmradd]').forEach(el=>el.onclick=()=>{ rmCollect(); GI.rolemenus[+el.dataset.rmradd].roles.push({id:'',label:'',desc:'',emoji:''}); openView('admin',false); });
+    document.querySelectorAll('[data-rmrdel]').forEach(el=>el.onclick=()=>{ rmCollect(); const [i,k]=el.dataset.rmrdel.split(':'); GI.rolemenus[+i].roles.splice(+k,1); openView('admin',false); });
+    document.querySelectorAll('[data-rmpost]').forEach(el=>el.onclick=async()=>{ rmCollect(); const i=+el.dataset.rmpost, st=document.getElementById('rmst'+i); el.disabled=true; st.textContent='Posting…';
+      const m=GI.rolemenus[i]; m.roles=m.roles.filter(r=>r.id);
+      try{ const d=await ownerApi('rmpost',{guild:AMG,menu:m}); GI.rolemenus=d.rolemenus; RMMSG='Posted ✓'; toast('Role menu posted'); openView('admin',false); }catch(e){ st.textContent='Failed: '+e.message; el.disabled=false; } });
+    document.querySelectorAll('[data-rmdel]').forEach(el=>el.onclick=async()=>{ if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to delete'; return; } rmCollect(); const m=GI.rolemenus[+el.dataset.rmdel];
+      if(m.message){ try{ const d=await ownerApi('rmdelete',{guild:AMG,menu:m}); GI.rolemenus=d.rolemenus; }catch(e){ toast('Failed: '+e.message); return; } } else GI.rolemenus.splice(+el.dataset.rmdel,1);
+      RMMSG='Menu deleted'; openView('admin',false); });
+  }
   on('amsave',async()=>{ const v=id=>document.getElementById(id), ck=id=>!!(v(id)&&v(id).checked), lines=id=>(v(id)?v(id).value:'').split('\n').map(x=>x.trim()).filter(Boolean), sel=id=>v(id)?[...v(id).selectedOptions].map(o=>o.value):[];
     const cfg={spam:{on:ck('am_spam')}, mentions:{on:ck('am_men'),limit:+v('am_menlim').value,raid:ck('am_raid'),timeout:+v('am_mento').value},
       presets:{on:ck('am_pre'),slurs:ck('am_pre_sl'),sexual:ck('am_pre_sx'),profanity:ck('am_pre_pr'),allow:lines('am_preallow')},
