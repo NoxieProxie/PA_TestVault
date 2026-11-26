@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 18:14';
+const BUILD_AT = '2026-11-26 18:28';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1359,7 +1359,7 @@ let CFG={worker:''};   // site-config.json: {"worker":"https://...workers.dev"} 
 async function loadCommunity(){
   try{ const r=await fetch('community.json',{cache:'no-cache'}); if(r.ok) COMMUNITY=await r.json(); }catch(e){}
   try{ const r=await fetch('site-config.json',{cache:'no-cache'}); if(r.ok) CFG=Object.assign(CFG,await r.json()); }catch(e){}
-  CFG.worker=(CFG.worker||'').replace(/\/+$/,'');
+  CFG.worker=(CFG.worker||'').replace(/\/+$/,''); CFG.gateway=(CFG.gateway||'').replace(/\/+$/,'');
 }
 const dPass=()=>LS.get('nw_discord','');
 function dUser(){ const p=dPass(); if(!p) return null; try{ let s=p.split('.')[0].replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
@@ -1469,9 +1469,50 @@ function serverGate(){
 }
 function serverPick(){ return BOTCH.guilds.length>1?`<label class="lof"><span>Server</span><select id="amguild">${BOTCH.guilds.map(g=>`<option value="${g.id}" ${g.id===AMG?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label>`:`<div class="dimtx">Server: <b>${esc(BOTCH.guilds[0].name)}</b></div>`; }
 async function loadGuildInfo(){ GIERR=''; const g=AMG; try{ const d=await ownerApi('guildinfo',{guild:g}); GI={guild:g,...d}; }catch(e){ GIERR=e.message; GI=null; }
-  if(current?.kind==='view'&&current.v==='admin'&&(ADMTAB==='advanced'||ADMTAB==='roles')) openView('admin',false); }
+  if(current?.kind==='view'&&current.v==='admin'&&['advanced','roles','live'].includes(ADMTAB)) openView('admin',false); }
 const optsOf=(list,sel)=>list.map(x=>`<option value="${x.id}" ${(sel||[]).includes(x.id)?'selected':''}>${esc(x.name)}${x.cat?' ('+esc(x.cat)+')':''}</option>`).join('');
 
+/* ---- Live bot (always-online gateway worker) ---- */
+let LIVECFG=null, LIVEERR='', LIVEST=null, LIVESTERR='';
+const gwURL=()=>(CFG.gateway||'').replace(/\/+$/,'');
+async function loadLive(){ LIVEERR=''; try{ LIVECFG=(await ownerApi('liveget')).live; }catch(e){ LIVEERR=e.message; LIVECFG=null; }
+  if(current?.kind==='view'&&current.v==='admin'&&ADMTAB==='live') openView('admin',false); }
+async function loadLiveStatus(path){ LIVESTERR=''; if(!gwURL()){ LIVEST=null; LIVESTERR='not set up'; return; }
+  try{ const r=await fetch(gwURL()+(path||'/status'),{cache:'no-store'}); LIVEST=await r.json(); }catch(e){ LIVEST=null; LIVESTERR=e.message; }
+  if(current?.kind==='view'&&current.v==='admin'&&ADMTAB==='live') openView('admin',false); }
+function liveView(){
+  if(!viaHelper()) return '<p class="dimtx">Needs the Discord login.</p>';
+  const gate=serverGate(); if(gate) return gate;
+  if(LIVECFG===null) return LIVEERR?`<p class="bad">${esc(LIVEERR)}</p>`:'<p class="dimtx">Loading live bot settings&hellip;</p>';
+  const L=LIVECFG, st=LIVEST;
+  const dot=!gwURL()?'&#9898; Not set up yet':LIVESTERR?'&#128308; Can\'t reach the live bot':!st?'&#9898; Checking&hellip;':st.state==='ready'?'&#128994; Online':st.stopped?'&#128308; Stopped':'&#128993; '+esc(st.state);
+  const on=(id,v,label)=>`<label class="amon"><input type="checkbox" id="${id}" ${v?'checked':''}> ${label}</label>`;
+  const num=(id,v,label,min,max)=>`<label class="lof"><span>${label}</span><input type="number" class="pk" id="${id}" min="${min}" max="${max}" value="${v}"></label>`;
+  const TO=[[0,'No timeout'],[60,'1 minute'],[300,'5 minutes'],[600,'10 minutes'],[3600,'1 hour'],[21600,'6 hours'],[86400,'1 day'],[604800,'1 week']];
+  const to=(id,v,label)=>`<label class="lof"><span>${label||'Time them out for'}</span><select id="${id}">${TO.map(([x,l])=>`<option value="${x}" ${+v===x?'selected':''}>${l}</option>`).join('')}</select></label>`;
+  const card=(t,inner,full)=>`<div class="slot lcard"${full?' style="grid-column:1/-1"':''}><div class="sh">${t}</div>${inner}</div>`;
+  return `<p class="dimtx">The live bot stays connected to Discord all the time, so it shows as <b>Online</b> and can react to messages as they're sent. It runs as its own small Cloudflare worker (<code>nw-vault-gateway</code>) and picks up changes here within about 2 minutes.</p>
+  <div class="slots lobar">
+   ${card('Status',`<div class="stline"><b>${dot}</b>${st&&st.bot?` as <b>${esc(st.bot)}</b>`:''}</div>
+     ${st?`<div class="dimtx tiny">Servers: ${esc((st.servers||[]).join(', ')||'none yet')} &middot; connected since ${st.connectedSince?new Date(st.connectedSince).toLocaleString():'—'} &middot; ${st.events||0} events</div>`:''}
+     ${st&&st.stopped?`<p class="bad">${esc(st.stopped)}</p>`:''}
+     ${!gwURL()?'<p class="dimtx">Run <b>Deploy bot.bat</b> in the nw-vault-gateway folder first, then publish the site.</p>':`<div class="lbtns"><button class="mini" id="livechk">&#8635; Check</button><button class="mini" id="liverestart">Restart the connection</button></div>`}`,true)}
+   ${card('&#127918; Status text',`<div class="two"><label class="lof"><span>Shown as</span><select id="lv_pt">${[['watching','Watching'],['playing','Playing'],['listening','Listening to'],['competing','Competing in'],['custom','Custom text']].map(([v,l])=>`<option value="${v}" ${L.presence.type===v?'selected':''}>${l}</option>`).join('')}</select></label>
+     <label class="lof"><span>Text</span><input class="pk" id="lv_ptext" maxlength="100" value="${esc(L.presence.text)}"></label></div>`)}
+   ${card('&#9889; Message spam',on('lv_spam',L.spam.on,'Catch members sending messages too fast')+`<div class="two">${num('lv_spamn',L.spam.msgs,'Messages',2,50)}${num('lv_spams',L.spam.secs,'Within (seconds)',1,60)}</div>`+to('lv_spamto',L.spam.timeout)+'<p class="dimtx tiny">Their burst of messages is deleted.</p>')}
+   ${card('&#128257; Repeated messages',on('lv_dup',L.dupes.on,'Catch the same message sent again and again')+`<div class="two">${num('lv_dupn',L.dupes.count,'Times',2,20)}${num('lv_dups',L.dupes.secs,'Within (seconds)',5,600)}</div>`+to('lv_dupto',L.dupes.timeout))}
+   ${card('&#128200; Violations',on('lv_vio',L.violations.on,'Escalate when someone keeps breaking rules')+`<div class="two">${num('lv_vion',L.violations.count,'Violations',1,50)}${num('lv_viom',L.violations.mins,'Within (minutes)',1,1440)}</div>
+     <div class="two"><label class="lof"><span>Then</span><select id="lv_vioa">${[['timeout','Time out'],['kick','Kick'],['ban','Ban']].map(([v,l])=>`<option value="${v}" ${L.violations.action===v?'selected':''}>${l}</option>`).join('')}</select></label>${to('lv_vioto',L.violations.timeout,'Timeout length')}</div>
+     <p class="dimtx tiny">Spam, repeats and anything Discord AutoMod blocks all count as violations.</p>`)}
+   ${card('&#128118; New accounts',on('lv_new',L.newacc.on,'Flag accounts that are very new')+`<div class="two">${num('lv_newd',L.newacc.days,'Younger than (days)',1,365)}<label class="lof"><span>Then</span><select id="lv_newa"><option value="log" ${L.newacc.action==='log'?'selected':''}>Warn in the log</option><option value="kick" ${L.newacc.action==='kick'?'selected':''}>Kick them</option></select></label></div>`)}
+   ${card('&#128075; Welcome',on('lv_wel',L.welcome.on,'Post a welcome card when someone joins')+`<label class="lof"><span>Channel</span><select id="lv_welc"><option value="">Pick a channel…</option>${optsOf(GI.channels,[L.welcome.channel])}</select></label>
+     <label class="lof"><span>Message ({user}, {name}, {server}, {count})</span><textarea class="pk amta" id="lv_welt">${esc(L.welcome.text)}</textarea></label>`)}
+   ${card('&#127991;&#65039; Auto-roles',`<label class="lof"><span>Give new members these roles (Ctrl+click for several)</span><select multiple size="5" class="amms" id="lv_ar">${optsOf(GI.roles,L.autoroles)}</select></label>`)}
+   ${card('&#128221; Logs (to the mod log channel)',on('lv_lj',L.logs.joins,'Members joining')+on('lv_ll',L.logs.leaves,'Members leaving')+on('lv_le',L.logs.edits,'Edited messages (before and after)')+on('lv_ld',L.logs.deletes,'Deleted messages'))}
+   ${card('&#128101; Skip',`<label class="lof"><span>Never act on these roles (staff with Manage Messages, Timeout Members or Admin are always skipped)</span><select multiple size="4" class="amms" id="lv_ig">${optsOf(GI.roles,L.ignoreRoles)}</select></label>`)}
+  </div>
+  <div class="lbtns" style="margin-top:12px"><button class="mini go" id="livesave">&#128190; Save</button><span id="livest" class="dimtx"></span></div>`;
+}
 /* ---- Advanced rules (YAGPDB-style rulesets) ---- */
 const ADV_T=[['words','Words or phrases'],['links','Links (except approved sites)'],['invites','Invites to other servers'],['sites','Banned websites'],['names','Usernames and nicknames']];
 const ADV_TO=[[0,'No timeout'],[60,'1 minute'],[300,'5 minutes'],[600,'10 minutes'],[3600,'1 hour'],[21600,'6 hours'],[86400,'1 day'],[604800,'1 week']];
@@ -1616,7 +1657,7 @@ function botCard(b){
   </div>`;
 }
 async function loadBotChannels(){ BOTCH=null; BOTCHERR=''; try{ const d=await ownerApi('botchannels'); BOTCH=d; if(OWNER&&OWNER.bot){ OWNER.bot.channel=d.channel; OWNER.bot.log=d.log; } }catch(e){ BOTCHERR=e.message; }
-  if(current?.kind==='view'&&current.v==='admin'&&['bot','automod','advanced','roles'].includes(ADMTAB)) openView('admin',false); }
+  if(current?.kind==='view'&&current.v==='admin'&&['bot','automod','advanced','roles','live'].includes(ADMTAB)) openView('admin',false); }
 let SUBS=null, SUBERR='', ADMTAB=LS.get('nw_admtab','subs');
 function viewReview(){
   const t=ghToken(), u=CFG.worker?dUser():null, helper=viaHelper();
@@ -1631,7 +1672,7 @@ function viewReview(){
     (SUBS.length?SUBS.map((s,i)=>`<div class="locard"><div><b>${esc(s.title)}</b><div class="dimtx">from ${esc(s.by||s.user)}${s.mode?' &middot; '+esc(s.mode):''} &middot; ${new Date(s.at).toLocaleDateString()} &middot; <a href="${esc(s.url)}" target="_blank" rel="noopener">issue #${s.num}</a></div>${s.code?'':'<div class="bad">No loadout link found in this submission</div>'}</div>
       <div class="lobtns">${s.code?`<button class="mini" data-subprev="${i}">Preview</button><button class="mini go" data-subpub="${i}">Publish</button>`:''}<button class="mini" data-subrej="${i}">Reject</button></div></div>`).join(''):'<p class="dimtx">No submissions waiting.</p>');
   const com=communityLos().filter(x=>x.src==='site');
-  const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['advanced','&#129513; Advanced rules'],['roles','&#127917; Role menus'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
+  const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['advanced','&#129513; Advanced rules'],['live','&#128994; Live bot'],['roles','&#127917; Role menus'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
   <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
@@ -1652,6 +1693,7 @@ function viewReview(){
   if(ADMTAB==='status') body=statusView();
   if(ADMTAB==='automod') body=automodView();
   if(ADMTAB==='advanced') body=advView();
+  if(ADMTAB==='live') body=liveView();
   if(ADMTAB==='roles') body=rmView();
   if(ADMTAB==='helper') body=`<div class="slots lobar">
     <div class="slot lcard"><div class="sh">Helper status</div><pre class="helperst" id="helperst">${CFG.worker?'Checking&hellip;':'No helper set in site-config.json'}</pre>
@@ -1693,6 +1735,23 @@ function reviewEvents(){
   const amg=document.getElementById('amguild'); if(amg) amg.onchange=()=>{ AMG=amg.value; LS.set('nw_amguild',AMG); AM=null; GI=null; ADVRES=null; openView('admin',false); };
   if((ADMTAB==='advanced'||ADMTAB==='roles') && viaHelper() && OWNER.bot && OWNER.bot.token && BOTCH===null && !BOTCHERR) loadBotChannels();
   if((ADMTAB==='advanced'||ADMTAB==='roles') && BOTCH && BOTCH.guilds.length && (GI===null||GI.guild!==(AMG||BOTCH.guilds[0].id)) && !GIERR){ if(!AMG) AMG=BOTCH.guilds[0].id; loadGuildInfo(); }
+  if(ADMTAB==='live'){
+    if(viaHelper() && OWNER.bot && OWNER.bot.token && BOTCH===null && !BOTCHERR) loadBotChannels();
+    if(BOTCH && BOTCH.guilds.length && (GI===null||GI.guild!==(AMG||BOTCH.guilds[0].id)) && !GIERR){ if(!AMG) AMG=BOTCH.guilds[0].id; loadGuildInfo(); }
+    if(LIVECFG===null && !LIVEERR) loadLive();
+    if(LIVEST===null && !LIVESTERR && gwURL()) loadLiveStatus();
+    on('livechk',()=>{ LIVEST=null; LIVESTERR=''; loadLiveStatus(); });
+    on('liverestart',()=>{ LIVEST=null; openView('admin',false); loadLiveStatus('/restart'); });
+    on('livesave',async()=>{ const v=id=>document.getElementById(id), ck=id=>!!v(id).checked, sel=id=>[...v(id).selectedOptions].map(o=>o.value);
+      const live={presence:{type:v('lv_pt').value,text:v('lv_ptext').value}, spam:{on:ck('lv_spam'),msgs:+v('lv_spamn').value,secs:+v('lv_spams').value,timeout:+v('lv_spamto').value},
+        dupes:{on:ck('lv_dup'),count:+v('lv_dupn').value,secs:+v('lv_dups').value,timeout:+v('lv_dupto').value},
+        violations:{on:ck('lv_vio'),count:+v('lv_vion').value,mins:+v('lv_viom').value,action:v('lv_vioa').value,timeout:+v('lv_vioto').value},
+        newacc:{on:ck('lv_new'),days:+v('lv_newd').value,action:v('lv_newa').value}, welcome:{on:ck('lv_wel'),channel:v('lv_welc').value,text:v('lv_welt').value},
+        autoroles:sel('lv_ar'), logs:{joins:ck('lv_lj'),leaves:ck('lv_ll'),edits:ck('lv_le'),deletes:ck('lv_ld')}, ignoreRoles:sel('lv_ig')};
+      const st=v('livest'), bt=v('livesave'); bt.disabled=true; st.textContent='Saving…';
+      try{ LIVECFG=(await ownerApi('liveset',{live})).live; if(gwURL()) setTimeout(()=>fetch(gwURL()+'/reload').catch(()=>{}),4000); st.textContent='Saved ✓ The live bot picks it up in a few seconds.'; bt.disabled=false; toast('Live bot settings saved'); }
+      catch(e){ st.textContent='Failed: '+e.message; bt.disabled=false; } });
+  }
   if(ADMTAB==='advanced' && GI){
     const re=()=>{ advCollect(); openView('admin',false); };
     document.querySelectorAll('[data-advre]').forEach(el=>el.onchange=re);
