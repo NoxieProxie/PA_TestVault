@@ -96,8 +96,8 @@
    "action": "log"
   },
   "welcome": {
-   "on": false,
-   "channel": "",
+   "on": true,
+   "channel": "1574561658389663745",
    "text": "Welcome {user} to **{server}**! You are member #{count}."
   },
   "autoroles": [],
