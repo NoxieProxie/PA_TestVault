@@ -11,6 +11,7 @@
     "Home",
     "Items",
     "References",
+    "Game Data",
     "Crafting",
     "Loadout",
     "Calculator",
@@ -21,7 +22,8 @@
     "Expeditions",
     "PvP",
     "My Pages",
-    "Admin"
+    "Admin",
+    "Raids"
    ],
    "start": "New World Home",
    "icons": true
