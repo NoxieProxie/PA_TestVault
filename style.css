@@ -544,3 +544,19 @@ code,.tag{background:#242b36}
 .peekimg{padding:12px;text-align:center}
 .peekcv{max-width:100%;height:auto;border-radius:8px}
 @media(max-width:600px){ .peekhead b{flex-basis:100%} }
+
+/* ---- weight calculator ---- */
+.wrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:7px 0}
+.wl2{width:64px;flex:none;color:var(--dim);font-size:13.5px}
+.wkg{opacity:.7;font-size:12px;margin-left:2px}
+.wtotal{display:flex;align-items:baseline;gap:12px;margin:4px 0 10px}
+.wbig{font:700 46px/1 var(--serif);color:var(--gold2)}
+.wband{font-weight:600;font-size:14px;padding:3px 10px;border-radius:20px;border:1px solid}
+.b-light{color:#8fd6c9;border-color:#3f6e68}.b-medium{color:var(--gold2);border-color:#6a5a33}.b-heavy{color:#e7a08e;border-color:#7a4a3e}.b-overburdened{color:#ff8c8c;border-color:#8a3434}
+.wbar{position:relative;display:flex;height:14px;border-radius:7px;overflow:visible;background:var(--bg3);margin:6px 0 4px}
+.wbar .seg{height:100%}.wbar .seg.l{background:#2f5450;border-radius:7px 0 0 7px}.wbar .seg.m{background:#5a4b2a}.wbar .seg.h{background:#5a3329;border-radius:0 7px 7px 0}
+.wbar .mark{position:absolute;top:-5px;width:4px;height:24px;margin-left:-2px;background:var(--fg);border-radius:2px;box-shadow:0 0 0 2px var(--bg2)}
+.wscale{position:relative;height:18px;font-size:12px;color:var(--mute)}
+.wscale span{position:absolute;transform:translateX(-50%)}.wscale span:first-child{transform:none;left:0}.wscale span:last-child{transform:none}
+.wtable th.on,.wtable td.on{background:#1f2633;color:var(--fg)}
+.wtable th.on{color:var(--gold2)}

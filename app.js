@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 peek';
+const BUILD_AT = '2026-11-26 weight';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -164,6 +164,7 @@ function navTabs(){
     ${tool('gear','Loadout builder','Plan gear, perks and attributes, then share it')}
     ${tool('calc','Calculator','Real damage and health, against raid bosses too')}
     ${tool('craft','Recipe finder','Every recipe, with a shopping list')}
+    ${tool('weight','Weight calculator','Equip load, and what light, medium and heavy give and cost')}
     ${tool('builds','Build browser','Filter every build by role, mode and weapon')}
     ${tool('bosses','Boss browser','Filter bosses by expedition and weakness')}</div></div>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
@@ -180,7 +181,7 @@ function navTabs(){
                : (/my pages/i.test(t) && typeof canWrite==='function' && canWrite()) ? `<a class="mi hi" data-newpage="1">&#65291; New page</a>` : '';
     let menu = extra;
     const fold = paths.length>12 && Object.keys(groups).some(g=>g);   // long menus: sub-folders start folded, click a heading to open it
-    const items = l => l.map(p=>`<a class="mi" data-note="${esc(META[p].name)}">${esc(META[p].name)}</a>`).join('');
+    const items = l => l.map(p=>`<a class="mi" data-note="${esc(META[p].name)}">${esc(label(META[p].name))}</a>`).join('');
     for (const g of Object.keys(groups).sort((a,b)=>(a?1:0)-(b?1:0)||a.localeCompare(b))){
       if (!g) { menu += items(groups[g]); continue; }
       menu += fold ? `<div class="fold"><button class="mh tg" aria-expanded="false">${esc(label(g))} <span class="cnt">${groups[g].length}</span></button><div class="grp">${items(groups[g])}</div></div>`
@@ -406,8 +407,8 @@ function openNote(name, push=true){
        <button class="pin ${pinned?'on':''}" id="pinbtn">${pinned?'&#9733; Pinned':'&#9734; Pin'}</button></div>
      ${typeof editedBanner==='function'?editedBanner(name):''}
      <div class="cols">${toc}<article>${md(m.body)}
-       <div class="pager">${prev?`<button class="pg" data-note="${esc(prev)}">&larr; ${esc(prev)}</button>`:'<span></span>'}
-         ${next?`<button class="pg" data-note="${esc(next)}">${esc(next)} &rarr;</button>`:'<span></span>'}</div>
+       <div class="pager">${prev?`<button class="pg" data-note="${esc(prev)}">&larr; ${esc(label(prev))}</button>`:'<span></span>'}
+         ${next?`<button class="pg" data-note="${esc(next)}">${esc(label(next))} &rarr;</button>`:'<span></span>'}</div>
        ${m.custom&&typeof canWrite==='function'&&canWrite()?`<div class="addbar"><button class="mini" data-editpage="${esc(m.cid)}">&#9998; Edit this page</button></div>`:''}
        ${!m.custom&&typeof addendumHTML==='function'?addendumHTML(name):''}
        ${m.source?`<div class="srcline">Source: ${esc(m.source)}</div>`:''}</article></div>`;
@@ -425,13 +426,14 @@ function openView(v,push=true){
   if(push && current) hist.push(current);
   current={kind:'view',v};
   document.getElementById('main').classList.remove('home');
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
   if(v==='myloadouts') myLoEvents();
   if(v==='admin') reviewEvents();
   if(v==='craft') craftEvents();
+  if(v==='weight') weightEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -2663,6 +2665,108 @@ function craftSearch(q){ CQ.q=q; CQ.ts=''; CQ.cat=''; CQ.all=false; CQ.page=0; o
 const CRAFT_WORD={'Sword and Shield':'Longsword','Great Axe':'Great Axe','War Hammer':'War Hammer','Greatsword':'Greatsword','Rapier':'Rapier','Hatchet':'Hatchet','Spear':'Spear','Flail':'Flail',
   'Bow':'Bow','Musket':'Musket','Blunderbuss':'Blunderbuss','Fire Staff':'Fire Staff','Life Staff':'Life Staff','Ice Gauntlet':'Ice Gauntlet','Void Gauntlet':'Void Gauntlet'};
 
+/* ================= weight (equip load) calculator ================= */
+const WSLOTS=[['Head','Helmet'],['Chest','Chest'],['Hands','Gloves'],['Legs','Pants'],['Feet','Boots']];
+const WT=Object.assign({Head:'Light',Chest:'Light',Hands:'Light',Legs:'Light',Feet:'Light',shield:'',countW:false,w1:'',w2:''}, LS.get('nw_weight',{}));
+const saveWT=()=>LS.set('nw_weight',WT);
+const wkg=n=>(Math.round(n*10)/10).toFixed(1);
+function wTotal(st=WT){
+  const W=CALC.weights; let t=0; const parts=[];
+  WSLOTS.forEach(([k,l])=>{ const v=(W[k]||{})[st[k]]||0; t+=v; parts.push({l,v,c:st[k]}); });
+  if(st.shield){ const v=(CALC.shields||{})[st.shield]||0; t+=v; parts.push({l:st.shield+' shield',v}); }
+  if(st.countW) ['w1','w2'].forEach(k=>{ if(st[k]){ const v=(CALC.wweights||{})[st[k]]||0; t+=v; parts.push({l:st[k],v}); } });
+  return {t:Math.round(t*10)/10, parts};
+}
+function wBand(t){ const E=CALC.equipLoad; return t>E.max?'Overburdened':t>=E.heavy?'Heavy':t>=E.medium?'Medium':'Light'; }
+/* the heaviest armour mix (most armour) that still stays in a band, found by trying every combination */
+function bestMix(band, extra){
+  const E=CALC.equipLoad, W=CALC.weights, cls=['Light','Medium','Heavy'], lim=band==='Light'?E.medium:E.heavy;
+  let best=null;
+  for(let i=0;i<243;i++){ let n=i, st={}, t=extra;
+    WSLOTS.forEach(([k])=>{ st[k]=cls[n%3]; n=Math.floor(n/3); t+=W[k][st[k]]; });
+    if(t<lim-0.05 && (!best||t>best.t)) best={st,t};
+  }
+  return best;
+}
+function viewWeight(){
+  if(!CALC||!CALC.weights||!CALC.equipLoad) return `<h1>Weight calculator</h1><p class="lede">This needs the new calc.json (run build-calc-data.py).</p>`;
+  const E=CALC.equipLoad, W=CALC.weights, {t,parts}=wTotal(), band=wBand(t);
+  const pct=x=>Math.min(100,x/E.max*100);
+  const next=band==='Light'?E.medium:band==='Medium'?E.heavy:band==='Heavy'?E.max:null;
+  const extra=(WT.shield?(CALC.shields[WT.shield]||0):0)+(WT.countW?['w1','w2'].reduce((s,k)=>s+(WT[k]?(CALC.wweights[WT[k]]||0):0),0):0);
+  const preset=(id,label,st)=>st?`<button class="chip" data-wpre="${id}">${label} <span class="dimtx">${wkg(st.t)}</span></button>`:'';
+  const bl=bestMix('Light',extra), bm=bestMix('Medium',extra);
+  window.__WPRE={light:bl&&bl.st, medium:bm&&bm.st, heavy:{Head:'Heavy',Chest:'Heavy',Hands:'Heavy',Legs:'Heavy',Feet:'Heavy'}, allLight:{Head:'Light',Chest:'Light',Hands:'Light',Legs:'Light',Feet:'Light'}};
+  const rows=[
+    ['Damage', `+${E.dmg.Light}%${E.meleeLight?` (+${E.meleeLight}% more on melee hits)`:''}`, `${E.dmg.Medium}%`, `${E.dmg.Heavy}%`, 'game data'],
+    ['Outgoing healing', `+${E.heal.Light}%`, `${E.heal.Medium}%`, `${E.heal.Heavy}%`, 'game data'],
+    ['Critical damage you take', `−${E.critTaken.Light}%`, `−${E.critTaken.Medium}%`, `−${E.critTaken.Heavy}%`, 'game data'],
+    ['Dodge', 'Long roll', 'Quick hop', 'Short sidestep', 'guides'],
+    ['Armour rating', 'Lowest', 'Middle', 'Highest', 'from the pieces you wear'],
+    ['Block stability', '−15%', '0', '+10% to +15%', 'guides'],
+    ['Crowd control on you', 'Lasts longer', 'Normal', 'Lasts shorter', 'guides']];
+  const col=b=>band===b?' class="on"':'';
+  return `<h1>Weight calculator</h1>
+  <p class="lede">Pick the armour weight for each slot and see which equip load you land in, how close you are to the next one, and what each load gives and costs. Weights come from your game's item data.</p>
+  <div class="calcgrid">
+    <section class="panel">
+      <h2>Your gear</h2>
+      ${WSLOTS.map(([k,l])=>`<div class="wrow"><span class="wl2">${l}</span>${['Light','Medium','Heavy'].map(c=>`<button class="chip ${WT[k]===c?'on':''}" data-wset="${k}" data-v="${c}">${c} <span class="wkg">${wkg(W[k][c])}</span></button>`).join('')}</div>`).join('')}
+      <div class="wrow"><span class="wl2">Shield</span>${[['','None'],['Round','Round'],['Kite','Kite'],['Tower','Tower']].map(([v,n])=>`<button class="chip ${WT.shield===v?'on':''}" data-wset="shield" data-v="${v}">${n}${v?` <span class="wkg">${wkg(CALC.shields[v]||0)}</span>`:''}</button>`).join('')}</div>
+      <label class="tog ${WT.countW?'on':''}"><input type="checkbox" data-wtog="countW" ${WT.countW?'checked':''}> <span>Count weapons too <i>Guides disagree on whether weapons count. Most say armour and shield only</i></span></label>
+      ${WT.countW?`<div class="two">${['w1','w2'].map((k,i)=>`<label class="in"><span>Weapon ${i+1}</span><select data-wsel="${k}"><option value="">None</option>${Object.keys(CALC.wweights).sort().map(n=>`<option ${WT[k]===n?'selected':''} value="${esc(n)}">${esc(n)} (${wkg(CALC.wweights[n])})</option>`).join('')}</select></label>`).join('')}</div>`:''}
+      <div class="presetbar"><b>Quick picks:</b>
+        ${preset('light','Most armour, still light',bl)}${preset('medium','Most armour, still medium',bm)}
+        <button class="chip" data-wpre="allLight">All light</button><button class="chip" data-wpre="heavy">All heavy</button>
+        ${typeof G!=='undefined'?'<button class="chip" data-wpre="builder">From loadout builder</button>':''}</div>
+    </section>
+    <section class="panel">
+      <h2>Equip load</h2>
+      <div class="wtotal"><span class="wbig">${wkg(t)}</span><span class="wband b-${band.toLowerCase()}">${band}</span></div>
+      <div class="wbar" role="img" aria-label="${wkg(t)} out of ${E.max}">
+        <span class="seg l" style="width:${pct(E.medium)}%"></span><span class="seg m" style="width:${pct(E.heavy)-pct(E.medium)}%"></span><span class="seg h" style="width:${100-pct(E.heavy)}%"></span>
+        <span class="mark" style="left:${pct(t)}%"></span></div>
+      <div class="wscale"><span>0</span><span style="left:${pct(E.medium)}%">${E.medium}</span><span style="left:${pct(E.heavy)}%">${E.heavy}</span><span style="right:0">${E.max}</span></div>
+      <p class="gain">${next!=null?`${wkg(next-t)} until ${band==='Light'?'medium':band==='Medium'?'heavy':'overburdened'}`:'Over the limit: drop some weight'}${band!=='Light'?(()=>{ const ov=t-(band==='Medium'?E.medium:band==='Heavy'?E.heavy:E.max); return ov<0.05?` &middot; exactly on the line, so 0.1 less would drop you to ${band==='Medium'?'light':'medium'}`:` &middot; ${wkg(ov)} over ${band==='Medium'?'light':band==='Heavy'?'medium':'the limit'}`; })():''}</p>
+      <div class="tw"><table><tbody>${parts.map(p=>`<tr><td>${esc(p.l)}</td><td>${p.c?esc(p.c):''}</td><td class="r">${wkg(p.v)}</td></tr>`).join('')}<tr><td><b>Total</b></td><td></td><td class="r"><b>${wkg(t)}</b></td></tr></tbody></table></div>
+      <p class="dimtx tiny">Light is under ${E.medium}, medium is ${E.medium} to under ${E.heavy}, heavy is ${E.heavy} to ${E.max}. Landing exactly on ${E.medium} or ${E.heavy} most likely counts as the heavier load, so stay 0.1 under to be safe.</p>
+    </section>
+  </div>
+  <h2>What each load gives and costs</h2>
+  <div class="tw wtable"><table><thead><tr><th>Effect</th><th${col('Light')}>Light</th><th${col('Medium')}>Medium</th><th${col('Heavy')}>Heavy</th><th>Source</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${r[0]}</td><td${col('Light')}>${r[1]}</td><td${col('Medium')}>${r[2]}</td><td${col('Heavy')}>${r[3]}</td><td class="small">${r[4]}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="calcgrid">
+    <section class="panel"><h2>Who picks which</h2>
+      <div class="tw"><table><tbody>
+        <tr><td><b>Light</b></td><td>Healers, ranged DPS, mages and melee assassins. Most damage and healing, best dodge, takes the most damage.</td></tr>
+        <tr><td><b>Medium</b></td><td>Bruisers and PvP fighters who want toughness without losing the dodge hop. The baseline: no damage or healing change.</td></tr>
+        <tr><td><b>Heavy</b></td><td>Tanks and war frontliners. Highest armour and the biggest crit-damage cut, for 15% less damage and 30% less healing.</td></tr>
+      </tbody></table></div>
+      <p class="tiny"><a class="wl" data-note="Gear Basics">Gear for each role &rarr;</a></p></section>
+    <section class="panel"><h2>Good to know</h2>
+      <div class="tw"><table><tbody>
+        <tr><td>Weightless items</td><td>The Featherweight artifact (light chest) weighs nothing, so you can keep a light load with heavier pieces elsewhere.</td></tr>
+        <tr><td>Most armour per load</td><td>Use the quick picks: they try every mix and keep the heaviest one that stays in the band, which means the most armour.</td></tr>
+        <tr><td>Calculator</td><td>The damage and healing changes above aren't in the <a class="wl" data-view="calc">Calculator</a> yet. Add them under "Flat damage perks" if you want them counted.</td></tr>
+      </tbody></table></div></section>
+  </div>
+  <div class="callout note"><span class="ci">&#8505;</span><div><p>Load limits, damage, healing and crit numbers come from your game data (<code>EncumbranceLimits</code> and the equip-load abilities). The item weights are the most common tier 5 weight for each slot in <code>MasterItemDefinitions</code>; a few named items weigh more. Dodge, block stability and crowd-control rows are from community guides, because the export doesn't hold those numbers.</p></div></div>`;
+}
+function weightEvents(){
+  document.querySelectorAll('[data-wset]').forEach(b=>b.onclick=()=>{ WT[b.dataset.wset]=b.dataset.v; saveWT(); openView('weight',false); });
+  document.querySelectorAll('[data-wtog]').forEach(c=>c.onchange=()=>{ WT[c.dataset.wtog]=c.checked; saveWT(); openView('weight',false); });
+  document.querySelectorAll('[data-wsel]').forEach(s=>s.onchange=()=>{ WT[s.dataset.wsel]=s.value; saveWT(); openView('weight',false); });
+  document.querySelectorAll('[data-wpre]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.wpre;
+    if(id==='builder'){ const map={Helmet:'Head',Chest:'Chest',Gloves:'Hands',Pants:'Legs',Boots:'Feet'};
+      ARMOR_SLOTS.forEach(s=>{ const w=G.armor[s]&&G.armor[s].wt; if(map[s]&&w) WT[map[s]]=w; });
+      WT.shield=G.w1==='Sword and Shield'?(WT.shield||'Kite'):''; WT.w1=G.w1||''; WT.w2=G.w2||''; toast('Took the armour weights from the loadout builder'); }
+    else if(window.__WPRE&&window.__WPRE[id]) Object.assign(WT,window.__WPRE[id]);
+    saveWT(); openView('weight',false);
+  });
+}
+
 /* ---------- boot ---------- */
 (async function(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
@@ -2686,7 +2790,7 @@ const CRAFT_WORD={'Sword and Shield':'Longsword','Great Axe':'Great Axe','War Ha
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
   else if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);
