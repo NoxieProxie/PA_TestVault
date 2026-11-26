@@ -341,3 +341,8 @@ body.light .edbanner{background:#fbf6ea}
 .stups{margin:6px 0 0 18px;padding:0;font-size:13px}.stups li{margin:4px 0}.stups div{color:var(--dim)}
 
 .admnb{color:var(--gold)!important;font-weight:600}
+
+.amon{display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer}
+.amon input{accent-color:var(--gold);width:16px;height:16px}
+.amta{min-height:64px;resize:vertical;font-size:13px}
+.amms{width:100%;min-height:110px}

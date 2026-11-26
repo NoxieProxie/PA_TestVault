@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 16:50';
+const BUILD_AT = '2026-11-26 17:58';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1455,6 +1455,44 @@ async function rejectSubmission(num){
   await gh('/issues/'+num+'/comments',{method:'POST',body:JSON.stringify({body:'Thanks for sending this in. It wasn\'t added to Community loadouts this time.'})});
   await gh('/issues/'+num,{method:'PATCH',body:JSON.stringify({state:'closed',state_reason:'not_planned'})});
 }
+let AMG=LS.get('nw_amguild',''), AM=null, AMERR='';
+function automodView(){
+  if(!viaHelper()||!OWNER.bot||!OWNER.bot.token) return '<p class="dimtx">Set up the Discord bot first (Discord bot tab).</p>';
+  if(BOTCH===null) return BOTCHERR?`<p class="bad">${esc(BOTCHERR)}</p>`:'<p class="dimtx">Loading your servers&hellip;</p>';
+  if(!BOTCH.guilds.length) return '<p class="dimtx">The bot isn\'t in a server yet. Add it from the Discord bot tab.</p>';
+  if(!AMG||!BOTCH.guilds.some(g=>g.id===AMG)) AMG=BOTCH.guilds[0].id;
+  const pick=BOTCH.guilds.length>1?`<label class="lof"><span>Server</span><select id="amguild">${BOTCH.guilds.map(g=>`<option value="${g.id}" ${g.id===AMG?'selected':''}>${esc(g.name)}</option>`).join('')}</select></label>`:`<div class="dimtx">Server: <b>${esc(BOTCH.guilds[0].name)}</b></div>`;
+  if(AM===null||AM.guild!==AMG) return `<div class="slots lobar"><div class="slot lcard" style="grid-column:1/-1">${pick}<p class="dimtx">${AMERR?`<span class="bad">${esc(AMERR)}</span>`:'Loading AutoMod settings&hellip;'}</p></div></div>`;
+  const c=AM.cfg, w=AM.warn;
+  const T=[[0,'No timeout'],[60,'1 minute'],[300,'5 minutes'],[600,'10 minutes'],[3600,'1 hour'],[21600,'6 hours'],[86400,'1 day'],[604800,'1 week']];
+  const to=(id,v)=>`<label class="lof"><span>Then time them out for</span><select id="${id}">${T.map(([s,l])=>`<option value="${s}" ${+v===s?'selected':''}>${l}</option>`).join('')}</select></label>`;
+  const on=(id,v,label)=>`<label class="amon"><input type="checkbox" id="${id}" ${v?'checked':''}> ${label}</label>`;
+  const ta=(id,v,ph)=>`<textarea id="${id}" class="pk amta" rows="3" placeholder="${esc(ph)}">${esc((v||[]).join('\n'))}</textarea>`;
+  const ms=(id,list,sel)=>`<select id="${id}" multiple size="5" class="amms">${list.map(x=>`<option value="${x.id}" ${sel.includes(x.id)?'selected':''}>${esc(x.name)}</option>`).join('')}</select>`;
+  const card=(title,inner,full)=>`<div class="slot lcard"${full?' style="grid-column:1/-1"':''}><div class="sh">${title}</div>${inner}</div>`;
+  const others=AM.rules.filter(r=>!r.ours);
+  return `<p class="dimtx">These rules run inside Discord itself (Discord AutoMod), so they work 24/7 even when nobody is online. Blocked messages never appear, the member sees a short note, and${OWNER.bot.log?' the mod log channel gets an alert':' (pick a mod log channel on the Discord bot tab to get alerts)'}.</p>
+  <div class="slots lobar">
+   ${card('Server',pick+(others.length?`<p class="dimtx tiny">Other AutoMod rules already in this server: ${others.map(r=>esc(r.name)+(r.enabled?'':' (off)')).join(', ')}. The spam, mention and word-filter ones are shared with these settings.</p>`:''),true)}
+   ${card('&#128680; Spam',on('am_spam',c.spam.on,'Block messages Discord thinks are spam')+'<p class="dimtx tiny">Discord\'s own spam detection (scam links, copy-paste raids). For "too many messages too fast", use <code>/slowmode</code> in that channel.</p>')}
+   ${card('&#128226; Mass mentions',on('am_men',c.mentions.on,'Block messages with lots of mentions')+`<div class="two"><label class="lof"><span>Mentions allowed per message</span><input type="number" id="am_menlim" class="pk" min="1" max="50" value="${c.mentions.limit}"></label>${to('am_mento',c.mentions.timeout)}</div>`+on('am_raid',c.mentions.raid,'Also catch mention raids across many messages'))}
+   ${card('&#128279; Server invites',on('am_inv',c.invites.on,'Block invites to other Discord servers')+`<label class="lof"><span>Allowed invites (one per line, e.g. your own server's invite code)</span>${ta('am_invallow',c.invites.allow,'nwbuddies')}</label>`+to('am_invto',c.invites.timeout))}
+   ${card('&#127760; Links',on('am_links',c.links.on,'Block all links except approved sites')+`<label class="lof"><span>Approved sites (one per line)</span>${ta('am_linkallow',c.links.allow,'youtube.com')}</label>`+to('am_linkto',c.links.timeout))}
+   ${card('&#9940; Banned websites',on('am_sites',c.sites.on,'Block links to these websites')+`<label class="lof"><span>Websites (one per line)</span>${ta('am_siteslist',c.sites.list,'example-scam.com')}</label>`+to('am_sitesto',c.sites.timeout))}
+   ${card('&#129324; Banned words',on('am_words',c.words.on,'Block messages with these words')+`<label class="lof"><span>Words or phrases (one per line; *word* matches inside other words)</span>${ta('am_wordslist',c.words.list,'badword')}</label><details class="tiny"><summary>Advanced: patterns (regex)</summary>${ta('am_wordsre',c.words.regex,'(?i)fr[e3]{2} n[i1]tro')}</details>`+to('am_wordsto',c.words.timeout))}
+   ${card('&#128683; Built-in word lists',on('am_pre',c.presets.on,'Use Discord\'s word lists')+on('am_pre_sl',c.presets.slurs,'Slurs')+on('am_pre_sx',c.presets.sexual,'Sexual content')+on('am_pre_pr',c.presets.profanity,'Swearing')+`<label class="lof"><span>Words to let through anyway</span>${ta('am_preallow',c.presets.allow,'one per line')}</label>`)}
+   ${card('&#128101; Who the rules skip',`<div class="two"><label class="lof"><span>Roles (Ctrl+click for several)</span>${ms('am_xr',AM.roles,c.exemptRoles)}</label><label class="lof"><span>Channels</span>${ms('am_xc',AM.channels,c.exemptChannels)}</label></div><p class="dimtx tiny">Admins and anyone with Manage Server are always skipped by Discord.</p>`+on('am_alert',c.alert,'Send an alert to the mod log channel when something is blocked'),true)}
+   ${card('&#9888;&#65039; Warnings: automatic punishments',`<p class="dimtx tiny">Counts <code>/warn</code> warnings. Set a number to 0 to turn that step off.</p>
+     <div class="two"><label class="lof"><span>Time out at this many warnings</span><input type="number" id="w_to" class="pk" min="0" max="50" value="${w.timeoutAt}"></label><label class="lof"><span>Timeout length (minutes)</span><input type="number" id="w_tom" class="pk" min="1" max="40320" value="${w.timeoutMins}"></label></div>
+     <div class="two"><label class="lof"><span>Kick at this many</span><input type="number" id="w_kick" class="pk" min="0" max="50" value="${w.kickAt}"></label><label class="lof"><span>Ban at this many</span><input type="number" id="w_ban" class="pk" min="0" max="50" value="${w.banAt}"></label></div>
+     <label class="lof"><span>Warnings expire after (days, 0 = never)</span><input type="number" id="w_exp" class="pk" min="0" max="3650" value="${w.expireDays}"></label>
+     <p class="dimtx tiny">Mods can use <code>/warnings</code> to see someone's warnings and <code>/clearwarnings</code> to wipe them.</p>`,true)}
+  </div>
+  <div class="lbtns" style="margin-top:12px"><button class="mini go" id="amsave">&#128190; Save and apply to Discord</button><span id="amst" class="dimtx"></span></div>
+  ${AM.results?`<div class="tw" style="margin-top:10px"><table><tbody>${AM.results.map(r=>`<tr><td>${esc(r.rule)}</td><td class="${/fail/.test(r.status)?'bad':''}">${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
+}
+async function loadAutomod(){ AMERR=''; const g=AMG; try{ const d=await ownerApi('automodget',{guild:g}); AM={guild:g,...d}; }catch(e){ AMERR=e.message; AM={guild:'_'}; }
+  if(current?.kind==='view'&&current.v==='admin'&&ADMTAB==='automod') openView('admin',false); }
 let BOTCH=null, BOTCHERR='', STAT=null, STATERR='', STATALL=LS.get('nw_statall',false);
 function statusView(){
   if(!viaHelper()) return '<p class="dimtx">Service status needs the Discord login (helper Version 6 or newer).</p>';
@@ -1498,7 +1536,7 @@ function botCard(b){
   </div>`;
 }
 async function loadBotChannels(){ BOTCH=null; BOTCHERR=''; try{ const d=await ownerApi('botchannels'); BOTCH=d; if(OWNER&&OWNER.bot){ OWNER.bot.channel=d.channel; OWNER.bot.log=d.log; } }catch(e){ BOTCHERR=e.message; }
-  if(current?.kind==='view'&&current.v==='admin'&&ADMTAB==='bot') openView('admin',false); }
+  if(current?.kind==='view'&&current.v==='admin'&&(ADMTAB==='bot'||ADMTAB==='automod')) openView('admin',false); }
 let SUBS=null, SUBERR='', ADMTAB=LS.get('nw_admtab','subs');
 function viewReview(){
   const t=ghToken(), u=CFG.worker?dUser():null, helper=viaHelper();
@@ -1513,7 +1551,7 @@ function viewReview(){
     (SUBS.length?SUBS.map((s,i)=>`<div class="locard"><div><b>${esc(s.title)}</b><div class="dimtx">from ${esc(s.by||s.user)}${s.mode?' &middot; '+esc(s.mode):''} &middot; ${new Date(s.at).toLocaleDateString()} &middot; <a href="${esc(s.url)}" target="_blank" rel="noopener">issue #${s.num}</a></div>${s.code?'':'<div class="bad">No loadout link found in this submission</div>'}</div>
       <div class="lobtns">${s.code?`<button class="mini" data-subprev="${i}">Preview</button><button class="mini go" data-subpub="${i}">Publish</button>`:''}<button class="mini" data-subrej="${i}">Reject</button></div></div>`).join(''):'<p class="dimtx">No submissions waiting.</p>');
   const com=communityLos().filter(x=>x.src==='site');
-  const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
+  const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
   <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
@@ -1532,6 +1570,7 @@ function viewReview(){
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}${x.img?' &middot; has pictures':''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}`;
   if(ADMTAB==='bot') body=helper&&OWNER.bot?botCard(OWNER.bot).replace('<h2>Discord bot</h2>',''):`<p class="dimtx">The Discord bot settings need the Discord login (helper Version 5 or newer).</p>`;
   if(ADMTAB==='status') body=statusView();
+  if(ADMTAB==='automod') body=automodView();
   if(ADMTAB==='helper') body=`<div class="slots lobar">
     <div class="slot lcard"><div class="sh">Helper status</div><pre class="helperst" id="helperst">${CFG.worker?'Checking&hellip;':'No helper set in site-config.json'}</pre>
       <div class="lbtns"><button class="mini" id="helperchk">&#8635; Check again</button>${CFG.worker?`<a class="mini" href="${esc(CFG.worker)}" target="_blank" rel="noopener">Open helper page</a>`:''}</div></div>
@@ -1567,7 +1606,19 @@ function reviewEvents(){
   const postAfter=async e=>{ if(!wantPost()) return; try{ toast('Posting to Discord…'); await announceToDiscord(e); toast('Posted “'+e.name+'” to Discord'); }catch(err){ toast('Published, but the Discord post failed: '+err.message); } };
   on('botsetup',async()=>{ const st=document.getElementById('botstat'), bt=document.getElementById('botsetup'); bt.disabled=true; st.textContent='Registering…';
     try{ const d=await ownerApi('botsetup'); st.textContent=`Done: ${d.count} commands registered. They show up in Discord within a minute.`; }catch(e){ st.textContent='Failed: '+e.message; } bt.disabled=false; });
-  if(ADMTAB==='bot' && viaHelper() && OWNER.bot && OWNER.bot.token && BOTCH===null && !BOTCHERR) loadBotChannels();
+  if((ADMTAB==='bot'||ADMTAB==='automod') && viaHelper() && OWNER.bot && OWNER.bot.token && BOTCH===null && !BOTCHERR) loadBotChannels();
+  if(ADMTAB==='automod' && BOTCH && BOTCH.guilds.length && (AM===null || (AM.guild!==AMG && AM.guild!=='_'))) loadAutomod();
+  const amg=document.getElementById('amguild'); if(amg) amg.onchange=()=>{ AMG=amg.value; LS.set('nw_amguild',AMG); AM=null; openView('admin',false); };
+  on('amsave',async()=>{ const v=id=>document.getElementById(id), ck=id=>!!(v(id)&&v(id).checked), lines=id=>(v(id)?v(id).value:'').split('\n').map(x=>x.trim()).filter(Boolean), sel=id=>v(id)?[...v(id).selectedOptions].map(o=>o.value):[];
+    const cfg={spam:{on:ck('am_spam')}, mentions:{on:ck('am_men'),limit:+v('am_menlim').value,raid:ck('am_raid'),timeout:+v('am_mento').value},
+      presets:{on:ck('am_pre'),slurs:ck('am_pre_sl'),sexual:ck('am_pre_sx'),profanity:ck('am_pre_pr'),allow:lines('am_preallow')},
+      words:{on:ck('am_words'),list:lines('am_wordslist'),regex:lines('am_wordsre'),timeout:+v('am_wordsto').value},
+      invites:{on:ck('am_inv'),allow:lines('am_invallow'),timeout:+v('am_invto').value}, links:{on:ck('am_links'),allow:lines('am_linkallow'),timeout:+v('am_linkto').value},
+      sites:{on:ck('am_sites'),list:lines('am_siteslist'),timeout:+v('am_sitesto').value}, exemptRoles:sel('am_xr'), exemptChannels:sel('am_xc'), alert:ck('am_alert')};
+    const warn={timeoutAt:+v('w_to').value,timeoutMins:+v('w_tom').value,kickAt:+v('w_kick').value,banAt:+v('w_ban').value,expireDays:+v('w_exp').value};
+    const st=v('amst'), bt=v('amsave'); bt.disabled=true; st.textContent='Applying to Discord…';
+    try{ const d=await ownerApi('automodset',{guild:AMG,cfg,warn}); AM={...AM,cfg,warn,results:d.results}; toast('AutoMod saved'); openView('admin',false); }
+    catch(e){ st.textContent='Failed: '+e.message; bt.disabled=false; } });
   on('statnow',async()=>{ const st=document.getElementById('statnowst'); st.textContent='checking…'; try{ const d=await ownerApi('statuscheck'); st.textContent=d.skipped?'Save a status channel first':`done, ${d.posted} new update${d.posted===1?'':'s'} posted`; }catch(e){ st.textContent='failed: '+e.message; } });
   if(ADMTAB==='status' && viaHelper() && STAT===null && !STATERR) loadStatus();
   on('statref',loadStatus);
