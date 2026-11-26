@@ -560,3 +560,4 @@ code,.tag{background:#242b36}
 .wscale span{position:absolute;transform:translateX(-50%)}.wscale span:first-child{transform:none;left:0}.wscale span:last-child{transform:none}
 .wtable th.on,.wtable td.on{background:#1f2633;color:var(--fg)}
 .wtable th.on{color:var(--gold2)}
+td .iic,li .iic{width:22px;height:22px;margin-right:6px;border-radius:5px}

@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 weight';
+const BUILD_AT = '2026-11-26 icons';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -36,13 +36,25 @@ function icoFor(n,w){
   return k&&ICO.img[k]?ICO.img[k]:'';
 }
 const IMG=(src,n)=>`<img class="ico" src="${src}" alt="" title="${esc(n)}">`;
+/* item pictures for names in notes: gear from the item list, everything else (potions, food, coatings...) from the recipe data */
+function itemIco(n){
+  n=stripTags(n).replace(/&amp;/g,'&').replace(/&#39;/g,"'").trim(); if(n.length<3||n.length>60) return '';
+  if(typeof ITEMDB!=='undefined'&&ITEMDB){ if(!ITEMDB.byLc){ ITEMDB.byLc={}; ITEMDB.items.forEach(i=>{ const k=i.n.toLowerCase(); if(!ITEMDB.byLc[k]) ITEMDB.byLc[k]=i; }); }
+    const it=ITEMDB.byLc[n.toLowerCase()]; if(it&&it.x>=0) return itemIcon(it,22); }
+  if(typeof CR!=='undefined'&&CR&&CRSHEETS.length){
+    if(!CR.byName){ CR.byName={}; for(const [id,v] of Object.entries(CR.items)) if(v[2]>=0){ const k=v[0].toLowerCase(); if(!CR.byName[k]) CR.byName[k]=id; } }
+    const id=CR.byName[n.toLowerCase()]; if(id) return crIcon(id,22);
+  }
+  return '';
+}
 function deco(html,w){
   if(!ICO) return html;
   let done=false;
-  html=html.replace(/<strong>([^<]{3,60})<\/strong>/g,(m,n)=>{ const s=icoFor(n,w); if(s){ done=true; return IMG(s,n)+m; } return m; });
+  html=html.replace(/<strong>([^<]{3,60})<\/strong>/g,(m,n)=>{ const s=icoFor(n,w); if(s){ done=true; return IMG(s,n)+m; } const ii=itemIco(n); if(ii){ done=true; return ii+m; } return m; });
   if(done || /<[^>]+>/.test(html)) return html;
   const t=html.trim(); if(!t) return html;
   const s=icoFor(t,w); if(s) return IMG(s,t)+html;
+  const ii=itemIco(t); if(ii) return ii+html;
   if(t.includes(', ')) return t.split(', ').map(x=>{ const s2=icoFor(x.replace(/\s*\(.*\)$/,''),w); return s2?IMG(s2,x)+x:x; }).join(', ');
   return html;
 }
@@ -59,7 +71,7 @@ function inline(s){
   s = s.replace(/`([^`]+)`/g, (m,a)=>`<code>${a}</code>`);
   s = s.replace(/\[\[([^\]]+?)\]\]/g, (m, inner)=>{
     let [tgt, alias] = inner.split(/\\?\|/);
-    tgt = unesc((tgt||'').trim()); alias = (alias||esc(tgt)).trim();
+    tgt = unesc((tgt||'').trim()); alias = (alias||esc(tgt.startsWith('#')?tgt.slice(1):tgt)).trim();
     if (tgt.startsWith('#')) return `<a class="wl" href="#" data-anchor="${esc(tgt.slice(1))}">${alias}</a>`;
     const base = tgt.split('#')[0].trim();
     if (NAMES[base]) return `<a class="wl" href="#" data-note="${esc(base)}">${alias}</a>`;
@@ -376,7 +388,7 @@ function homeHero(){
            :days===1?'The servers close tomorrow, 31 January 2027.':'The servers closed on 31 January 2027. This vault stays up as a record.';
   const again=recent.filter(n=>NAMES[n]&&n!==(typeof SITE!=='undefined'&&SITE.start||'New World Home')).slice(0,5);
   return `<section class="hero">
-    <h1>New World vault</h1>
+    <h1>New World Vault</h1>
     <p class="sub">Builds, bosses, raids and gear for Season 10, worked out from the game's own data.</p>
     <p class="end">${end}</p>
     <div class="tools">
@@ -394,6 +406,7 @@ function openNote(name, push=true){
   current={kind:'note',name};
   recent=[name,...recent.filter(n=>n!==name)].slice(0,12); LS.set('nw_recent',recent);
   const m=META[p], pinned=pins.includes(name);
+  if(/Game Data\//.test(p) && typeof loadCrafting==='function' && typeof CR!=='undefined' && !CR) loadCrafting().then(()=>{ if(current&&current.kind==='note'&&current.name===name) openNote(name,false); });
   const sib=siblings(p), ix=sib.indexOf(p);
   const prev=ix>0?META[sib[ix-1]].name:null, next=ix<sib.length-1?META[sib[ix+1]].name:null;
   const heads=[...m.body.matchAll(/^##\s+(.*)$/gm)].map(x=>x[1]);
@@ -2133,10 +2146,10 @@ async function peekBuild(name, tab){
 
 /* ================= owner content + customise panel ================= */
 let CDB=null, CUSER=null, IS_OWNER=false, CMODE='loading';   // 'db' | 'local' | 'loading'
-const DEFAULT_SITE={brand:'New World vault', accent:'#cfa557', theme:'dark', font:'m', width:'normal',
+const DEFAULT_SITE={brand:'New World Vault', accent:'#cfa557', theme:'dark', font:'m', width:'normal',
   hidden:[], order:[], start:'New World Home', icons:true};
 let SITE=Object.assign({}, DEFAULT_SITE, LS.get('nw_site',{}));
-if(SITE.brand==='New World · S10 Nighthaven') SITE.brand=DEFAULT_SITE.brand;   // the old default title
+if(SITE.brand==='New World · S10 Nighthaven'||SITE.brand==='New World vault') SITE.brand=DEFAULT_SITE.brand;   // the old default title
 let CPAGES={}, CADD={}, COVR={};
 /* ---- draft mode: the owner's changes wait in drafts/ (only the owner can read them) until "Publish to live" ---- */
 let DRAFT_ON=LS.get('nw_draftmode', true), DRAFTS={}, LIVE={pages:{},overrides:{},addenda:{},site:null};
@@ -2207,7 +2220,7 @@ function applySite(){
   document.body.classList.remove('fs-s','fs-l'); if(SITE.font!=='m') document.body.classList.add('fs-'+SITE.font);
   document.body.classList.remove('w-wide','w-full'); if(SITE.width!=='normal') document.body.classList.add('w-'+SITE.width);
   document.body.classList.toggle('noicons', !SITE.icons);
-  const b=document.querySelector('.brand'); if(b){ const t=(SITE.brand==='New World · S10 Nighthaven'?'':SITE.brand)||DEFAULT_SITE.brand;
+  const b=document.querySelector('.brand'); if(b){ const t=(SITE.brand==='New World · S10 Nighthaven'||SITE.brand==='New World vault'?'':SITE.brand)||DEFAULT_SITE.brand;
     b.innerHTML=esc(t)+(t===DEFAULT_SITE.brand?' <small>Season 10 Nighthaven</small>':''); }
 }
 async function saveSite(next){
