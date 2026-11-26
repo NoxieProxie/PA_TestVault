@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 icons';
+const BUILD_AT = '2026-11-26 housing';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -406,7 +406,7 @@ function openNote(name, push=true){
   current={kind:'note',name};
   recent=[name,...recent.filter(n=>n!==name)].slice(0,12); LS.set('nw_recent',recent);
   const m=META[p], pinned=pins.includes(name);
-  if(/Game Data\//.test(p) && typeof loadCrafting==='function' && typeof CR!=='undefined' && !CR) loadCrafting().then(()=>{ if(current&&current.kind==='note'&&current.name===name) openNote(name,false); });
+  if(/Game Data\/|Housing\//.test(p) && typeof loadCrafting==='function' && typeof CR!=='undefined' && !CR) loadCrafting().then(()=>{ if(current&&current.kind==='note'&&current.name===name) openNote(name,false); });
   const sib=siblings(p), ix=sib.indexOf(p);
   const prev=ix>0?META[sib[ix-1]].name:null, next=ix<sib.length-1?META[sib[ix+1]].name:null;
   const heads=[...m.body.matchAll(/^##\s+(.*)$/gm)].map(x=>x[1]);
