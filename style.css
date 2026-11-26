@@ -370,3 +370,7 @@ body.light .edbanner{background:#fbf6ea}
 .crn{font-weight:500}
 .crshop{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 12px}
 .crcur{display:inline-flex;align-items:center;justify-content:center;color:#8fd3ff;background:#1a2433;border-radius:6px}
+
+.crbtn{flex:none;background:var(--bg3);border:1px solid var(--line);border-left:none;border-radius:0 7px 7px 0;height:30px;padding:0 7px;cursor:pointer;font-size:13px}
+.crbtn:hover{border-color:var(--gold)}
+.pkrow.itm .pk:has(+ .crbtn){border-radius:7px 0 0 7px}

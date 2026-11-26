@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 19:49';
+const BUILD_AT = '2026-11-26 19:55';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -535,7 +535,7 @@ function viewCalc(){
   <div class="calcgrid">
     <section class="panel">
       <h2>&#9876; Your attack</h2>
-      <label class="in"><span>Weapon</span><select data-c="weapon">${Object.keys(CALC.abilities).sort().map(w=>`<option ${w===C.weapon?'selected':''}>${esc(w)}</option>`).join('')}</select></label>
+      <label class="in"><span>Weapon<i><a class="wl" data-craftword="${esc((typeof CRAFT_WORD!=='undefined'&&CRAFT_WORD[C.weapon])||C.weapon)}">&#9874;&#65039; craftable ${esc(C.weapon)} weapons</a></i></span><select data-c="weapon">${Object.keys(CALC.abilities).sort().map(w=>`<option ${w===C.weapon?'selected':''}>${esc(w)}</option>`).join('')}</select></label>
       <label class="in"><span>Ability</span><select data-c="ability">${ab.map(a=>`<option ${a.n===C.ability?'selected':''} value="${esc(a.n)}">${esc(a.n)} &mdash; ${a.d?a.d+'%':'no damage'}</option>`).join('')}</select></label>
       <div class="two">
         ${num('emp','Empower %',C.emp,0,50,1,'cap 50')}
@@ -626,6 +626,7 @@ function snapshot(name){
   return {name:name||'(unnamed)', weapon:C.weapon, ability:C.ability, hit:o.hit, avg:o.avg, taken:d.taken, state:{...C}};
 }
 function calcEvents(){
+  document.querySelectorAll('[data-craftword]').forEach(el=>el.onclick=e=>{ e.preventDefault(); craftSearch(el.dataset.craftword); });
   document.querySelectorAll('[data-c]').forEach(el=>{
     const k=el.dataset.c;
     el.oninput=()=>{
@@ -859,7 +860,7 @@ function dl(id, list){
 }
 function itemField(path, val, listId){
   const it=itemByName(val);
-  return `<div class="pkrow itm">${itemIcon(it,28)}<input class="pk item" list="${listId}" data-gi="${path}" value="${esc(val||'')}" placeholder="Item (optional) — type to search"></div>`;
+  return `<div class="pkrow itm">${itemIcon(it,28)}<input class="pk item" list="${listId}" data-gi="${path}" value="${esc(val||'')}" placeholder="Item (optional) — type to search">${val?`<button class="crbtn" data-craftfind="${esc(val)}" title="How do I craft ${esc(val)}?">&#9874;&#65039;</button>`:''}</div>`;
 }
 function itemDL(id, filt){
   if(!ITEMDB) return '';
@@ -1081,6 +1082,7 @@ function setPath(path, val){
   o[bits[0]]=val;
 }
 function gearEvents(){
+  document.querySelectorAll('[data-craftfind]').forEach(el=>el.onclick=e=>{ e.preventDefault(); craftItemByName(el.dataset.craftfind); });
   document.querySelectorAll('[data-gi]').forEach(el=>{
     el.onchange=()=>{ const it=itemByName(el.value);
       if(it){ equipItem(it,true); toast('Equipped '+it.n+(cleanPerks(it).length?' and its perks':'')); }
@@ -2380,14 +2382,21 @@ function craftEvents(){
   const ln=document.getElementById('crlink'); if(ln&&r) ln.onclick=async()=>{ const u=(typeof shareBase==='function'?shareBase():location.href.split('#')[0])+'#craft='+encodeURIComponent(r.id);
     try{ await navigator.clipboard.writeText(u); toast('Link copied'); }catch(e){ toast(u); } };
 }
-// open the crafting tab on the recipe for an item name (from the Items tab)
+// open the crafting tab on the recipe for an item name (Items tab, Loadout builder)
 async function craftItemByName(name){
-  CQ.q=name; CQ.page=0; CQ.all=true; openView('craft');
-  await loadCrafting(); if(!CR) return;
-  const lc=name.toLowerCase(); const r=CR.recipes.find(x=>x.lc===lc)||CR.recipes.find(x=>crItem(x.o)[0].toLowerCase()===lc);
-  if(r){ CQ.sel=r.id; CQ.q=''; CQ.all=r.ev; CQ.open={}; LS.set('nw_craft_sel',r.id); }
-  openView('craft',false);
+  name=String(name||'').trim(); if(!name) return;
+  if(!CR){ toast('Loading recipes…'); await loadCrafting(); }
+  if(!CR){ toast('Couldn\'t load the recipes'); return; }
+  const lc=name.toLowerCase();
+  const r=CR.recipes.find(x=>x.lc===lc&&!x.ev)||CR.recipes.find(x=>x.lc===lc)||CR.recipes.find(x=>crItem(x.o)[0].toLowerCase()===lc);
+  if(!r){ toast(`There's no crafting recipe for ${name}. It has to drop.`); return; }
+  CQ.sel=r.id; CQ.q=''; CQ.ts=''; CQ.cat=''; CQ.all=r.ev; CQ.open={}; CQ.page=0; LS.set('nw_craft_sel',r.id);
+  openView('craft'); try{ history.replaceState(null,'','#craft='+encodeURIComponent(r.id)); }catch(e){}
 }
+// open the crafting tab searching for a word (Calculator weapon)
+function craftSearch(q){ CQ.q=q; CQ.ts=''; CQ.cat=''; CQ.all=false; CQ.page=0; openView('craft'); }
+const CRAFT_WORD={'Sword and Shield':'Longsword','Great Axe':'Great Axe','War Hammer':'War Hammer','Greatsword':'Greatsword','Rapier':'Rapier','Hatchet':'Hatchet','Spear':'Spear','Flail':'Flail',
+  'Bow':'Bow','Musket':'Musket','Blunderbuss':'Blunderbuss','Fire Staff':'Fire Staff','Life Staff':'Life Staff','Ice Gauntlet':'Ice Gauntlet','Void Gauntlet':'Void Gauntlet'};
 
 /* ---------- boot ---------- */
 (async function(){
