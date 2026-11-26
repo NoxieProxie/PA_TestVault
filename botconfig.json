@@ -68,7 +68,7 @@
  },
  "live": {
   "presence": {
-   "type": "playing",
+   "type": "custom",
    "text": "New World"
   },
   "spam": {
