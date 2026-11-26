@@ -2,5 +2,67 @@
  "channel": "1575269787875934401",
  "log": "1575296334179606709",
  "status": "1575296334179606709",
- "statusAll": false
+ "statusAll": false,
+ "automod": {
+  "1574561656703418508": {
+   "spam": {
+    "on": true
+   },
+   "mentions": {
+    "on": true,
+    "limit": 5,
+    "raid": true,
+    "timeout": 600
+   },
+   "presets": {
+    "on": true,
+    "profanity": false,
+    "sexual": true,
+    "slurs": true,
+    "allow": []
+   },
+   "words": {
+    "on": false,
+    "list": [],
+    "regex": [],
+    "timeout": 0
+   },
+   "invites": {
+    "on": true,
+    "allow": [],
+    "timeout": 0
+   },
+   "links": {
+    "on": false,
+    "allow": [
+     "youtube.com",
+     "youtu.be",
+     "twitch.tv",
+     "nwdb.info",
+     "newworld.com",
+     "github.io",
+     "tenor.com",
+     "discord.com"
+    ],
+    "timeout": 0
+   },
+   "sites": {
+    "on": false,
+    "list": [],
+    "timeout": 0
+   },
+   "exemptRoles": [
+    "1575287865183703100"
+   ],
+   "exemptChannels": [],
+   "alert": true
+  }
+ },
+ "warn": {
+  "timeoutAt": 3,
+  "timeoutMins": 60,
+  "kickAt": 0,
+  "banAt": 0,
+  "expireDays": 30
+ }
 }
