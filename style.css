@@ -328,3 +328,14 @@ body.light .edbanner{background:#fbf6ea}
 .lcard .two{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .losave input:not([type=checkbox]){background:var(--bg3);border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:6px 9px;font:inherit;font-size:13.5px}
 .lcard input[type=checkbox]{accent-color:var(--gold)}
+
+/* Admin page */
+.admtabs{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 18px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.admtabs .chip{font-size:13.5px;padding:6px 14px}
+.admn{background:#c0392b;color:#fff;border-radius:999px;padding:0 7px;font-size:11px;margin-left:4px}
+.helperst{white-space:pre-wrap;background:var(--bg3);border:1px solid var(--line);border-radius:7px;padding:10px;font-size:12.5px;margin:0;color:var(--fg)}
+
+.stcard{grid-column:1/-1}
+.stline{font-size:14.5px}
+.stinc{border-top:1px solid var(--line);padding-top:8px;margin-top:4px}
+.stups{margin:6px 0 0 18px;padding:0;font-size:13px}.stups li{margin:4px 0}.stups div{color:var(--dim)}

@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-25 22:37';
+const BUILD_AT = '2026-11-26 16:34';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -19,7 +19,7 @@ const WALIAS=[[/^(s&amp;s|s&s|sword (&amp;|&|and) shield|sword|shield)\b/i,'Swor
   [/^(gs|greatsword)\b/i,'Greatsword'],[/^great axe\b/i,'Great Axe'],[/^hatchet\b/i,'Hatchet'],[/^spear\b/i,'Spear'],[/^bow\b/i,'Bow'],
   [/^rapier\b/i,'Rapier'],[/^musket\b/i,'Musket'],[/^blunderbuss\b/i,'Blunderbuss'],[/^fire staff\b/i,'Fire Staff'],
   [/^ice gauntlet\b/i,'Ice Gauntlet'],[/^void gauntlet\b/i,'Void Gauntlet'],[/^life staff\b/i,'Life Staff'],[/^flail\b/i,'Flail']];
-function walias(t){ t=(t||'').replace(/<[^>]+>/g,'').replace(/\*/g,'').trim(); for(const [re,w] of WALIAS) if(re.test(t)) return w; return ''; }
+function walias(t){ t=stripTags(t||'').replace(/\*/g,'').trim(); for(const [re,w] of WALIAS) if(re.test(t)) return w; return ''; }
 // icons ship as one WebP sprite sheet; cut it into small images once at load
 async function sliceSprite(url, meta){
   const blob=await (await fetch(url)).blob();
@@ -31,7 +31,7 @@ async function sliceSprite(url, meta){
 }
 function icoFor(n,w){
   if(!ICO||!n) return '';
-  n=String(n).replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').trim().replace(/\s+II$/,'');
+  n=stripTags(n).replace(/&amp;/g,'&').trim().replace(/\s+II$/,'');
   const k=(w&&ICO.ab[w+'|'+n])||ICO.perk[n]||ICO.perk[n+' II']||ICO.ab[n];
   return k&&ICO.img[k]?ICO.img[k]:'';
 }
@@ -48,20 +48,24 @@ function deco(html,w){
 }
 
 /* ---------- markdown ---------- */
-const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// remove HTML tags completely (repeats until nothing is left, then drops any stray < or >)
+const unesc = s => String(s).replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+function stripTags(s){ s=String(s==null?'':s); let p; do{ p=s; s=s.replace(/<[^<>]*>/g,''); }while(s!==p); return s.replace(/[<>]/g,''); }
+function stripComments(s){ s=String(s==null?'':s); let p; do{ p=s; s=s.replace(/<!--[\s\S]*?-->/g,''); }while(s!==p); return s.replace(/<!--|-->/g,''); }
 const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 function inline(s){
   s = esc(s);
   s = s.replace(/`([^`]+)`/g, (m,a)=>`<code>${a}</code>`);
   s = s.replace(/\[\[([^\]]+?)\]\]/g, (m, inner)=>{
     let [tgt, alias] = inner.split(/\\?\|/);
-    tgt = (tgt||'').trim(); alias = (alias||tgt).trim();
+    tgt = unesc((tgt||'').trim()); alias = (alias||esc(tgt)).trim();
     if (tgt.startsWith('#')) return `<a class="wl" href="#" data-anchor="${esc(tgt.slice(1))}">${alias}</a>`;
     const base = tgt.split('#')[0].trim();
     if (NAMES[base]) return `<a class="wl" href="#" data-note="${esc(base)}">${alias}</a>`;
     return `<span class="wl dead" title="no page called ${esc(base)}">${alias}</span>`;
   });
-  s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, (m,a,b)=>`<a href="${b}" target="_blank" rel="noopener">${a} &#8599;</a>`);
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, (m,a,b)=>`<a href="${esc(unesc(b))}" target="_blank" rel="noopener">${a} &#8599;</a>`);
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
   return s.replace(/\\\|/g,'|');
@@ -132,7 +136,7 @@ function reindex(){
   META={}; NAMES={};
   for (const p in DATA){
     // anything wrapped in <!-- web-hide --> ... <!-- /web-hide --> stays in Obsidian only; other HTML comments are dropped too
-    const raw=DATA[p].replace(/<!--\s*web-hide[\s\S]*?<!--\s*\/web-hide\s*-->\n?/g,'').replace(/<!--[\s\S]*?-->/g,''); let body=raw, tags=[], source='';
+    const raw=stripComments(String(DATA[p]).replace(/<!--\s*web-hide[\s\S]*?<!--\s*\/web-hide\s*-->\n?/g,'')); let body=raw, tags=[], source='';
     const fm=raw.match(/^---\n([\s\S]*?)\n---\n?/);
     if(fm){ body=raw.slice(fm[0].length);
       const t=fm[1].match(/tags:\s*\[(.*?)\]/); if(t) tags=t[1].split(',').map(s=>s.trim()).filter(Boolean);
@@ -381,15 +385,16 @@ function openNote(name, push=true){
   };
 }
 function openView(v,push=true){
+  if(v==='review') v='admin';
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
   if(push && current) hist.push(current);
   current={kind:'view',v};
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='review'?viewReview():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
   if(v==='myloadouts') myLoEvents();
-  if(v==='review') reviewEvents();
+  if(v==='admin') reviewEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -680,8 +685,8 @@ function viewItems(){
   <p class="lede">${ITEMDB.items.length.toLocaleString()} endgame items from your game's own item tables. Searches names, perks <i>and</i> where things drop, so "gorgon", "Refreshing" or "Chardis" all work.</p>
   <div class="filters" data-h="Search items">
     <input id="iq" class="isearch" placeholder="Search items or perks, e.g. gorgon" value="${esc(IQ.q)}" autocomplete="off">
-    <div class="frow"><span class="fl">Slot</span>${['',...slots].map(s=>`<button class="chip ${IQ.slot===s?'on':''}" data-is="${s}">${s||'All'}</button>`).join('')}</div>
-    <div class="frow"><span class="fl">Type</span>${['',...rars].map(s=>`<button class="chip ${IQ.rar===s?'on':''}" data-ir="${s}">${s||'All'}</button>`).join('')}</div>
+    <div class="frow"><span class="fl">Slot</span>${['',...slots].map(s=>`<button class="chip ${IQ.slot===s?'on':''}" data-is="${esc(s)}">${esc(s)||'All'}</button>`).join('')}</div>
+    <div class="frow"><span class="fl">Type</span>${['',...rars].map(s=>`<button class="chip ${IQ.rar===s?'on':''}" data-ir="${esc(s)}">${esc(s)||'All'}</button>`).join('')}</div>
     <div class="frow"><span class="fl">Weapon</span><select id="iwt"><option value="">Any</option>${wts.map(w=>`<option ${IQ.wt===w?'selected':''}>${esc(w)}</option>`).join('')}</select></div>
   </div>
   ${pager}
@@ -1178,9 +1183,24 @@ function saveCurrentLoadout(name, mode){
   if(ex) Object.assign(ex,rec); else MYLO.unshift(rec);
   saveMYLO(); topnav(); toast(ex?`Updated “${name}”`:`Saved “${name}” to Your loadouts`); return rec;
 }
+// a shared loadout comes from someone else's link: keep only the expected shapes and safe values
+function cleanLo(g){
+  g=JSON.parse(JSON.stringify(g||{}));
+  const str=v=>typeof v==='string'?v.slice(0,120):'';
+  const out={}; const wl=CALC?Object.keys(CALC.abilities):[];
+  ['w1','w2'].forEach(k=>out[k]=(!wl.length||wl.includes(g[k]))?str(g[k]):wl[0]);
+  ['w1gem','w2gem','w1perk','w2perk','w1off','w2off','w1item','w2item','shield','w1p1','w1p2','w1p3','w2p1','w2p2','w2p3','rune','runev'].forEach(k=>out[k]=str(g[k]));
+  out.armor={}; ARMOR_SLOTS.forEach(s=>{ const a=(g.armor||{})[s]||{}; out.armor[s]={wt:['Light','Medium','Heavy'].includes(a.wt)?a.wt:'Heavy',item:str(a.item),gem:str(a.gem),p1:str(a.p1),p2:str(a.p2),p3:str(a.p3),ch:str(a.ch)}; });
+  out.jew={}; JEW_SLOTS.forEach(s=>{ const a=(g.jew||{})[s]||{}; out.jew[s]={item:str(a.item),gem:str(a.gem),p1:str(a.p1),p2:str(a.p2),ch:str(a.ch)}; });
+  const arr=v=>Array.isArray(v)?v.filter(x=>typeof x==='string').map(x=>x.slice(0,80)).slice(0,40):[];
+  out.abil={1:arr((g.abil||{})[1]).slice(0,3),2:arr((g.abil||{})[2]).slice(0,3)};
+  out.trees={1:arr((g.trees||{})[1]),2:arr((g.trees||{})[2])};
+  out.attrs={}; ['STR','DEX','INT','FOC','CON'].forEach(k=>{ const n=parseInt((g.attrs||{})[k],10); out.attrs[k]=isFinite(n)?Math.max(0,Math.min(500,n)):0; });
+  return out;
+}
 function applyLo(g,label){
   LS.set('nw_gear_prev', snapG());   // keep what was in the builder, just in case
-  const mode=G.mode; Object.keys(G).forEach(k=>delete G[k]); Object.assign(G, JSON.parse(JSON.stringify(g)), {mode});
+  const mode=G.mode; Object.keys(G).forEach(k=>delete G[k]); Object.assign(G, cleanLo(g), {mode});
   ARMOR_SLOTS.forEach(s=>{ if(G.armor[s].ch===undefined) G.armor[s].ch=''; }); JEW_SLOTS.forEach(s=>{ if(G.jew[s].ch===undefined) G.jew[s].ch=''; });
   if(!G.abil) G.abil={1:[],2:[]}; if(!G.trees) G.trees={1:[],2:[]}; if(!G.attrs) G.attrs={STR:0,DEX:0,INT:0,FOC:0,CON:0};
   G.note=`Loaded “${label}”.`; saveG();
@@ -1362,14 +1382,14 @@ function renderAcct(){
     <div class="menu"><div class="mh">Logged in with Discord</div><div class="mn"><b>${esc(u.name)}</b> <span class="dimtx">@${esc(u.user||'')}</span></div>
       ${u.av?'':`<div class="mn tiny">No profile picture in this login. ${(OWNER&&OWNER.owner)?'Check the helper page says <b>Version 3</b>, then log out and back in.':'Log out and back in to load it.'}</div>`}
       <a class="mi" data-view="myloadouts">&#128190; Your loadouts</a>
-      ${own?`<a class="mi" data-view="review">&#128229; Review submissions</a><div class="mn tiny">You can edit this site: use <b>&#9998; Edit</b> on any page, <b>&#9881;</b> (top right) for the look, and drag tabs to reorder.</div>`:''}
+      ${own?`<a class="mi" data-view="admin">&#128736; Admin</a><div class="mn tiny">You can edit this site: use <b>&#9998; Edit</b> on any page, <b>&#9881;</b> (top right) for the look, and drag tabs to reorder.</div>`:''}
       <a class="mi" id="acctout">&#8617; Log out</a></div></div>`;
   document.getElementById('acctout').onclick=()=>{ LS.del('nw_discord'); location.reload(); };
 }
 function handleAuthHash(h){
   if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); OWNER=null; const u=dUser(); const after=LS.get('nw_after_login','')||'myloadouts'; LS.del('nw_after_login');
     try{ history.replaceState(null,'','#'+after); }catch(e){}
-    if(['builds','bosses','calc','gear','items','myloadouts','review'].includes(after)) openView(after,false);
+    if(['builds','bosses','calc','gear','items','myloadouts','review','admin'].includes(after)) openView(after,false);
     else { const hit=Object.keys(NAMES).find(n=>slug(n)===after); hit?openNote(hit,false):openView('myloadouts',false); }
     renderAcct(); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
   if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); toast('Discord login did not finish. Try again.'); return true; }
@@ -1396,7 +1416,7 @@ async function checkOwner(){
   if(!CFG.worker || !dUser()){ OWNER=null; return; }
   try{ OWNER=await ownerApi('whoami'); }catch(e){ OWNER={owner:false, err:e.message}; }
   renderAcct();
-  if(current?.kind==='view'&&current.v==='review'){ openView('review',false); }
+  if(current?.kind==='view'&&current.v==='admin'){ openView('admin',false); }
 }
 async function submitIssueUrl(rec){
   const link=await shareLink(rec);
@@ -1434,53 +1454,127 @@ async function rejectSubmission(num){
   await gh('/issues/'+num+'/comments',{method:'POST',body:JSON.stringify({body:'Thanks for sending this in. It wasn\'t added to Community loadouts this time.'})});
   await gh('/issues/'+num,{method:'PATCH',body:JSON.stringify({state:'closed',state_reason:'not_planned'})});
 }
-let SUBS=null, SUBERR='';
+let BOTCH=null, BOTCHERR='', STAT=null, STATERR='', STATALL=LS.get('nw_statall',false);
+function statusView(){
+  if(!viaHelper()) return '<p class="dimtx">Service status needs the Discord login (helper Version 6 or newer).</p>';
+  const dot=i=>({none:'&#128994;',minor:'&#128993;',major:'&#128992;',critical:'&#128308;',maintenance:'&#128309;'}[i]||'&#9898;');
+  const list=STAT===null?(STATERR?`<p class="bad">${esc(STATERR)}</p>`:'<p class="dimtx">Checking Cloudflare and GitHub&hellip;</p>'):STAT.map(sv=>`<div class="slot lcard stcard"><div class="sh">${sv.icon} ${esc(sv.name)}</div>
+      <div class="stline">${dot(sv.indicator)} <b>${esc(sv.description)}</b> <a class="wl tiny" href="${esc(sv.page)}" target="_blank" rel="noopener">status page &rarr;</a></div>
+      ${sv.incidents.length?sv.incidents.map(i=>`<div class="stinc"><div><a href="${esc(i.link)}" target="_blank" rel="noopener"><b>${esc(i.name)}</b></a> <span class="tag">${esc(i.status)}</span> <span class="tag">${esc(i.impact)} impact</span>${i.relevant?'':' <span class="dimtx tiny">(not something the site uses)</span>'}</div>
+        ${i.components.length?`<div class="dimtx tiny">Affects: ${esc(i.components.join(', '))}</div>`:''}
+        <ol class="stups">${i.updates.map(u=>`<li><b>${esc(u.status.replace(/_/g,' '))}</b> <span class="dimtx tiny">${new Date(u.at).toLocaleString()}</span><div>${esc(u.body)}</div></li>`).join('')}</ol></div>`).join('')
+      :`<p class="dimtx">No open issues${STATALL?'':' affecting the site or bot'}.${sv.hidden?` ${sv.hidden} other issue${sv.hidden>1?'s':''} elsewhere.`:''}</p>`}</div>`).join('');
+  return `<p class="dimtx">Cloudflare runs the helper and the Discord bot; GitHub runs the site. By default this only shows problems with the parts the site uses (Workers, dashboard, API &middot; Pages, Actions, Issues).</p>
+  <div class="presetbar"><button class="mini" id="statref">&#8635; Refresh</button><label class="dimtx"><input type="checkbox" id="statall" ${STATALL?'checked':''}> Show every incident (lots of these are single data centres)</label></div>
+  <div class="slots lobar">${list}</div>`;
+}
+async function loadStatus(){ STAT=null; STATERR=''; try{ STAT=(await ownerApi('status',{all:STATALL})).services; }catch(e){ STATERR=e.message; }
+  if(current?.kind==='view'&&current.v==='admin'&&ADMTAB==='status') openView('admin',false); }
+function botCard(b){
+  const row=(ok,txt,fix)=>`<tr><td>${ok?'&#9989;':'&#11036;'}</td><td>${txt}</td><td class="dimtx">${ok?'':fix}</td></tr>`;
+  const ready=b.token&&b.key;
+  const opts=(sel)=>BOTCH?BOTCH.guilds.map(g=>`<optgroup label="${esc(g.name)}">${g.channels.map(c=>`<option value="${c.id}" ${sel===c.id?'selected':''}>#${esc(c.name)}${c.cat?' ('+esc(c.cat)+')':''}</option>`).join('')}</optgroup>`).join(''):'';
+  const chans=!b.token?'<p class="dimtx">Add the bot token first.</p>'
+    :BOTCH===null?(BOTCHERR?`<p class="bad">${esc(BOTCHERR)}</p>`:'<p class="dimtx">Loading your server\'s channels&hellip;</p>')
+    :!BOTCH.guilds.length?`<p class="dimtx">The bot isn't in a server yet. Use <b>Add the bot to your server</b> below, then <a class="wl" id="botchre">reload the channel list</a>.</p>`
+    :`<div class="two"><label class="lof"><span>Post published loadouts in</span><select id="botch"><option value="">Don't post with the bot (use the webhook)</option>${opts(b.channel)}</select></label>
+       <label class="lof"><span>Moderation log</span><select id="botlog"><option value="">No log</option>${opts(b.log)}</select></label></div>
+       <div class="two"><label class="lof"><span>Cloudflare &amp; GitHub status alerts</span><select id="botstatus"><option value="">Don't post status alerts</option>${opts(b.status)}</select></label>
+       <label class="lof"><span>Which incidents</span><select id="botstatall"><option value="">Only ones affecting the site and bot</option><option value="1" ${b.statusAll?'selected':''}>Every incident (very chatty)</option></select></label></div>
+       <p class="dimtx tiny">Status alerts need a Cron Trigger on the helper: Cloudflare &rarr; nw-vault-helper &rarr; Settings &rarr; Trigger events &rarr; Add &rarr; Cron, schedule <code>*/5 * * * *</code>. <a class="wl" id="statnow">Check for updates now</a> <span id="statnowst"></span></p>
+       <div class="lbtns"><button class="mini go" id="botchsave">Save channels</button><a class="wl tiny" id="botchre">Reload channel list</a><span id="botchst" class="dimtx"></span></div>`;
+  return `<h2>Discord bot</h2>
+  <div class="slots lobar">
+   <div class="slot lcard" style="grid-column:1/-1"><div class="sh">1. Connect the bot</div>
+    <div class="tw"><table><tbody>
+      ${row(b.token,'Bot token','Developer Portal &rarr; your app &rarr; <b>Bot</b> &rarr; Reset Token, then add <code>DISCORD_BOT_TOKEN</code> (Secret) to the helper')}
+      ${row(b.key,'Public key','Developer Portal &rarr; your app &rarr; <b>General Information</b> &rarr; Public Key, then add <code>DISCORD_PUBLIC_KEY</code> (Text) to the helper')}
+    </tbody></table></div>
+    <label class="lof"><span>Interactions Endpoint URL (paste into the Developer Portal &rarr; General Information)</span><input class="pk" readonly value="${esc(b.endpoint)}" onclick="this.select()"></label>
+    <div class="lbtns"><button class="mini go" id="botsetup" ${ready?'':'disabled'}>Register slash commands</button>
+      ${b.invite?`<a class="mini" href="${esc(b.invite)}" target="_blank" rel="noopener">&#10133; Add the bot to your server</a>`:''}<span id="botstat" class="dimtx"></span></div></div>
+   <div class="slot lcard" style="grid-column:1/-1"><div class="sh">2. Channels</div>${chans}</div>
+  </div>`;
+}
+async function loadBotChannels(){ BOTCH=null; BOTCHERR=''; try{ const d=await ownerApi('botchannels'); BOTCH=d; if(OWNER&&OWNER.bot){ OWNER.bot.channel=d.channel; OWNER.bot.log=d.log; } }catch(e){ BOTCHERR=e.message; }
+  if(current?.kind==='view'&&current.v==='admin'&&ADMTAB==='bot') openView('admin',false); }
+let SUBS=null, SUBERR='', ADMTAB=LS.get('nw_admtab','subs');
 function viewReview(){
   const t=ghToken(), u=CFG.worker?dUser():null, helper=viaHelper();
   const tokenBox=`<div class="slot wide losave"><input id="ghtok" type="password" placeholder="Paste your GitHub token here" value=""><button class="mini go" id="ghtoksave">Save token</button>${t?'<button class="mini" id="ghtokdel">Forget token</button>':''}</div>`;
-  if(CFG.worker && !helper && !t){
-    const msg=!u?`<p class="lede">This is your inbox for loadouts people submit. Log in with Discord to review and publish them. Only the site owner's Discord account can do this.</p>
-        <div class="slot wide losave dlogin"><a class="dbtn" id="revlogin" href="${esc(CFG.worker)}/login">Log in with Discord</a></div>`
-      :OWNER===null?`<p class="dimtx">Checking your Discord login&hellip;</p>`
-      :`<p class="lede">You're logged in with Discord as <b>${esc(u.name)}</b>, but only the site owner can review submissions.</p>${OWNER.err?`<p class="bad">${esc(OWNER.err)}</p>`:''}<div class="slot wide losave dlogin"><button class="mini" id="revlogout">Log out</button></div>`;
-    return `<h1>Review submissions</h1>${msg}<details class="tiny dimtx"><summary>Use a GitHub token instead</summary>${tokenBox}</details>`;
+  // only the owner (or someone with the GitHub token saved) ever sees this page; everyone else is sent home
+  if(!helper && !t){
+    if(CFG.worker && u && OWNER===null) return '<p class="dimtx">Loading&hellip;</p>';
+    setTimeout(()=>{ if(current?.kind==='view'&&current.v==='admin') openNote((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home',false); },0);
+    return '';
   }
-  if(!t && !helper) return `<h1>Review submissions</h1>
-    <p class="lede">This is your inbox for loadouts people submit. To publish or reject from here, the page needs a GitHub token that can edit your site's repo. It's saved only in this browser.</p>
-    <div class="callout note mini-co"><span class="ci">&#128273;</span><div><p><b>Make the token once:</b> on GitHub, open your picture &rarr; <b>Settings &rarr; Developer settings &rarr; Personal access tokens &rarr; Fine-grained tokens &rarr; Generate new token</b>. Name it "New World site", pick <b>Only select repositories &rarr; ${GH.repo}</b>, and under <b>Repository permissions</b> set <b>Contents: Read and write</b> and <b>Issues: Read and write</b>. Generate, copy it, and paste it below.</p></div></div>${tokenBox}`;
   const rows=SUBS===null?'<p class="dimtx">Loading submissions&hellip;</p>':SUBERR?`<p class="bad">Couldn't read submissions: ${esc(SUBERR)}</p>`:
     (SUBS.length?SUBS.map((s,i)=>`<div class="locard"><div><b>${esc(s.title)}</b><div class="dimtx">from ${esc(s.by||s.user)}${s.mode?' &middot; '+esc(s.mode):''} &middot; ${new Date(s.at).toLocaleDateString()} &middot; <a href="${esc(s.url)}" target="_blank" rel="noopener">issue #${s.num}</a></div>${s.code?'':'<div class="bad">No loadout link found in this submission</div>'}</div>
       <div class="lobtns">${s.code?`<button class="mini" data-subprev="${i}">Preview</button><button class="mini go" data-subpub="${i}">Publish</button>`:''}<button class="mini" data-subrej="${i}">Reject</button></div></div>`).join(''):'<p class="dimtx">No submissions waiting.</p>');
   const com=communityLos().filter(x=>x.src==='site');
-  return `<h1>Review submissions</h1>
-  <p class="lede">Loadouts people have submitted. <b>Preview</b> opens one in the builder, <b>Publish</b> puts it in Community loadouts for everyone, <b>Reject</b> closes it with a polite note.</p>
-  <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button>${helper?(OWNER.discord?`<label class="dimtx"><input type="checkbox" id="dpost" ${LS.get('nw_dpost',true)?'checked':''}> Also post to Discord when I publish</label>`:`<span class="dimtx tiny">Add DISCORD_WEBHOOK_URL to the helper to post published loadouts to Discord.</span>`):''}</div>
+  const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
+  if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
+  const head=`<h1>Admin</h1>
+  <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
+  <div class="admtabs">${tabs.map(([k,l])=>`<button class="chip ${ADMTAB===k?'on':''}" data-admtab="${k}">${l}</button>`).join('')}</div>`;
+  let body='';
+  if(ADMTAB==='subs') body=`<p class="dimtx">Loadouts people have submitted. <b>Preview</b> opens one in the builder, <b>Publish</b> puts it in Community loadouts for everyone, <b>Reject</b> closes it with a polite note.</p>
+  <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button>${helper?(OWNER.discord?`<label class="dimtx"><input type="checkbox" id="dpost" ${LS.get('nw_dpost',true)?'checked':''}> Also post to Discord when I publish</label>`:`<span class="dimtx tiny">Add DISCORD_WEBHOOK_URL or the bot settings to the helper to post published loadouts to Discord.</span>`):''}</div>
   ${rows}
   <h2>Add one from a link</h2>
   <div class="slots lobar"><div class="slot lcard"><div class="sh">Publish a share link</div>
     <label class="lof"><span>Share link</span><input id="addlink" class="pk" placeholder="Paste a share link someone sent you"></label>
     <div class="two"><label class="lof"><span>Name</span><input id="addname" class="pk" placeholder="Leave blank to use its own name"></label><label class="lof"><span>By</span><input id="addby" class="pk" placeholder="Who made it"></label></div>
     <label class="lof"><span>Made for</span>${loTagSelect('addmode')}</label>
-    <div class="lbtns"><button class="mini go" id="addpub">Publish</button></div></div></div>
-  <h2>Published (${com.length})</h2>
-  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}
-  ${helper?`<div class="slot wide losave dlogin">&#9989; Reviewing as <b>${esc(OWNER.name||u.name)}</b> (Discord)<button class="mini" id="revlogout">Log out</button></div>`
-    :`${CFG.worker?`<h2>Discord login</h2>${!u?`<div class="slot wide losave dlogin"><a class="dbtn" id="revlogin" href="${esc(CFG.worker)}/login">Log in with Discord</a><span class="dimtx">Review and publish without a GitHub token. Once it works you can click Forget token below.</span></div>`
-      :OWNER===null?`<p class="dimtx">Checking your Discord login&hellip;</p>`
-      :`<div class="slot wide losave dlogin">Logged in with Discord as <b>${esc(u.name)}</b>, but that account isn't set as the site owner (OWNER_DISCORD_ID).${OWNER.err?` <span class="bad">${esc(OWNER.err)}</span>`:''}<button class="mini" id="revlogout">Log out</button></div>`}`:''}<h2>Token</h2>${tokenBox}`}<p class="dimtx tiny">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
+    <div class="lbtns"><button class="mini go" id="addpub">Publish</button></div></div></div>`;
+  if(ADMTAB==='published') body=`<p class="dimtx">Everything in Community loadouts. Changes go live after GitHub rebuilds the site (a minute or two).</p>
+  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}${x.img?' &middot; has pictures':''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}`;
+  if(ADMTAB==='bot') body=helper&&OWNER.bot?botCard(OWNER.bot).replace('<h2>Discord bot</h2>',''):`<p class="dimtx">The Discord bot settings need the Discord login (helper Version 5 or newer).</p>`;
+  if(ADMTAB==='status') body=statusView();
+  if(ADMTAB==='helper') body=`<div class="slots lobar">
+    <div class="slot lcard"><div class="sh">Helper status</div><pre class="helperst" id="helperst">${CFG.worker?'Checking&hellip;':'No helper set in site-config.json'}</pre>
+      <div class="lbtns"><button class="mini" id="helperchk">&#8635; Check again</button>${CFG.worker?`<a class="mini" href="${esc(CFG.worker)}" target="_blank" rel="noopener">Open helper page</a>`:''}</div></div>
+    <div class="slot lcard"><div class="sh">Your account</div>
+      ${helper?`<div class="dlogin">&#9989; <b>${esc(OWNER.name||u.name)}</b> <span class="dimtx">owner, via Discord</span><button class="mini" id="revlogout">Log out</button></div>`
+        :CFG.worker?(!u?`<div class="dlogin"><a class="dbtn" id="revlogin" href="${esc(CFG.worker)}/login">Log in with Discord</a></div>`:`<div class="dlogin">Logged in as <b>${esc(u.name)}</b>, not the owner.<button class="mini" id="revlogout">Log out</button></div>`):''}
+      <details class="tiny dimtx"><summary>GitHub token (fallback)</summary>${tokenBox}</details></div>
+    <div class="slot lcard" style="grid-column:1/-1"><div class="sh">Quick links</div><div class="tw"><table><tbody>
+      <tr><td>Public site</td><td><a href="${esc(PUBLIC_SITE)}" target="_blank" rel="noopener">${esc(PUBLIC_SITE)}</a></td></tr>
+      <tr><td>GitHub repo</td><td><a href="https://github.com/${GH.owner}/${GH.repo}" target="_blank" rel="noopener">${GH.owner}/${GH.repo}</a></td></tr>
+      <tr><td>Submissions on GitHub</td><td><a href="https://github.com/${GH.owner}/${GH.repo}/issues" target="_blank" rel="noopener">Issues</a></td></tr>
+      <tr><td>Site build progress</td><td><a href="https://github.com/${GH.owner}/${GH.repo}/actions" target="_blank" rel="noopener">GitHub Actions</a></td></tr>
+      <tr><td>Cloudflare (helper settings)</td><td><a href="https://dash.cloudflare.com" target="_blank" rel="noopener">dash.cloudflare.com</a> &rarr; Workers &amp; Pages &rarr; nw-vault-helper</td></tr>
+      <tr><td>Discord app (login + bot)</td><td><a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Developer Portal</a></td></tr>
+    </tbody></table></div></div></div>`;
+  return head+body+`<p class="dimtx tiny" style="margin-top:20px">Published loadouts go live on the site after GitHub rebuilds it (a minute or two).</p>`;
 }
-async function refreshSubs(){ SUBS=null; SUBERR=''; try{ SUBS=await listSubmissions(); }catch(e){ SUBS=[]; SUBERR=e.message; } if(current?.kind==='view'&&current.v==='review') openView('review',false); }
+async function refreshSubs(){ SUBS=null; SUBERR=''; try{ SUBS=await listSubmissions(); }catch(e){ SUBS=[]; SUBERR=e.message; } if(current?.kind==='view'&&current.v==='admin') openView('admin',false); }
 function reviewEvents(){
   const on=(id,f)=>{ const e=document.getElementById(id); if(e) e.onclick=f; };
-  on('ghtoksave',()=>{ const v=document.getElementById('ghtok').value.trim(); if(!v) return; LS.set('nw_gh_token',v); toast('Token saved in this browser'); refreshSubs(); openView('review',false); });
-  on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('review',false); });
+  on('ghtoksave',()=>{ const v=document.getElementById('ghtok').value.trim(); if(!v) return; LS.set('nw_gh_token',v); toast('Token saved in this browser'); refreshSubs(); openView('admin',false); });
+  on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('admin',false); });
   on('subrefresh',refreshSubs);
+  document.querySelectorAll('[data-admtab]').forEach(el=>el.onclick=()=>{ ADMTAB=el.dataset.admtab; LS.set('nw_admtab',ADMTAB); openView('admin',false); });
+  const hs=document.getElementById('helperst');
+  const chk=async()=>{ if(!hs||!CFG.worker) return; hs.textContent='Checking…'; try{ const r=await fetch(CFG.worker+'/',{cache:'no-store'}); hs.textContent=(await r.text()).trim(); }catch(e){ hs.textContent='Could not reach the helper: '+e.message; } };
+  if(hs) chk(); on('helperchk',chk);
   on('revlogout',()=>{ LS.del('nw_discord'); location.reload(); });
-  const rl=document.getElementById('revlogin'); if(rl) rl.addEventListener('click',()=>LS.set('nw_after_login','review'));
+  const rl=document.getElementById('revlogin'); if(rl) rl.addEventListener('click',()=>LS.set('nw_after_login','admin'));
   const busy=async(el,f,ok)=>{ el.disabled=true; try{ await f(); toast(ok); }catch(e){ toast((viaHelper()?'':'GitHub said: ')+e.message); } await refreshSubs(); };
   document.querySelectorAll('[data-subprev]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subprev]; openSharedLo(s.code); });
   const wantPost=()=>viaHelper()&&OWNER.discord&&LS.get('nw_dpost',true);
   const postAfter=async e=>{ if(!wantPost()) return; try{ toast('Posting to Discord…'); await announceToDiscord(e); toast('Posted “'+e.name+'” to Discord'); }catch(err){ toast('Published, but the Discord post failed: '+err.message); } };
+  on('botsetup',async()=>{ const st=document.getElementById('botstat'), bt=document.getElementById('botsetup'); bt.disabled=true; st.textContent='Registering…';
+    try{ const d=await ownerApi('botsetup'); st.textContent=`Done: ${d.count} commands registered. They show up in Discord within a minute.`; }catch(e){ st.textContent='Failed: '+e.message; } bt.disabled=false; });
+  if(ADMTAB==='bot' && viaHelper() && OWNER.bot && OWNER.bot.token && BOTCH===null && !BOTCHERR) loadBotChannels();
+  on('statnow',async()=>{ const st=document.getElementById('statnowst'); st.textContent='checking…'; try{ const d=await ownerApi('statuscheck'); st.textContent=d.skipped?'Save a status channel first':`done, ${d.posted} new update${d.posted===1?'':'s'} posted`; }catch(e){ st.textContent='failed: '+e.message; } });
+  if(ADMTAB==='status' && viaHelper() && STAT===null && !STATERR) loadStatus();
+  on('statref',loadStatus);
+  const sa=document.getElementById('statall'); if(sa) sa.onchange=()=>{ STATALL=sa.checked; LS.set('nw_statall',STATALL); loadStatus(); };
+  on('botchre',()=>{ BOTCH=null; BOTCHERR=''; openView('admin',false); });
+  on('botchsave',async()=>{ const st=document.getElementById('botchst'); st.textContent='Saving…';
+    try{ const d=await ownerApi('setbotconfig',{channel:document.getElementById('botch').value,log:document.getElementById('botlog').value,status:document.getElementById('botstatus').value,statusAll:!!document.getElementById('botstatall').value});
+      OWNER.bot.channel=d.channel; OWNER.bot.log=d.log; OWNER.bot.status=d.status; OWNER.bot.statusAll=d.statusAll; OWNER.discord=OWNER.discord||!!d.channel; st.textContent='Saved ✓'; }catch(e){ st.textContent='Failed: '+e.message; } });
   const dp=document.getElementById('dpost'); if(dp) dp.onchange=()=>LS.set('nw_dpost',dp.checked);
   document.querySelectorAll('[data-subpub]').forEach(el=>el.onclick=()=>{ const s=SUBS[+el.dataset.subpub]; const e={name:s.title,by:s.by||s.user,mode:s.mode,code:s.code,did:s.did}; busy(el,async()=>{ await publishToCommunity(e,s.num); await postAfter(e); },'Published “'+s.title+'”'); });
   document.querySelectorAll('[data-dpost]').forEach(el=>el.onclick=async()=>{ const x=communityLos().find(c=>c.code===el.dataset.dpost); if(!x) return; el.disabled=true; el.textContent='Posting…';
@@ -1524,7 +1618,7 @@ function viewMyLo(){
   ${MYLO.length?MYLO.map(card).join(''):'<p class="dimtx">Nothing saved yet.</p>'}
   <h2>Community loadouts (${com.length})</h2>
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button></div></div>`).join(''):'<p class="dimtx">None yet.</p>'}
-  <p class="dimtx tiny" style="margin-top:24px"><a class="wl" data-view="review">Site owner: review submissions &rarr;</a></p>`;
+  ${(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner)?`<p class="dimtx tiny" style="margin-top:24px"><a class="wl" data-view="admin">&#128736; Admin &rarr;</a></p>`:''}`;
 }
 function myLoEvents(){
   const b=document.getElementById('losave2'); if(b) b.onclick=()=>{ if(saveCurrentLoadout(document.getElementById('loname2').value, document.getElementById('lomode2').value)) openView('myloadouts',false); };
@@ -1786,7 +1880,7 @@ function openPanel(){
    <p class="dimtx">${CMODE==='db'?'Changes are saved to the page, so they follow you to every device.':'Saved in this browser only.'}</p>
    <label class="in"><span>Title in the top bar</span><input id="pbrand" value="${esc(s.brand)}"></label>
    <div class="in"><span>Accent colour</span><div class="sw">${sw.map(c=>`<button class="swb ${s.accent===c?'on':''}" data-sw="${c}" style="background:${c}"></button>`).join('')}
-     <input type="color" id="pacc" value="${s.accent}"></div></div>
+     <input type="color" id="pacc" value="${esc(/^#[0-9a-f]{6}$/i.test(s.accent||'')?s.accent:DEFAULT_SITE.accent)}"></div></div>
    <div class="in"><span>Theme</span><div class="seg">${[['dark','Dark'],['midnight','Midnight'],['light','Light']].map(([v,l])=>`<button class="${s.theme===v?'on':''}" data-th="${v}">${l}</button>`).join('')}</div></div>
    <div class="in"><span>Text size</span><div class="seg">${[['s','Small'],['m','Normal'],['l','Large']].map(([v,l])=>`<button class="${s.font===v?'on':''}" data-fs="${v}">${l}</button>`).join('')}</div></div>
    <div class="in"><span>Page width</span><div class="seg">${[['normal','Normal'],['wide','Wide'],['full','Full']].map(([v,l])=>`<button class="${s.width===v?'on':''}" data-wd="${v}">${l}</button>`).join('')}</div></div>
@@ -1959,7 +2053,7 @@ async function initCustom(){
   else if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);
