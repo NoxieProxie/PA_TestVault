@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 housing';
+const BUILD_AT = '2026-11-26 trophies';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -37,8 +37,15 @@ function icoFor(n,w){
 }
 const IMG=(src,n)=>`<img class="ico" src="${src}" alt="" title="${esc(n)}">`;
 /* item pictures for names in notes: gear from the item list, everything else (potions, food, coatings...) from the recipe data */
+let NOTEICO=null;
+function noteIcon(n,size=22){
+  if(!NOTEICO) return ''; const x=NOTEICO.map[n.toLowerCase()]; if(x==null) return '';
+  const T=NOTEICO.tile,C=NOTEICO.cols,sheet=Math.floor(x/NOTEICO.per),j=x%NOTEICO.per,sc=size/T;
+  return `<span class="iic" style="width:${size}px;height:${size}px;background-image:url(${NOTEICO.urls[sheet]});background-size:${C*T*sc}px auto;background-position:-${(j%C)*T*sc}px -${Math.floor(j/C)*T*sc}px" title="${esc(n)}"></span>`;
+}
 function itemIco(n){
   n=stripTags(n).replace(/&amp;/g,'&').replace(/&#39;/g,"'").trim(); if(n.length<3||n.length>60) return '';
+  const ni=noteIcon(n); if(ni) return ni;
   if(typeof ITEMDB!=='undefined'&&ITEMDB){ if(!ITEMDB.byLc){ ITEMDB.byLc={}; ITEMDB.items.forEach(i=>{ const k=i.n.toLowerCase(); if(!ITEMDB.byLc[k]) ITEMDB.byLc[k]=i; }); }
     const it=ITEMDB.byLc[n.toLowerCase()]; if(it&&it.x>=0) return itemIcon(it,22); }
   if(typeof CR!=='undefined'&&CR&&CRSHEETS.length){
@@ -177,6 +184,7 @@ function navTabs(){
     ${tool('calc','Calculator','Real damage and health, against raid bosses too')}
     ${tool('craft','Recipe finder','Every recipe, with a shopping list')}
     ${tool('weight','Weight calculator','Equip load, and what light, medium and heavy give and cost')}
+    ${tool('trophyplanner','Trophy planner','Plan trophies for your houses, see the totals and what to craft')}
     ${tool('builds','Build browser','Filter every build by role, mode and weapon')}
     ${tool('bosses','Boss browser','Filter bosses by expedition and weakness')}</div></div>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
@@ -439,7 +447,7 @@ function openView(v,push=true){
   if(push && current) hist.push(current);
   current={kind:'view',v};
   document.getElementById('main').classList.remove('home');
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
@@ -447,6 +455,7 @@ function openView(v,push=true){
   if(v==='admin') reviewEvents();
   if(v==='craft') craftEvents();
   if(v==='weight') weightEvents();
+  if(v==='trophyplanner') trophyEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -2780,6 +2789,106 @@ function weightEvents(){
   });
 }
 
+/* ================= trophy planner: up to 3 houses x 5 trophies ================= */
+let TROPH=null, TROPHLOAD=null;
+const TP=Object.assign({houses:3, slots:[['','','','',''],['','','','',''],['','','','','']]}, LS.get('nw_trophies',{}));
+const saveTP=()=>LS.set('nw_trophies',TP);
+async function loadTrophies(){
+  if(TROPH||TROPHLOAD) return TROPHLOAD;
+  TROPHLOAD=(async()=>{ try{ TROPH=await (await fetch('trophies.json')).json(); TROPH.byId={}; TROPH.trophies.forEach(t=>TROPH.byId[t.id]=t); }catch(e){ TROPH={err:String(e)}; }
+    if(current&&current.kind==='view'&&current.v==='trophyplanner') openView('trophyplanner',false); })();
+  return TROPHLOAD;
+}
+const tIco=(n,s=22)=>(typeof noteIcon==='function'?noteIcon(n,s):'');
+function fmtFx(sum,kind){
+  const lbl=(TROPH.kinds[kind]||[kind])[0];
+  return Object.entries(sum).map(([u,v])=>{
+    if(u==='size') return `${['','Small','Medium','Large'][Math.min(3,v.max)]||''} chance${v.n>1?` (${v.n} trophies)`:''}`;
+    if(u==='%') return `+${v.t}%`;
+    return `+${v.t.toLocaleString('en-GB')} ${u}`;
+  }).join(', ');
+}
+function trophyState(){
+  const houses=[]; const totals={}; let clashes=0;
+  for(let h=0;h<TP.houses;h++){
+    const seen={}; const slots=(TP.slots[h]||[]).map((id,i)=>{
+      const t=id&&TROPH.byId[id]; if(!t) return {i,t:null};
+      const clash=t.k.filter(k=>seen[k]!=null).map(k=>seen[k]);
+      if(clash.length){ clashes++; return {i,t,clash:[...new Set(clash)]}; }
+      t.k.forEach(k=>seen[k]=t.n);
+      Object.entries(t.fx||{}).forEach(([k,[v,u]])=>{ const K=totals[k]=totals[k]||{}; const e=K[u]=K[u]||{t:0,max:0,n:0}; e.t+=v; e.max=Math.max(e.max,v); e.n++; });
+      return {i,t};
+    });
+    houses.push(slots);
+  }
+  return {houses,totals,clashes};
+}
+function shopping(state){
+  const raw={}, fees={g:0}, notCraft=[], lvl={max:0};
+  const add=(t,mult)=>{
+    if(!t.rec){ notCraft.push(t); return; }
+    lvl.max=Math.max(lvl.max,t.rec.lvl); fees.g+=t.rec.fee*mult;
+    t.rec.ings.forEach(([n,q])=>raw[n]=(raw[n]||0)+q*mult);
+    (t.rec.prev||[]).forEach(id=>{ const p=TROPH.byId[id]; if(p) add(p,mult); });
+  };
+  state.houses.forEach(h=>h.forEach(s=>{ if(s.t&&!s.clash) add(s.t,1); }));
+  return {raw,fees:fees.g,notCraft,lvl:lvl.max};
+}
+function viewTrophies(){
+  if(!TROPH){ loadTrophies(); return `<h1>Trophy planner</h1><p class="lede">Loading trophies&hellip;</p>`; }
+  if(TROPH.err) return `<h1>Trophy planner</h1><p class="lede">trophies.json did not load (${esc(TROPH.err)}). Run build-housing.py.</p>`;
+  const st=trophyState(), sh=shopping(st);
+  const groups={}; TROPH.trophies.forEach(t=>(groups[t.g]=groups[t.g]||[]).push(t));
+  const opts=sel=>`<option value="">Empty</option>`+Object.entries(groups).map(([g,l])=>`<optgroup label="${esc(g)}">${l.map(t=>`<option value="${esc(t.id)}" ${t.id===sel?'selected':''}>${esc(t.n)}</option>`).join('')}</optgroup>`).join('');
+  const house=(h,i)=>`<section class="panel thouse"><h2>House ${i+1}</h2>
+    ${h.map(s=>`<div class="tslot ${s.clash?'clash':''}">${s.t?tIco(s.t.n,30):'<span class="iic none" style="width:30px;height:30px"></span>'}
+      <div class="tsel"><select data-tslot="${i}:${s.i}" aria-label="House ${i+1}, trophy ${s.i+1}">${opts(s.t?s.t.id:'')}</select>
+      <div class="teff">${s.t?(s.clash?`Won't count: this house already has ${esc(s.clash.join(', '))} for the same bonus`:esc(s.t.eff)):'&nbsp;'}</div></div></div>`).join('')}
+    </section>`;
+  const order=Object.keys(TROPH.kinds);
+  const tot=order.filter(k=>st.totals[k]);
+  const byCat={}; tot.forEach(k=>{ const c=TROPH.kinds[k][1]; (byCat[c]=byCat[c]||[]).push(k); });
+  const rawRows=Object.entries(sh.raw).sort((a,b)=>b[1]-a[1]);
+  return `<h1>Trophy planner</h1>
+  <p class="lede">Put up to 5 trophies in each of your houses and see what they add up to, then get a shopping list for crafting them. Each house holds 5 trophies and only one of each kind counts per house, but the same kind in different houses stacks (so three Major Beast trophies in three houses give +15%).</p>
+  <div class="presetbar"><b>Houses:</b>${[1,2,3].map(n=>`<button class="chip ${TP.houses===n?'on':''}" data-thouses="${n}">${n}</button>`).join('')}
+    <b style="margin-left:10px">Quick fill:</b>
+    <button class="chip" data-tpre="ultcombat">Ultimate combat in every house</button>
+    <button class="chip" data-tpre="majorcombat">Major combat (Beast, Lost, Angry Earth, Corrupted, Ancient)</button>
+    <button class="chip" data-tpre="crafter">Crafter</button><button class="chip" data-tpre="gatherer">Gatherer</button>
+    <button class="chip" data-tpre="clear">Clear</button></div>
+  <div class="thouses">${st.houses.map(house).join('')}</div>
+  <div class="calcgrid">
+    <section class="panel"><h2>What it adds up to</h2>
+      ${tot.length?Object.entries(byCat).map(([c,ks])=>`<h3>${esc(c)}</h3><div class="tw"><table><tbody>${ks.map(k=>`<tr><td>${esc(TROPH.kinds[k][0])}</td><td class="r"><b>${fmtFx(st.totals[k],k)}</b></td></tr>`).join('')}</tbody></table></div>`).join(''):'<p class="dimtx">Pick some trophies to see the totals.</p>'}
+      ${st.clashes?`<p class="gain" style="color:var(--red)">${st.clashes} trophy${st.clashes>1?' slots don\'t':' doesn\'t'} count because ${st.clashes>1?'they clash':'it clashes'} with another in the same house.</p>`:''}
+    </section>
+    <section class="panel"><h2>Shopping list</h2>
+      ${rawRows.length?`<p class="dimtx tiny">Everything needed to craft these from scratch, including the lower tiers each upgrade uses up. Furnishing level needed: <b>${sh.lvl}</b>. Crafting fees: about <b>${Math.round(sh.fees).toLocaleString('en-GB')} gold</b> before town tax.</p>
+      <div class="tw"><table><thead><tr><th>Material</th><th class="r">Amount</th><th>Where to get it</th></tr></thead><tbody>
+        ${rawRows.map(([n,q])=>`<tr><td>${tIco(n)}${esc(n)}</td><td class="r">${q.toLocaleString('en-GB')}</td><td class="small">${esc((TROPH.src||{})[n]||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="dimtx">Nothing to craft yet.</p>'}
+      ${sh.notCraft.length?`<p class="dimtx tiny">Not craftable: ${sh.notCraft.map(t=>`${esc(t.n)} (${esc(t.how||'found')})`).join(', ')}.</p>`:''}
+      <p class="tiny"><a class="wl" data-note="Trophies">Every trophy and its recipe &rarr;</a> &middot; <a class="wl" data-note="Housing">House tiers and costs &rarr;</a></p>
+    </section>
+  </div>`;
+}
+function trophyEvents(){
+  const re=()=>{ saveTP(); openView('trophyplanner',false); };
+  document.querySelectorAll('[data-tslot]').forEach(s=>s.onchange=()=>{ const [h,i]=s.dataset.tslot.split(':').map(Number); TP.slots[h][i]=s.value; re(); });
+  document.querySelectorAll('[data-thouses]').forEach(b=>b.onclick=()=>{ TP.houses=+b.dataset.thouses; re(); });
+  document.querySelectorAll('[data-tpre]').forEach(b=>b.onclick=()=>{
+    const id=n=>(TROPH.trophies.find(t=>t.n===n)||{}).id||'';
+    const fill=l=>{ for(let h=0;h<3;h++) TP.slots[h]=l.map(id).concat(['','','','','']).slice(0,5); };
+    const p=b.dataset.tpre;
+    if(p==='clear') fill([]);
+    if(p==='ultcombat') fill(['Ultimate Combat Trophy','Major Loot Luck Trophy']);
+    if(p==='majorcombat') fill(['Major Wildlife Combat Trophy','Major Lost Combat Trophy','Major Angry Earth Combat Trophy','Major Corrupted Combat Trophy','Major Ancients Combat Trophy']);
+    if(p==='crafter') fill(['Major Arcana Crafting Trophy','Major Armoring Crafting Trophy','Major Weaponsmithing Crafting Trophy','Major Engineering Crafting Trophy','Major Cooking Crafting Trophy']);
+    if(p==='gatherer') fill(['Major Mining Gathering Trophy','Major Harvesting Gathering Trophy','Major Logging Gathering Trophy','Major Skinning Gathering Trophy','Major Fishing Gathering Trophy']);
+    re();
+  });
+}
+
 /* ---------- boot ---------- */
 (async function(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
@@ -2794,6 +2903,7 @@ function weightEvents(){
   try { ITEMDB = await (await fetch('items.json')).json();
         for(let k=0;k<ITEMDB.sheets;k++){ const b=await (await fetch('items_'+k+'.webp')).blob(); SPRITES.push(URL.createObjectURL(b)); } } catch(e){ ITEMDB = null; }
   try { PRESETS = await (await fetch('gear_presets.json')).json(); } catch(e){ PRESETS = null; }
+  try { NOTEICO = await (await fetch('noteicons.json')).json(); NOTEICO.urls=[]; for(let k=0;k<NOTEICO.sheets;k++){ const b=await (await fetch('noteicons_'+k+'.webp')).blob(); NOTEICO.urls.push(URL.createObjectURL(b)); } } catch(e){ NOTEICO = null; }
   if(typeof loadCommunity==='function') await loadCommunity();
   try { TREES = await (await fetch('trees.json')).json(); } catch(e){ TREES = null; }
   reindex(); topnav(); if(typeof renderAcct==='function') renderAcct();
@@ -2803,7 +2913,7 @@ function weightEvents(){
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
   else if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);

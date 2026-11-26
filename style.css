@@ -561,3 +561,15 @@ code,.tag{background:#242b36}
 .wtable th.on,.wtable td.on{background:#1f2633;color:var(--fg)}
 .wtable th.on{color:var(--gold2)}
 td .iic,li .iic{width:22px;height:22px;margin-right:6px;border-radius:5px}
+
+/* ---- trophy planner ---- */
+.thouses{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:14px 0}
+.thouse h2{margin-top:.1em}
+.tslot{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #232a35}
+.tslot:first-of-type{border-top:0}
+.tslot .iic{width:30px;height:30px;flex:none}
+.tsel{flex:1;min-width:0}
+.tsel select{width:100%;background:#121720;border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:6px 8px;font:inherit;font-size:14px}
+.teff{font-size:12.5px;color:var(--dim);margin-top:3px;line-height:1.35}
+.tslot.clash select{border-color:var(--red)}
+.tslot.clash .teff{color:var(--red)}
