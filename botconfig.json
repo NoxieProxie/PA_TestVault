@@ -69,7 +69,7 @@
  "live": {
   "presence": {
    "type": "playing",
-   "text": "Project Azoth"
+   "text": "https://noxieproxie.github.io/PA_TestVault/"
   },
   "spam": {
    "on": true,
