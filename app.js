@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 18:28';
+const BUILD_AT = '2026-11-26 19:44';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -161,6 +161,7 @@ function navTabs(){
   T.push({k:'Items', h:`<button class="nb calcnb" data-view="items">&#128270; Items</button>`});
   T.push({k:'Loadout', h:`<button class="nb calcnb" data-view="gear">&#128737; Loadout</button>`});
   T.push({k:'Calculator', h:`<button class="nb calcnb" data-view="calc">&#129518; Calculator</button>`});
+  T.push({k:'Crafting', h:`<button class="nb calcnb" data-view="craft">&#9874;&#65039; Crafting</button>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
   if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">&#128736; Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
@@ -390,12 +391,13 @@ function openView(v,push=true){
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
   if(push && current) hist.push(current);
   current={kind:'view',v};
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
   if(v==='myloadouts') myLoEvents();
   if(v==='admin') reviewEvents();
+  if(v==='craft') craftEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -698,7 +700,7 @@ function viewItems(){
        ${cleanPerks(it).length?`<div class="iperks">${cleanPerks(it).map(p=>`<span>${icoFor(p)?`<img class="ico" src="${icoFor(p)}" alt="">`:''}${esc(p)}</span>`).join('')}</div>`:''}
        ${it.src?`<div class="isrc">&#128205; ${it.src.map(esc).join(' &middot; ')}</div>`:''}
        ${it.d?`<div class="idesc">${esc(it.d)}</div>`:''}</div>
-     <button class="mini go" data-equip="${esc(it.n)}">Equip</button></div>`).join('')||'<p class="empty">No items match.</p>'}</div>
+     <div class="lobtns" style="flex-direction:column"><button class="mini go" data-equip="${esc(it.n)}">Equip</button>${it.r==='Crafting'||/craft/i.test((it.src||[]).join(' '))?`<button class="mini" data-craftit="${esc(it.n)}">&#9874;&#65039; Craft</button>`:''}</div></div>`).join('')||'<p class="empty">No items match.</p>'}</div>
   ${list.length>10?pager:''}`;
 }
 function equipItem(it, quiet){
@@ -727,6 +729,7 @@ function itemsEvents(){
   const w=document.getElementById('iwt'); if(w) w.onchange=()=>{ IQ.wt=w.value; IQ.page=0; openView('items',false); };
   document.querySelectorAll('[data-ipg]').forEach(b=>b.onclick=()=>{ IQ.page+=parseInt(b.dataset.ipg); openView('items',false); window.scrollTo(0,0); });
   document.querySelectorAll('[data-equip]').forEach(b=>b.onclick=()=>{ equipItem(itemByName(b.dataset.equip)); });
+  document.querySelectorAll('[data-craftit]').forEach(b=>b.onclick=()=>craftItemByName(b.dataset.craftit));
 }
 /* best-in-slot table in a build note -> items */
 function bisFromNote(name){
@@ -2249,6 +2252,142 @@ async function initCustom(){
   customChanged(); renderDraftBar();
 }
 
+/* ================= Crafting: every recipe from the game data ================= */
+let CR=null, CRERR='', CRLOAD=null, CRSHEETS=[];
+let CQ={q:'', ts:'', cat:'', all:false, page:0, sel:LS.get('nw_craft_sel',''), qty:1, open:{}, raw:LS.get('nw_craft_raw','raw')};
+const REFINE_TS=['Smelting','Weaving','Leatherworking','Woodworking','Stonecutting'];
+const EVENT_RX=/WinterConvergence|SummerMedleyfaire|NightveilHallow|SpringtideBloom|CraftingQuest|Rabbit|Turkey|Lunar|Anniversary/i;
+async function loadCrafting(){
+  if(CR||CRLOAD) return CRLOAD;
+  CRLOAD=(async()=>{
+    try{
+      const d=await (await fetch('crafting.json')).json();
+      for(let k=0;k<d.sheets;k++){ const b=await (await fetch('craft_'+k+'.webp')).blob(); CRSHEETS.push(URL.createObjectURL(b)); }
+      d.byOut={}; d.byId={}; d.usedIn={};
+      d.recipes.forEach((r,i)=>{ r.ix=i; d.byId[r.id]=r; (d.byOut[r.o]=d.byOut[r.o]||[]).push(r);
+        r.ev=!r.ts || EVENT_RX.test(r.cat+' '+r.grp+' '+r.id) || /Seasons|SeasonalServers/.test(r.src) || r.cat==='Furniture' || /Dye|Pattern|Faction/.test(r.cat);
+        r.lc=r.n.toLowerCase();
+        r.i.forEach(([id])=>{ if(id[0]!=='$'&&!id.startsWith('c:')) (d.usedIn[id]=d.usedIn[id]||[]).push(i); }); });
+      const tsn={}; d.recipes.forEach(r=>{ if(r.ts) tsn[r.ts]=(tsn[r.ts]||0)+1; }); d.tradeskills=Object.keys(tsn).filter(t=>tsn[t]>=10).sort();
+      CR=d;
+    }catch(e){ CRERR=String(e.message||e); }
+    if(current?.kind==='view'&&current.v==='craft') openView('craft',false);
+  })();
+  return CRLOAD;
+}
+const crItem=id=>CR.items[id]||[id,'',-1];
+function crName(id){ if(id[0]==='$') return id.slice(1); if(id.startsWith('c:')){ const c=CR.cats[id.slice(2)]; if(!c) return id.slice(2); const ex=c[1].slice(0,2).map(m=>crItem(m)[0]).join(', '); return 'Any '+c[0]+(ex?' (e.g. '+ex+')':''); } return crItem(id)[0]; }
+function crIcon(id,size=32){
+  if(id[0]==='$') return `<span class="iic crcur" style="width:${size}px;height:${size}px">&#9883;</span>`;
+  if(id.startsWith('c:')){ const m=(CR.cats[id.slice(2)]||[])[1]||[]; const f=m.find(x=>crItem(x)[2]>=0); if(f) id=f; else return `<span class="iic none" style="width:${size}px;height:${size}px"></span>`; }
+  const it=crItem(id), x=it[2];
+  if(x>=0&&CRSHEETS.length){ const T=CR.tile,C=CR.cols,sheet=Math.floor(x/CR.per),j=x%CR.per,sc=size/T;
+    return `<span class="iic" style="width:${size}px;height:${size}px;background-image:url(${CRSHEETS[sheet]});background-size:${C*T*sc}px auto;background-position:-${(j%C)*T*sc}px -${Math.floor(j/C)*T*sc}px" title="${esc(it[0])}"></span>`; }
+  const big=typeof itemByName==='function'?itemByName(it[0]):null;
+  return big?itemIcon(big,size):`<span class="iic none" style="width:${size}px;height:${size}px"></span>`;
+}
+// refining reagents (flux, tannin, sandpaper, solvent, weave) are bought or gathered, not broken down
+const crNoBreak=(id,r)=>/^(Flux|Tannin|Sandpaper|Solvent|Weave|Wireweave)T/i.test(id)||(r&&r.i.some(([x])=>/Converter/i.test(x)));
+// the recipe used to make an ingredient (prefer a normal, non-random one)
+function crRecipeFor(id){ const l=CR.byOut[id]; if(!l) return null; return l.find(r=>!r.proc&&!r.ev)||l.find(r=>!r.proc)||l[0]; }
+function crTree(id,need,depth,path,key){
+  let r=(depth<6&&id[0]!=='$'&&!id.startsWith('c:')&&!path.includes(id))?crRecipeFor(id):null;
+  if(r&&crNoBreak(id,r)) r=null;
+  const crafts=r?Math.ceil(need/(r.q||1)):0, open=CQ.open[key];
+  const cat=id.startsWith('c:')?CR.cats[id.slice(2)]:null;
+  let h=`<div class="crrow" style="padding-left:${depth*22}px">${r||cat?`<button class="crtog" data-crtog="${esc(key)}">${open?'&#9662;':'&#9656;'}</button>`:'<span class="crtog sp"></span>'}
+    ${crIcon(id,28)}<span class="crq">${need.toLocaleString()}&times;</span><span class="crn">${esc(crName(id))}</span>
+    ${r?`<span class="dimtx tiny">${esc(r.ts||'')}${r.lv?' '+r.lv:''}${r.st?' &middot; '+esc(r.st):''}${crafts&&r.q>1?` &middot; ${crafts} craft${crafts>1?'s':''} (makes ${r.q})`:''}</span><button class="mini tiny" data-crsel="${esc(r.id)}">Open</button>`:''}</div>`;
+  if(open&&r) h+=r.i.map(([iid,q],k)=>crTree(iid,q*crafts,depth+1,path.concat(id),key+'/'+k)).join('');
+  if(open&&cat) h+=`<div class="crrow crany" style="padding-left:${(depth+1)*22+26}px"><span class="dimtx tiny">Any one of: ${cat[1].slice(0,24).map(m=>esc(crItem(m)[0])).join(', ')}${cat[1].length>24?'…':''}</span></div>`;
+  return h;
+}
+// everything you need to gather, refining things down to raw materials
+function crRaw(id,need,depth,path,acc){
+  const r=(depth<6&&id[0]!=='$'&&!id.startsWith('c:')&&!path.includes(id))?crRecipeFor(id):null;
+  if(r&&CQ.raw==='raw'&&REFINE_TS.includes(r.ts)&&!crNoBreak(id,r)){
+    const crafts=Math.ceil(need/(r.q||1)); r.i.forEach(([iid,q])=>crRaw(iid,q*crafts,depth+1,path.concat(id),acc)); return; }
+  acc[id]=(acc[id]||0)+need;
+}
+function viewCraft(){
+  if(!CR){ loadCrafting(); return `<h1>Crafting</h1>${CRERR?`<p class="bad">Couldn't load the recipes: ${esc(CRERR)}</p>`:'<p class="dimtx">Loading every recipe from the game data&hellip;</p>'}`; }
+  const q=CQ.q.trim().toLowerCase();
+  const list=CR.recipes.filter(r=>(CQ.all||!r.ev)&&(!CQ.ts||r.ts===CQ.ts)&&(!CQ.cat||r.cat===CQ.cat)&&(!q||r.lc.includes(q)||crItem(r.o)[0].toLowerCase().includes(q)))
+    .sort((a,b)=>(q?((b.lc.startsWith(q))-(a.lc.startsWith(q))):0)||(b.gs-a.gs)||a.n.localeCompare(b.n));
+  const per=30, pages=Math.max(1,Math.ceil(list.length/per)); if(CQ.page>=pages) CQ.page=0;
+  const shown=list.slice(CQ.page*per,CQ.page*per+per);
+  const cats=[...new Set(CR.recipes.filter(r=>(CQ.all||!r.ev)&&(!CQ.ts||r.ts===CQ.ts)).map(r=>r.cat).filter(Boolean))].sort();
+  const sel=CQ.sel&&CR.byId[CQ.sel];
+  return `<h1>Crafting</h1>
+  <p class="lede">${CR.recipes.length.toLocaleString()} recipes straight from the game's own data. Pick one to see what it needs, where to make it and the full list of materials to gather.</p>
+  <div class="crwrap"><div class="crleft">
+   <div class="filters" data-h="Find a recipe"><input id="crq" class="isearch" placeholder="Search, e.g. prismatic ingot, artisan, infused health" value="${esc(CQ.q)}" autocomplete="off">
+    <div class="frow"><span class="fl">Skill</span>${['',...CR.tradeskills].map(t=>`<button class="chip ${CQ.ts===t?'on':''}" data-crts="${esc(t)}">${esc(t)||'All'}</button>`).join('')}</div>
+    <div class="frow"><span class="fl">Category</span><select id="crcat"><option value="">Any</option>${cats.map(c=>`<option ${CQ.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+     <label class="amon"><input type="checkbox" id="crall" ${CQ.all?'checked':''}> Include event, faction, cosmetic and quest recipes</label></div></div>
+   <div class="pager"><button class="mini" data-crpg="-1" ${CQ.page?'':'disabled'}>&larr; Prev</button><span>Page <b>${CQ.page+1}</b> of ${pages} &middot; ${list.length.toLocaleString()} recipes</span><button class="mini" data-crpg="1" ${CQ.page>=pages-1?'disabled':''}>Next &rarr;</button></div>
+   <div class="crlist">${shown.map(r=>`<div class="crli ${sel&&sel.id===r.id?'on':''}" data-crsel="${esc(r.id)}">${crIcon(r.o,36)}<div><b>${esc(r.n)}</b><div class="dimtx tiny">${esc(r.ts||'—')}${r.lv?' '+r.lv:''}${r.gs?' &middot; GS '+r.gs:''}${r.cat?' &middot; '+esc(r.cat):''}</div></div></div>`).join('')||'<p class="empty">No recipes match.</p>'}</div>
+  </div>
+  <div class="crright">${sel?craftDetail(sel):'<div class="slot lcard"><p class="dimtx">Pick a recipe on the left.</p></div>'}</div></div>`;
+}
+function craftDetail(r){
+  const n=Math.max(1,Math.min(9999,CQ.qty|0)), raw={};
+  r.i.forEach(([id,q])=>crRaw(id,q*n,0,[r.o],raw));
+  const rawList=Object.entries(raw).sort((a,b)=>b[1]-a[1]);
+  const used=(CR.usedIn[r.o]||[]).map(i=>CR.recipes[i]).filter(x=>CQ.all||!x.ev).slice(0,12);
+  const others=(CR.byOut[r.o]||[]).filter(x=>x.id!==r.id);
+  return `<div class="slot lcard crdet">
+    <div class="crhead">${crIcon(r.o,56)}<div><h2 style="margin:0">${esc(r.n)}</h2>
+      <div class="dimtx">${r.q>1?'Makes '+r.q+' &middot; ':''}${r.tier?'Tier '+esc(r.tier)+' &middot; ':''}${r.gs?'Gear score '+r.gs+(r.proc?' (base, rolls higher with better materials)':''):''}</div></div></div>
+    <div class="tw"><table><tbody>
+      <tr><td>Tradeskill</td><td><b>${esc(r.ts||'—')}</b>${r.lv?' level '+r.lv:''}</td></tr>
+      <tr><td>Made at</td><td>${esc(r.st||'—')}</td></tr>
+      ${r.cat?`<tr><td>Category</td><td>${esc(r.cat)}${r.grp?' &middot; '+esc(r.grp):''}</td></tr>`:''}
+      ${r.fee?`<tr><td>Crafting fee</td><td>${r.fee} coin before town tax</td></tr>`:''}
+      <tr><td>Recipe</td><td>${r.known?'Known by default':'Has to be learned (schematic, quest or event)'}${r.proc?' &middot; perks and gear score are rolled':''}</td></tr>
+    </tbody></table></div>
+    <div class="advhd" style="margin-top:6px"><span class="sh">Ingredients</span><label class="lof" style="flex-direction:row;align-items:center;gap:8px"><span>How many to craft</span><input type="number" id="crqty" class="pk" min="1" max="9999" value="${n}" style="width:90px"></label>
+      <button class="mini" id="crexp">Expand all</button><button class="mini" id="crcol">Collapse</button></div>
+    <div class="crtree">${r.i.map(([id,q],k)=>crTree(id,q*n,0,[r.o],r.id+':'+k)).join('')}</div>
+    <div class="advhd" style="margin-top:10px"><span class="sh">Shopping list</span><select id="crraw" style="max-width:320px"><option value="raw" ${CQ.raw==='raw'?'selected':''}>Break refined materials down to what you gather</option><option value="direct" ${CQ.raw==='direct'?'selected':''}>Just the ingredients (buy refined materials)</option></select></div>
+    <div class="crshop">${rawList.map(([id,q])=>`<div class="crrow">${crIcon(id,24)}<span class="crq">${q.toLocaleString()}&times;</span><span class="crn">${esc(crName(id))}</span></div>`).join('')}</div>
+    <div class="lbtns"><button class="mini" id="crcopy">&#128203; Copy shopping list</button><button class="mini" id="crlink">&#128279; Copy link to this recipe</button></div>
+    ${others.length?`<div class="sh" style="margin-top:10px">Other ways to make it</div>${others.slice(0,6).map(x=>`<div class="crrow"><button class="mini tiny" data-crsel="${esc(x.id)}">Open</button> ${esc(x.n)} <span class="dimtx tiny">${esc(x.ts)} ${x.lv||''} &middot; ${esc(x.cat)}</span></div>`).join('')}`:''}
+    ${used.length?`<div class="sh" style="margin-top:10px">Used to make</div>${used.map(x=>`<div class="crrow">${crIcon(x.o,22)}<a class="wl" data-crsel="${esc(x.id)}">${esc(x.n)}</a> <span class="dimtx tiny">${esc(x.ts)} ${x.lv||''}</span></div>`).join('')}`:''}
+  </div>`;
+}
+function craftEvents(){
+  if(!CR) return;
+  const re=()=>openView('craft',false);
+  const qi=document.getElementById('crq'); if(qi){ let t; qi.oninput=()=>{ clearTimeout(t); t=setTimeout(()=>{ CQ.q=qi.value; CQ.page=0; const pos=qi.selectionStart; re(); const n=document.getElementById('crq'); n.focus(); n.setSelectionRange(pos,pos); },250); }; }
+  document.querySelectorAll('[data-crts]').forEach(b=>b.onclick=()=>{ CQ.ts=b.dataset.crts; CQ.cat=''; CQ.page=0; re(); });
+  const c=document.getElementById('crcat'); if(c) c.onchange=()=>{ CQ.cat=c.value; CQ.page=0; re(); };
+  const a=document.getElementById('crall'); if(a) a.onchange=()=>{ CQ.all=a.checked; CQ.page=0; re(); };
+  document.querySelectorAll('[data-crpg]').forEach(b=>b.onclick=()=>{ CQ.page+= +b.dataset.crpg; re(); });
+  document.querySelectorAll('[data-crsel]').forEach(b=>b.onclick=e=>{ e.preventDefault(); CQ.sel=b.dataset.crsel; CQ.open={}; LS.set('nw_craft_sel',CQ.sel); try{ history.replaceState(null,'','#craft='+encodeURIComponent(CQ.sel)); }catch(_){}
+    re(); try{ history.replaceState(null,'','#craft='+encodeURIComponent(CQ.sel)); }catch(_){} const d=document.querySelector('.crright'); if(d&&window.innerWidth<900) d.scrollIntoView({behavior:'smooth'}); });
+  document.querySelectorAll('[data-crtog]').forEach(b=>b.onclick=()=>{ const k=b.dataset.crtog; CQ.open[k]=!CQ.open[k]; re(); });
+  const rw=document.getElementById('crraw'); if(rw) rw.onchange=()=>{ CQ.raw=rw.value; LS.set('nw_craft_raw',CQ.raw); re(); };
+  const qty=document.getElementById('crqty'); if(qty) qty.onchange=()=>{ CQ.qty=Math.max(1,Math.min(9999,+qty.value||1)); re(); };
+  const r=CQ.sel&&CR.byId[CQ.sel];
+  const walk=(id,depth,path,key,set)=>{ let rr=(depth<6&&id[0]!=='$'&&!path.includes(id))?(id.startsWith('c:')?null:crRecipeFor(id)):null; if(rr&&crNoBreak(id,rr)) rr=null; if(rr||id.startsWith('c:')) set[key]=true; if(rr) rr.i.forEach(([iid],k)=>walk(iid,depth+1,path.concat(id),key+'/'+k,set)); };
+  const ex=document.getElementById('crexp'); if(ex&&r) ex.onclick=()=>{ const s={}; r.i.forEach(([id],k)=>walk(id,0,[r.o],r.id+':'+k,s)); CQ.open=s; re(); };
+  const co=document.getElementById('crcol'); if(co) co.onclick=()=>{ CQ.open={}; re(); };
+  const cp=document.getElementById('crcopy'); if(cp&&r) cp.onclick=async()=>{ const raw={}; r.i.forEach(([id,q])=>crRaw(id,q*Math.max(1,CQ.qty|0),0,[r.o],raw));
+    const txt=`${r.n} x${Math.max(1,CQ.qty|0)}\n`+Object.entries(raw).sort((a,b)=>b[1]-a[1]).map(([id,q])=>`- ${q} x ${crName(id)}`).join('\n');
+    try{ await navigator.clipboard.writeText(txt); toast('Shopping list copied'); }catch(e){ toast('Copy failed'); } };
+  const ln=document.getElementById('crlink'); if(ln&&r) ln.onclick=async()=>{ const u=(typeof shareBase==='function'?shareBase():location.href.split('#')[0])+'#craft='+encodeURIComponent(r.id);
+    try{ await navigator.clipboard.writeText(u); toast('Link copied'); }catch(e){ toast(u); } };
+}
+// open the crafting tab on the recipe for an item name (from the Items tab)
+async function craftItemByName(name){
+  CQ.q=name; CQ.page=0; CQ.all=true; openView('craft');
+  await loadCrafting(); if(!CR) return;
+  const lc=name.toLowerCase(); const r=CR.recipes.find(x=>x.lc===lc)||CR.recipes.find(x=>crItem(x.o)[0].toLowerCase()===lc);
+  if(r){ CQ.sel=r.id; CQ.q=''; CQ.all=r.ev; CQ.open={}; LS.set('nw_craft_sel',r.id); }
+  openView('craft',false);
+}
+
 /* ---------- boot ---------- */
 (async function(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
@@ -2271,7 +2410,8 @@ async function initCustom(){
   else if(h.startsWith('lo=') && typeof openSharedLo==='function'){ openView('gear',false); openSharedLo(h.slice(3)); }
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin'].includes(h)) openView(h,false);
+  else if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); }
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);

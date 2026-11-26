@@ -354,3 +354,19 @@ body.light .edbanner{background:#fbf6ea}
 .rmrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .rmrow select{min-width:180px}.rmrow .pk{flex:1;min-width:110px}
 .rmrow .bad{color:#e06c6c;font-size:12px}
+
+/* Crafting tab */
+.crwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:start}
+@media(max-width:1000px){.crwrap{grid-template-columns:1fr}}
+.crlist{display:flex;flex-direction:column;gap:6px}
+.crli{display:flex;gap:10px;align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:7px 10px;cursor:pointer}
+.crli:hover{border-color:var(--gold)}.crli.on{border-color:var(--gold);background:#1d2330}
+.crright{position:sticky;top:120px}
+.crhead{display:flex;gap:14px;align-items:center}
+.crtree,.crshop{display:flex;flex-direction:column;gap:3px}
+.crrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px;min-height:30px}
+.crtog{background:none;border:none;color:var(--gold);cursor:pointer;width:18px;padding:0;font-size:13px}.crtog.sp{display:inline-block}
+.crq{color:var(--gold2);font-weight:600;min-width:52px;text-align:right}
+.crn{font-weight:500}
+.crshop{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 12px}
+.crcur{display:inline-flex;align-items:center;justify-content:center;color:#8fd3ff;background:#1a2433;border-radius:6px}
