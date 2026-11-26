@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 19:55';
+const BUILD_AT = '2026-11-26 calc v2';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -468,75 +468,199 @@ document.addEventListener('drop', async e=>{
 let CALC = null;
 const C = Object.assign({
   weapon:'Sword and Shield', ability:'Upheaval',
-  emp:0, weak:0, base:0, bane:0, behind:0, critC:0, critD:30,
+  emp:0, weak:0, base:0, bane:0, behind:0, critC:0, critD:0,
   tMit:35, tRend:0, pen:0, tAbs:0,
-  weight:'Heavy', mit:40, fort:0, rend:0, abs:0, enemyPen:0,
-  Str:300, Dex:0, Int:0, Foc:0, Con:200
+  weight:'Heavy', mit:40, fort:0, rend:0, abs:0, enemyPen:0, eWeak:0, eHit:5000,
+  Str:300, Dex:0, Int:0, Foc:0, Con:200,
+  real:true, gs:800, level:70, wOver:0, hpOver:0, hpBonus:0, food:'',
+  hone:false, coat:false, ward:false, absorb:false,
+  set:'', pieces:4, stacks:0, cond:false, boss:''
 }, LS.get('nw_calc', {}));
+if(!C.v){ C.critD=Math.max(0,(C.critD||0)-30); C.v=2; }   // old saves stored crit damage including the base +30%
 const saveC = () => LS.set('nw_calc', C);
 let compareSnap = LS.get('nw_calc_cmp', null);
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,isNaN(v)?a:v));
 const mitFrom=(m0,plus)=>{ const r0=m0/(1-m0||.0001); const r=Math.max(0,r0*(1+plus)); return r/(1+r); };
+const fmt=n=>Math.round(n).toLocaleString('en-GB');
+const ELEM=['Fire','Ice','Nature','Corruption','Lightning','Arcane'];
+const ATTRS=[['Str','Strength'],['Dex','Dexterity'],['Int','Intelligence'],['Foc','Focus'],['Con','Constitution']];
+const FOOD_PTS=48;   // tier 5 attribute food, from the game data
+
+/* ---------- set bonuses (numbers from EquipmentSets / perk text) ---------- */
+const SETS={
+  '':{n:'None'},
+  SecondWind:{n:"Dreadwarden's (Second Wind)", tiers:[2,4], cond:'Exhausted, enemy within 5 m', note:'4 pc adds 10% lifesteal and Empower stacks when you leave exhaustion (not modelled)'},
+  Enrage:{n:'Spectral Wrath (Enrage)', tiers:[1,3,5], stacks:true, cond:'Below 70% health (5 pc)', note:'Each stack: +1% damage, +0.5% damage taken. Max stacks 10 / 15 / 25 by pieces'},
+  Overcharged:{n:"Barrow Robber's (Overcharged)", tiers:[3,5], stacks:true, note:'Each stack: +5% base damage and 4% Rend on you. Max 3 stacks, 5 at 5 pc. Getting hit clears them'},
+  Protector:{n:'Hallowed Aegis (Protector\'s Blessing)', tiers:[2,4], stacks:true, note:'4 pc: +3% base damage per stack (max 5). At 5 stacks you also take 7% Rend'},
+  Stifling:{n:"Obstructor's (Stifling)", tiers:[2,4], cond:'You are silenced (basic attacks only)', note:'4 pc: +10% base damage on basic attacks while silenced'},
+  Elemental:{n:'Grave Offering (Elementally Charged)', tiers:[2,4], cond:'Spending a stored charge on a non-magic weapon', note:'Magic abilities do 7% less; a stored charge adds 10% weapon damage to non-magic attacks'},
+  Tenacity:{n:'Insurmountable (Tenacity)', tiers:[2,4], cond:'Grit is active', note:'2 pc: take 5% more damage while Grit is up. 4 pc: Grit on light attacks and 5% lifesteal'},
+  Focused:{n:"Thaumaturge's (Focused)", tiers:[2,4], note:'Healing only: +15% healing (not part of damage)'}
+};
+function setFx(){
+  const s=SETS[C.set]||SETS['']; const p=C.pieces|0; const fx={base:0,dmg:0,taken:0,rendYou:0,txt:[]};
+  if(!C.set) return fx;
+  const magic=ELEM.includes((wData()||{}).type);
+  if(C.set==='SecondWind' && p>=2 && C.cond){ fx.base+=20; fx.txt.push('+20% base damage while exhausted'); }
+  if(C.set==='Enrage' && p>=1){ const max=p>=5?25:p>=3?15:10; const n=clamp(C.stacks|0,0,max); fx.dmg+=n; fx.taken+=n*0.5; fx.txt.push(`${n} Enrage stacks: +${n}% damage, +${n*0.5}% taken`); if(p>=5&&C.cond){ fx.base+=8; fx.txt.push('+8% below 70% health'); } }
+  if(C.set==='Overcharged' && p>=3){ const max=p>=5?5:3; const n=clamp(C.stacks|0,0,max); fx.base+=n*5; fx.rendYou+=n*4; fx.txt.push(`${n} stacks: +${n*5}% base damage, ${n*4}% Rend on you`); }
+  if(C.set==='Protector' && p>=4){ const n=clamp(C.stacks|0,0,5); fx.base+=n*3; if(n>=5) fx.rendYou+=7; fx.txt.push(`${n} stacks: +${n*3}% base damage`+(n>=5?', 7% Rend on you':'')); }
+  if(C.set==='Stifling' && p>=4 && C.cond){ fx.base+=10; fx.txt.push('+10% base damage on basic attacks'); }
+  if(C.set==='Elemental' && p>=2){ if(magic){ fx.base-=7; fx.txt.push('Magic weapon: −7% base damage'); } else if(C.cond){ fx.base+=10; fx.txt.push('Stored charge: +10% weapon damage'); } }
+  if(C.set==='Tenacity' && p>=2 && C.cond){ fx.taken+=5; fx.txt.push('Grit up: +5% damage taken'); }
+  return fx;
+}
+
+/* ---------- real-number helpers ---------- */
+const hasReal=()=>!!(CALC&&CALC.weapons&&CALC.attrSum);
+const isReal=()=>C.real&&hasReal();
+const wData=()=>CALC&&CALC.weapons&&CALC.weapons[C.weapon];
+const bossData=()=>(CALC&&CALC.bosses||[]).find(b=>b.id===C.boss);
+const attrVal=k=>clamp((C[k]|0)+(C.food===k?FOOD_PTS:0),0,500);
+function gsDamage(base,gs){
+  const g=CALC.gs||{rate:.0112,over500:.6667,step:5}; gs=clamp(gs,100,800);
+  const low=Math.floor((Math.min(gs,500)-100)/g.step), high=Math.max(0,Math.floor((gs-500)/g.step));
+  return base*Math.pow(1+g.rate,low)*Math.pow(1+g.over500*g.rate,high);
+}
+function weaponDamage(){
+  const w=wData(); if(!w) return null;
+  const gsd=gsDamage(w.base,C.gs);
+  const lvl=0.025*(clamp(C.level,1,70)-1);
+  const parts=['Str','Dex','Int','Foc'].map(k=>({k, s:w.scale[k]||0, v:attrVal(k), m:(w.scale[k]||0)*((CALC.attrSum[k]||[])[attrVal(k)]||0)})).filter(x=>x.s>0);
+  const am=parts.reduce((s,x)=>s+x.m,0);
+  const est=gsd*(1+lvl+am);
+  return {gsd,lvl,am,parts,est,used:C.wOver>0?C.wOver:est,over:C.wOver>0};
+}
+function maxHealth(){
+  if(C.hpOver>0) return {hp:C.hpOver,over:true};
+  const L=clamp(C.level,1,70), lh=CALC.levelHealth||{};
+  const base=lh[L]!=null?lh[L]:(lh[L-1]!=null?lh[L-1]+50:50*L);
+  const con=(CALC.conHealth||[])[attrVal('Con')]||0;
+  return {hp:(base+con)*(1+clamp(C.hpBonus,0,100)/100),base,con,over:false};
+}
+function bossWkn(){ const b=bossData(), w=wData(); if(!b||!w) return 0; return (b.wkn||{})[w.type]||0; }
+function bossAbs(){ const b=bossData(), w=wData(); if(!b||!w) return 0; return (b.abs||{})[w.type]||0; }
+
+/* ---------- the maths ---------- */
 function offence(){
   const abil=(CALC?.abilities?.[C.weapon]||[]).find(a=>a.n===C.ability);
   const abilPct=abil?abil.d:100;
+  const sf=setFx(), b=bossData();
   const net=clamp(C.emp,0,50)-clamp(C.weak,0,50);
   const fEmp=1+net/100;
-  const fBase=1+(C.base/100)+(C.bane/100)+(C.behind/100);
-  const tm=mitFrom(clamp(C.tMit,0,90)/100, -clamp(C.tRend,0,70)/100);
+  const extraBase=(C.hone?7:0)+sf.base, extraBane=(C.coat?15:0);
+  const fBase=1+(C.base+C.bane+C.behind+extraBase+extraBane)/100;
+  const fSet=1+sf.dmg/100;
+  const rendEff=clamp(C.tRend,0,70)*(1-(b?b.rendRes:0)/100);
+  const tm=mitFrom(clamp(C.tMit,0,90)/100, -rendEff/100);
   const fMit=1-tm*(1-clamp(C.pen,0,100)/100);
-  const fAbs=1-clamp(C.tAbs,0,100)/100;
-  const hit=(abilPct/100)*fEmp*fBase*fMit*fAbs*100;
-  const critMul=1+clamp(C.critD,0,300)/100;
-  const avg=hit*(1+(clamp(C.critC,0,100)/100)*(critMul-1));
-  const baseline=(abilPct/100)*(1-mitFrom(clamp(C.tMit,0,90)/100,0))*100;
-  return {abilPct,net,fEmp,fBase,tm,fMit,fAbs,hit,crit:hit*critMul,avg,baseline,
-          gain:baseline?((avg/baseline-1)*100):0};
+  const fAbs=1-clamp(C.tAbs+bossAbs(),0,100)/100;
+  const fWkn=1+bossWkn()/100;
+  const w=wData(), real=isReal();
+  const critBase=real&&w?w.critC*100:0, critMulBase=real&&w?w.critM:1.3;
+  const critC=clamp(critBase+C.critC,0,100), critMul=critMulBase+clamp(C.critD,0,300)/100;
+  const wd=real?weaponDamage():null;
+  const unit=real&&wd?wd.used:100;
+  const hit=unit*(abilPct/100)*fEmp*fBase*fSet*fMit*fAbs*fWkn;
+  const avg=hit*(1+(critC/100)*(critMul-1));
+  const baseline=unit*(abilPct/100)*(1-mitFrom(clamp(C.tMit,0,90)/100,0));
+  return {abilPct,net,fEmp,fBase,fSet,tm,fMit,fAbs,fWkn,hit,crit:hit*critMul,avg,baseline,critC,critMul,critBase,critMulBase,
+          wd,unit,real,sf,extraBase,extraBane,rendEff,gain:baseline?((avg/baseline-1)*100):0};
 }
 function defence(){
-  const m=mitFrom(clamp(C.mit,0,90)/100, clamp(C.fort,0,200)/100 - clamp(C.rend,0,70)/100);
-  const taken=(1-m*(1-clamp(C.enemyPen,0,100)/100))*(1-clamp(C.abs,0,100)/100)*100;
+  const sf=setFx(), b=bossData();
+  const rendYou=clamp(C.rend+sf.rendYou,0,70);
+  const m=mitFrom(clamp(C.mit,0,90)/100, clamp(C.fort,0,200)/100 - rendYou/100);
+  const absT=clamp(C.abs+(C.ward?10:0)+(C.absorb?15:0),0,100);
+  const weakEff=clamp(C.eWeak,0,50)*(1-(b?b.weakRes:0)/100);
+  const taken=(1-m*(1-clamp(C.enemyPen,0,100)/100))*(1-absT/100)*(1-weakEff/100)*(1+sf.taken/100)*100;
   const m0=mitFrom(clamp(C.mit,0,90)/100,0);
   const taken0=(1-m0)*100;
-  return {m,taken,ehp:taken?100/taken:0,ehp0:taken0?100/taken0:0,saved:taken0?((1-taken/taken0)*100):0};
+  const H=hasReal()?maxHealth():null;
+  const hitTaken=(C.eHit||0)*taken/100;
+  return {m,taken,absT,weakEff,rendYou,ehp:taken?100/taken:0,ehp0:taken0?100/taken0:0,saved:taken0?((1-taken/taken0)*100):0,
+          H,ehpReal:H&&taken?H.hp*100/taken:0,hitTaken,hits:hitTaken?H&&H.hp/hitTaken:0};
 }
 const WEIGHTS={Light:25,Medium:33,Heavy:42};
 function num(id,label,val,min,max,step,hint){
   return `<label class="in"><span>${label}${hint?`<i>${hint}</i>`:''}</span>
     <input type="number" data-c="${id}" value="${val}" min="${min}" max="${max}" step="${step||1}"></label>`;
 }
+const tog=(id,label,hint)=>`<label class="tog ${C[id]?'on':''}"><input type="checkbox" data-ct="${id}" ${C[id]?'checked':''}> <span>${label}${hint?` <i>${hint}</i>`:''}</span></label>`;
+
+/* ---------- presets: raid bosses ---------- */
+function applyBoss(id){
+  C.boss=id; const b=bossData();
+  if(b){
+    const w=wData(); const el=w&&ELEM.includes(w.type);
+    C.tMit=el?b.em:b.pm;
+    toast(`${b.name}: ${b.family}, ${el?'elemental':'physical'} mitigation ${C.tMit}%`+(b.rendRes?`, Rend works at ${100-b.rendRes}%`:''));
+  }
+  saveC();
+}
+
 function viewCalc(){
   if(!CALC) return `<h1>Build calculator</h1><p class="lede">calc.json did not load, so the ability list is missing.</p>`;
-  const o=offence(), d=defence();
+  const o=offence(), d=defence(), real=o.real, w=wData(), b=bossData();
   const ab=(CALC.abilities[C.weapon]||[]);
-  const attrRows=[['Str','Strength'],['Dex','Dexterity'],['Int','Intelligence'],['Foc','Focus'],['Con','Constitution']].map(([k,nm])=>{
+  const attrRows=ATTRS.map(([k,nm])=>{
     const t=CALC.attrs[k]||{}; const ks=Object.keys(t).map(Number).sort((a,b)=>a-b);
-    const val=C[k]|0;
+    const val=attrVal(k);
     const active=ks.filter(x=>val>=x);
     const next=ks.find(x=>val<x);
-    return `<tr><td><b>${nm}</b><div class="stepper">
+    return `<tr><td><b>${nm}</b>${C.food===k?` <span class="tag">+${FOOD_PTS} food</span>`:''}<div class="stepper">
         <button data-step="${k}" data-by="-25">&minus;</button>
-        <input type="number" data-c="${k}" value="${val}" min="0" max="350" step="5">
+        <input type="number" data-c="${k}" value="${C[k]|0}" min="0" max="500" step="5">
         <button data-step="${k}" data-by="25">+</button></div></td>
       <td>${active.length?active.map(x=>`<div class="bp"><b>${x}</b> ${esc((t[x]||'').split('•').filter(Boolean)[0]||'').trim()}</div>`).join(''):'<span class="dimtx">nothing yet</span>'}</td>
       <td>${next?`<span class="dimtx">${next-val} more to <b>${next}</b></span><div class="bp next">${esc((t[next]||'').split('•').filter(Boolean)[0]||'').trim()}</div>`:'<span class="dimtx">maxed</span>'}</td></tr>`;
   }).join('');
-  const total=['Str','Dex','Int','Foc','Con'].reduce((s,k)=>s+(C[k]|0),0);
+  const total=ATTRS.reduce((s,[k])=>s+(C[k]|0),0);
+  const F=v=>real?fmt(v):v.toFixed(1);
   const cmp = compareSnap ? `<div class="cmp"><b>Saved for comparison:</b> ${esc(compareSnap.name)} &mdash;
-      hit <b>${compareSnap.hit.toFixed(1)}</b>, average <b>${compareSnap.avg.toFixed(1)}</b>, damage taken <b>${compareSnap.taken.toFixed(1)}</b>
-      &nbsp;<span class="delta">${(o.avg-compareSnap.avg>=0?'+':'')}${(o.avg-compareSnap.avg).toFixed(1)} damage</span>,
+      hit <b>${F(compareSnap.hit)}</b>, average <b>${F(compareSnap.avg)}</b>, damage taken <b>${compareSnap.taken.toFixed(1)}</b>
+      &nbsp;<span class="delta">${(o.avg-compareSnap.avg>=0?'+':'')}${F(o.avg-compareSnap.avg)} damage</span>,
       <span class="delta">${(d.taken-compareSnap.taken>=0?'+':'')}${(d.taken-compareSnap.taken).toFixed(1)} taken</span>
+      ${!!compareSnap.real!==real?'<span class="dimtx">(saved in the other mode)</span>':''}
       <button class="mini" id="clearcmp">clear</button></div>` : '';
+  const mylo=(typeof MYLO!=='undefined'?MYLO:[]);
+  const importBar=`<div class="presetbar"><b>Import:</b>
+      <select id="loimp"><option value="">Pick a loadout&hellip;</option><option value="cur">Loadout builder (current)</option>
+        ${mylo.map((x,i)=>`<option value="${i}">${esc(x.name)} &mdash; ${esc(x.g.w1)}</option>`).join('')}</select>
+      <button class="mini go" id="doimp">Import</button>
+      <span class="dimtx tiny">Brings in weapon, attributes and perk totals (Empower, Fortify, Rend, crit, damage, absorption).</span></div>`;
+  const bosses=CALC.bosses||[];
+  const bossBar=bosses.length?`<div class="presetbar"><b>Target:</b>
+      <button class="chip ${!C.boss?'on':''}" data-boss="">Custom</button>
+      ${bosses.map(x=>`<button class="chip ${C.boss===x.id?'on':''}" data-boss="${esc(x.id)}" title="${esc(x.raid)}">${esc(x.name)}</button>`).join('')}</div>
+      ${b?`<div class="callout info"><span class="ci">&#127919;</span><div><p><b>${esc(b.name)}</b> (${esc(b.raid)}) &middot; ${esc(b.family)} &middot; physical mitigation ${b.pm}%, elemental ${b.em}%
+        ${b.rendRes?` &middot; <b>Rend works at ${100-b.rendRes}%</b>`:''}${b.weakRes?` &middot; Weaken works at ${100-b.weakRes}%`:''}
+        &middot; weak to ${Object.entries(b.wkn||{}).map(([k,v])=>`${esc(k)} +${v}%`).join(', ')||'nothing'}.
+        Bring the <b>${esc(b.family)}</b> coating and ward potion${w&&b.wkn&&b.wkn[w.type]?`; your ${esc(C.weapon)} (${esc(w.type)}) gets the +${b.wkn[w.type]}% weakness`:''}.</p></div></div>`:''}`:'';
+  const s=SETS[C.set]||SETS[''];
+  const wd=o.wd;
   return `<h1>Build calculator</h1>
-  <p class="lede">Set your buffs, debuffs and the target, and see what your hit actually comes to. Everything is per <b>100 weapon damage</b>, so it compares builds rather than guessing your weapon's numbers.</p>
-  <div class="callout info"><span class="ci">&#128203;</span><div><p><b>What's real and what's modelled.</b> The formula, the Season 10 caps and every ability percentage come from your own notes and game-data export. The armor curve is modelled as <code>mitigation = armor / (armor + k)</code>, which is why Fortify and Rend behave correctly relative to each other. Base mitigation per armour weight is a rough community figure you can overwrite. Absolute hit points would need the weapon and armor datasheets &mdash; see the note at the bottom.</p></div></div>
+  <p class="lede">${real?`Real numbers from your game data: weapon base damage, gear score, level and attribute scaling, with each weapon's own crit. Switch to <b>per 100</b> to compare builds without the weapon's numbers.`:`Set your buffs, debuffs and the target, and see what your hit comes to. Everything is per <b>100 weapon damage</b>, so it compares builds rather than guessing your weapon's numbers.`}</p>
+  <div class="presetbar"><b>Show:</b>
+    <button class="chip ${real?'on':''}" data-real="1" ${hasReal()?'':'disabled'}>Real numbers</button>
+    <button class="chip ${!real?'on':''}" data-real="0">Per 100 weapon damage</button>
+    ${hasReal()?'':'<span class="dimtx tiny">Real numbers need the new calc.json (run build-calc-data.py).</span>'}</div>
+  ${importBar}
+  ${bossBar}
   ${cmp}
   <div class="calcgrid">
     <section class="panel">
       <h2>&#9876; Your attack</h2>
-      <label class="in"><span>Weapon<i><a class="wl" data-craftword="${esc((typeof CRAFT_WORD!=='undefined'&&CRAFT_WORD[C.weapon])||C.weapon)}">&#9874;&#65039; craftable ${esc(C.weapon)} weapons</a></i></span><select data-c="weapon">${Object.keys(CALC.abilities).sort().map(w=>`<option ${w===C.weapon?'selected':''}>${esc(w)}</option>`).join('')}</select></label>
+      <label class="in"><span>Weapon<i><a class="wl" data-craftword="${esc((typeof CRAFT_WORD!=='undefined'&&CRAFT_WORD[C.weapon])||C.weapon)}">&#9874;&#65039; craftable ${esc(C.weapon)} weapons</a></i></span><select data-c="weapon">${Object.keys(CALC.abilities).sort().map(x=>`<option ${x===C.weapon?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      ${w?`<div class="wstats dimtx tiny">Base damage <b>${w.base}</b> &middot; ${esc(w.type)} &middot; crit ${Math.round(w.critC*100)}% &times;${w.critM} &middot; stagger ${w.stagger} &middot; block stability ${w.block.stab}</div>`:''}
       <label class="in"><span>Ability</span><select data-c="ability">${ab.map(a=>`<option ${a.n===C.ability?'selected':''} value="${esc(a.n)}">${esc(a.n)} &mdash; ${a.d?a.d+'%':'no damage'}</option>`).join('')}</select></label>
+      ${real?`<div class="two">
+        ${num('gs','Weapon gear score',C.gs,100,800,5,'max 800')}
+        ${num('level','Character level',C.level,1,70,1,'cap 70')}
+      </div>
+      ${num('wOver','Weapon damage from your tooltip',C.wOver||'',0,99999,1,'optional: overrides the estimate')}`:''}
       <div class="two">
         ${num('emp','Empower %',C.emp,0,50,1,'cap 50')}
         ${num('weak','Weaken on you %',C.weak,0,50,1,'subtracts')}
@@ -547,37 +671,40 @@ function viewCalc(){
       </div>
       <div class="two">
         ${num('behind','From behind %',C.behind,0,100,1,'backstab perks')}
-        ${num('critC','Crit chance %',C.critC,0,100,1)}
+        ${num('critC',real?'Extra crit chance %':'Crit chance %',C.critC,0,100,1,real?`weapon has ${o.critBase.toFixed(0)}%`:'')}
       </div>
-      ${num('critD','Crit damage bonus %',C.critD,0,300,1,'base crit is +30%')}
+      ${num('critD','Extra crit damage %',C.critD,0,300,1,real?`weapon crits do &times;${o.critMulBase}`:'base crit is +30%')}
       <h3>The target</h3>
       <div class="two">
-        ${num('tMit','Their mitigation %',C.tMit,0,90,1,'light 25 / med 33 / heavy 42')}
-        ${num('tRend','Rend you apply %',C.tRend,0,70,1,'cap 70')}
+        ${num('tMit','Their mitigation %',C.tMit,0,90,1,b?`${esc(b.name)}: ${b.pm}% phys / ${b.em}% elem`:'light 25 / med 33 / heavy 42')}
+        ${num('tRend','Rend you apply %',C.tRend,0,70,1,b&&b.rendRes?`boss resists: counts as ${o.rendEff.toFixed(0)}%`:'cap 70')}
       </div>
       <div class="two">
         ${num('pen','Armor penetration %',C.pen,0,100,1)}
         ${num('tAbs','Their absorption %',C.tAbs,0,100,1,'ward, conditioning')}
       </div>
       <div class="res">
-        <div class="big"><span>${o.hit.toFixed(1)}</span><i>per 100 weapon damage</i></div>
-        <div class="big alt"><span>${o.avg.toFixed(1)}</span><i>average with crits</i></div>
-        <div class="big alt"><span>${o.crit.toFixed(1)}</span><i>on a crit</i></div>
+        <div class="big"><span>${F(o.hit)}</span><i>${real?'per hit':'per 100 weapon damage'}</i></div>
+        <div class="big alt"><span>${F(o.avg)}</span><i>average with crits (${o.critC.toFixed(0)}%)</i></div>
+        <div class="big alt"><span>${F(o.crit)}</span><i>on a crit (&times;${o.critMul.toFixed(2)})</i></div>
       </div>
       <div class="gain">${o.gain>=0?'+':''}${o.gain.toFixed(1)}% vs the same ability with no buffs or debuffs</div>
       <div class="tw"><table><tbody>
+        ${real&&wd?`<tr><td>Weapon damage</td><td>${wd.over?'from your tooltip':`GS ${C.gs}: ${fmt(wd.gsd)} &times; (1 + level ${wd.lvl.toFixed(2)} + attributes ${wd.am.toFixed(2)})`}</td><td class="r"><b>${fmt(wd.used)}</b></td></tr>`:''}
         <tr><td>Ability</td><td>${esc(C.ability)}</td><td class="r">&times;${(o.abilPct/100).toFixed(2)}</td></tr>
         <tr><td>Empower &minus; Weaken</td><td>${o.net>=0?'+':''}${o.net}%</td><td class="r">&times;${o.fEmp.toFixed(3)}</td></tr>
-        <tr><td>Damage perks + bane + behind</td><td>+${(C.base+C.bane+C.behind)}%</td><td class="r">&times;${o.fBase.toFixed(3)}</td></tr>
+        <tr><td>Damage perks + bane + behind${o.extraBase||o.extraBane?' + extras':''}</td><td>+${(C.base+C.bane+C.behind+o.extraBase+o.extraBane)}%</td><td class="r">&times;${o.fBase.toFixed(3)}</td></tr>
+        ${o.fSet!==1?`<tr><td>Set bonus damage</td><td>+${o.sf.dmg}%</td><td class="r">&times;${o.fSet.toFixed(3)}</td></tr>`:''}
         <tr><td>Their mitigation after your Rend</td><td>${(o.tm*100).toFixed(1)}%</td><td class="r">&times;${o.fMit.toFixed(3)}</td></tr>
-        <tr><td>Their absorption</td><td>${C.tAbs}%</td><td class="r">&times;${o.fAbs.toFixed(3)}</td></tr>
+        <tr><td>Their absorption</td><td>${(C.tAbs+bossAbs())}%</td><td class="r">&times;${o.fAbs.toFixed(3)}</td></tr>
+        ${o.fWkn!==1?`<tr><td>Boss weakness to ${esc(w.type)}</td><td>+${bossWkn()}%</td><td class="r">&times;${o.fWkn.toFixed(3)}</td></tr>`:''}
       </tbody></table></div>
     </section>
 
     <section class="panel">
       <h2>&#128737; Your defence</h2>
       <label class="in"><span>Armour weight<i>sets the starting mitigation</i></span>
-        <select data-c="weight">${Object.keys(WEIGHTS).map(w=>`<option ${w===C.weight?'selected':''}>${w}</option>`).join('')}</select></label>
+        <select data-c="weight">${Object.keys(WEIGHTS).map(x=>`<option ${x===C.weight?'selected':''}>${x}</option>`).join('')}</select></label>
       <div class="two">
         ${num('mit','Base mitigation %',C.mit,0,90,1,'rough: L25 M33 H42')}
         ${num('abs','Absorption %',C.abs,0,100,1,'ward, conditioning')}
@@ -586,19 +713,65 @@ function viewCalc(){
         ${num('fort','Fortify %',C.fort,0,200,1,'cap 200')}
         ${num('rend','Rend on you %',C.rend,0,70,1,'cap 70')}
       </div>
-      ${num('enemyPen','Their armor penetration %',C.enemyPen,0,100,1)}
-      <div class="res">
-        <div class="big"><span>${(d.m*100).toFixed(1)}%</span><i>effective mitigation</i></div>
-        <div class="big alt"><span>${d.taken.toFixed(1)}</span><i>damage taken per 100</i></div>
-        <div class="big alt"><span>&times;${d.ehp.toFixed(2)}</span><i>effective health</i></div>
+      <div class="two">
+        ${num('enemyPen','Their armor penetration %',C.enemyPen,0,100,1)}
+        ${num('eWeak','Weaken you apply to them %',C.eWeak,0,50,1,b&&b.weakRes?`boss resists: counts as ${d.weakEff.toFixed(0)}%`:'cuts their damage')}
       </div>
-      <div class="gain">${d.saved>=0?'':'&minus;'}${Math.abs(d.saved).toFixed(1)}% ${d.saved>=0?'less':'more'} damage than base mitigation alone</div>
+      ${real?`<div class="two">
+        ${num('hpBonus','Max health bonus %',C.hpBonus,0,100,1,'amulet, perks')}
+        ${num('hpOver','Max health from your sheet',C.hpOver||'',0,99999,1,'optional: overrides the estimate')}
+      </div>
+      ${num('eHit','Size of an enemy hit (before your defences)',C.eHit,0,999999,100,'to see what it does to you')}`:''}
+      <div class="res">
+        ${real&&d.H?`<div class="big"><span>${fmt(d.H.hp)}</span><i>max health${d.H.over?' (yours)':''}</i></div>
+          <div class="big alt"><span>${fmt(d.ehpReal)}</span><i>effective health</i></div>
+          <div class="big alt"><span>${(d.m*100).toFixed(1)}%</span><i>effective mitigation</i></div>`
+        :`<div class="big"><span>${(d.m*100).toFixed(1)}%</span><i>effective mitigation</i></div>
+          <div class="big alt"><span>${d.taken.toFixed(1)}</span><i>damage taken per 100</i></div>
+          <div class="big alt"><span>&times;${d.ehp.toFixed(2)}</span><i>effective health</i></div>`}
+      </div>
+      <div class="gain">${d.saved>=0?'':'&minus;'}${Math.abs(d.saved).toFixed(1)}% ${d.saved>=0?'less':'more'} damage than base mitigation alone${real&&C.eHit?` &middot; a ${fmt(C.eHit)} hit does <b>${fmt(d.hitTaken)}</b> to you (${d.hits?d.hits.toFixed(1):'&infin;'} hits from full)`:''}</div>
+      ${real&&d.H&&!d.H.over?`<p class="dimtx tiny">Health = level ${C.level} (${fmt(d.H.base)}) + ${attrVal('Con')} Constitution (${fmt(d.H.con)})${C.hpBonus?` + ${C.hpBonus}%`:''}. If your character sheet says something different, type it in above.</p>`:''}
+      <div class="tw"><table><tbody>
+        <tr><td>Mitigation after Fortify &minus; Rend</td><td>Fortify ${C.fort}% &middot; Rend ${d.rendYou}%</td><td class="r">${(d.m*100).toFixed(1)}%</td></tr>
+        <tr><td>Absorption</td><td>${C.abs}%${C.ward?' + ward 10%':''}${C.absorb?' + potion 15%':''}</td><td class="r">${d.absT}%</td></tr>
+        ${d.weakEff?`<tr><td>Weaken on them</td><td></td><td class="r">&minus;${d.weakEff.toFixed(1)}%</td></tr>`:''}
+        ${o.sf.taken?`<tr><td>Set bonus downside</td><td></td><td class="r">+${o.sf.taken}% taken</td></tr>`:''}
+        <tr><td><b>Damage taken</b></td><td>per 100 incoming</td><td class="r"><b>${d.taken.toFixed(1)}</b></td></tr>
+      </tbody></table></div>
       <div class="callout tip"><span class="ci">&#128161;</span><div><p>Fortify and Rend both act on your <b>armor rating</b>, not straight off the damage, so the first 50% Fortify is worth far more than the last 50%. Try 0 &rarr; 50 &rarr; 100 and watch the effective-health number flatten.</p></div></div>
     </section>
   </div>
 
+  <div class="calcgrid">
+    <section class="panel">
+      <h2>&#129514; Consumables</h2>
+      <p class="dimtx tiny">Tier 5 values from the game data. They add on top of the boxes above.</p>
+      <div class="togs">
+        ${tog('hone','Powerful Honing Stone','+7% weapon damage')}
+        ${tog('coat',`Infused ${b?esc(b.family):'creature'} Coating`,'+15% vs that enemy type')}
+        ${tog('ward',`Infused ${b?esc(b.family):'creature'} Ward Potion`,'+10% absorption')}
+        ${tog('absorb','Infused absorption potion','+15% vs one element, 30 s')}
+      </div>
+      <label class="in"><span>Attribute food<i>tier 5: +${FOOD_PTS} points</i></span>
+        <select data-c="food"><option value="">None</option>${ATTRS.map(([k,n])=>`<option value="${k}" ${C.food===k?'selected':''}>${n} +${FOOD_PTS}</option>`).join('')}</select></label>
+    </section>
+    <section class="panel">
+      <h2>&#128305; Set bonus</h2>
+      <label class="in"><span>Set</span><select data-c="set">${Object.entries(SETS).map(([k,v])=>`<option value="${k}" ${C.set===k?'selected':''}>${esc(v.n)}</option>`).join('')}</select></label>
+      ${C.set?`<div class="two">
+        <label class="in"><span>Pieces worn<i>bonuses at ${s.tiers.join(' / ')}</i></span><select data-c="pieces">${[1,2,3,4,5].map(n=>`<option ${C.pieces==n?'selected':''}>${n}</option>`).join('')}</select></label>
+        ${s.stacks?num('stacks','Stacks',C.stacks,0,25,1,'how many you have up'):'<div></div>'}
+      </div>
+      ${s.cond?tog('cond',s.cond):''}
+      <p class="dimtx tiny">${esc(s.note||'')}</p>
+      ${o.sf.txt.length?`<div class="gain">${o.sf.txt.map(esc).join(' &middot; ')}</div>`:`<p class="dimtx tiny">No bonus active with these settings.</p>`}
+      <p class="tiny"><a class="wl" data-note="Set Pieces">See every piece and its fixed perks &rarr;</a></p>`:'<p class="dimtx tiny">Pick a set to add its bonus to the numbers.</p>'}
+    </section>
+  </div>
+
   <h2>Attribute planner</h2>
-  <p class="lede">Points spent: <b>${total}</b>. Thresholds and their effects are the game's own tooltips.</p>
+  <p class="lede">Points spent: <b>${total}</b>${C.food?` (+${FOOD_PTS} from food)`:''}. Thresholds and their effects are the game's own tooltips.${real&&wd&&!wd.over?` Your attributes add <b>${(wd.am*100).toFixed(0)}%</b> of the weapon's gear score damage (${wd.parts.map(x=>`${x.k} ${x.v}`).join(', ')}).`:''}</p>
   <div class="tw"><table><thead><tr><th>Attribute</th><th>Active now</th><th>Next threshold</th></tr></thead><tbody>${attrRows}</tbody></table></div>
 
   <h2>Save this build</h2>
@@ -610,35 +783,49 @@ function viewCalc(){
   </div>
   <div id="savedlist"></div>
 
-  <div class="callout note"><span class="ci">&#8505;</span><div><p><b>Want real hit points instead of per-100 figures?</b> That needs two things this export doesn't have: each weapon's base damage and the attribute scaling curve, plus the armor table per weight and gear score. Both are in <code>DataStrm-part21.pak</code>, which you already have next to the vault. Run <code>datasheet-converter.exe</code> over it, point me at the output, and I can switch these numbers to actual damage.</p></div></div>`;
+  <div class="callout note"><span class="ci">&#8505;</span><div><p><b>How the real numbers are worked out.</b> Weapon damage = gear-score damage &times; (1 + level bonus + attribute bonus). Gear-score damage is the weapon's base damage compounded by 1.12% every 5 GS up to 500, then by two-thirds of that up to 800. The attribute bonus is the weapon's scaling &times; the game's own attribute curve (<code>AttributeDefinition</code>). Health is the level's base health plus the Constitution table. The level bonus (2.5% per level) and the gear-score formula are community figures, so if a number looks off, type the <b>weapon damage from your tooltip</b> and your <b>max health</b> from the character sheet, and everything else is worked out from those. Boss stats come from the game's <code>VitalsBaseData</code>.</p></div></div>`;
 }
 function renderSaved(){
   const el=document.getElementById('savedlist'); if(!el) return;
   const list=LS.get('nw_builds',[]);
+  const F=(b,v)=>b.real?fmt(v):v.toFixed(1);
   el.innerHTML = list.length ? `<div class="tw"><table><thead><tr><th>Build</th><th>Weapon / ability</th><th>Hit</th><th>Average</th><th>Taken</th><th></th></tr></thead><tbody>`+
     list.map((b,i)=>`<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.weapon)} &middot; ${esc(b.ability)}</td>
-      <td>${b.hit.toFixed(1)}</td><td>${b.avg.toFixed(1)}</td><td>${b.taken.toFixed(1)}</td>
+      <td>${F(b,b.hit)}</td><td>${F(b,b.avg)}</td><td>${b.taken.toFixed(1)}</td>
       <td class="r"><button class="mini" data-load="${i}">Load</button> <button class="mini" data-del="${i}">&times;</button></td></tr>`).join('')
     +`</tbody></table></div>` : `<p class="dimtx">No saved builds yet.</p>`;
 }
 function snapshot(name){
   const o=offence(), d=defence();
-  return {name:name||'(unnamed)', weapon:C.weapon, ability:C.ability, hit:o.hit, avg:o.avg, taken:d.taken, state:{...C}};
+  return {name:name||'(unnamed)', weapon:C.weapon, ability:C.ability, hit:o.hit, avg:o.avg, taken:d.taken, real:o.real, state:{...C}};
 }
 function calcEvents(){
+  const re=(k)=>{ saveC(); openView('calc',false); if(k){ const f=document.querySelector(`[data-c="${k}"]`); if(f&&f.focus&&f.tagName!=='SELECT'){ f.focus(); f.select&&f.select(); } } };
   document.querySelectorAll('[data-craftword]').forEach(el=>el.onclick=e=>{ e.preventDefault(); craftSearch(el.dataset.craftword); });
   document.querySelectorAll('[data-c]').forEach(el=>{
     const k=el.dataset.c;
-    el.oninput=()=>{
-      C[k]= el.tagName==='SELECT' ? el.value : parseFloat(el.value||0);
-      if(k==='weapon'){ const l=CALC.abilities[C.weapon]||[]; C.ability=l[0]?l[0].n:''; }
+    el.onchange=el.oninput=()=>{
+      if(el.tagName==='SELECT') C[k]=(k==='pieces')?parseInt(el.value):el.value;
+      else C[k]=parseFloat(el.value||0)||0;
+      if(k==='weapon'){ const l=CALC.abilities[C.weapon]||[]; C.ability=l[0]?l[0].n:''; if(C.boss) applyBoss(C.boss); }
       if(k==='weight'){ C.mit=WEIGHTS[C.weight]; }
-      saveC(); openView('calc',false);
-      const f=document.querySelector(`[data-c="${k}"]`); if(f&&f.focus&&el.tagName!=='SELECT'){ f.focus(); f.select&&f.select(); }
+      if(k==='set'){ const s=SETS[C.set]; if(s&&s.tiers) C.pieces=s.tiers[s.tiers.length-1]; C.stacks=0; C.cond=false; }
+      re(el.tagName==='SELECT'?null:k);
     };
   });
+  document.querySelectorAll('[data-ct]').forEach(el=>el.onchange=()=>{ C[el.dataset.ct]=el.checked; re(); });
+  document.querySelectorAll('[data-real]').forEach(b=>b.onclick=()=>{ if(b.disabled) return; C.real=b.dataset.real==='1'; re(); });
+  document.querySelectorAll('[data-boss]').forEach(b=>b.onclick=()=>{ applyBoss(b.dataset.boss); openView('calc',false); });
+  const di=document.getElementById('doimp');
+  if(di) di.onclick=()=>{
+    const v=document.getElementById('loimp').value; if(!v) return toast('Pick a loadout first');
+    if(typeof loadoutToCalc!=='function') return toast('The loadout builder is not loaded');
+    if(v==='cur'){ loadoutToCalc(G); toast('Imported the loadout builder'); }
+    else { const x=MYLO[+v]; if(!x) return; loadoutToCalc(x.g); toast('Imported “'+x.name+'”'); }
+    openView('calc',false);
+  };
   document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{
-    const k=b.dataset.step; C[k]=clamp((C[k]|0)+parseInt(b.dataset.by),0,350); saveC(); openView('calc',false);
+    const k=b.dataset.step; C[k]=clamp((C[k]|0)+parseInt(b.dataset.by),0,500); re();
   });
   const sb=document.getElementById('savebuild');
   if(sb) sb.onclick=()=>{
@@ -652,7 +839,7 @@ function calcEvents(){
   const rc=document.getElementById('resetcalc');
   if(rc) rc.onclick=()=>{ LS.del('nw_calc'); location.reload(); };
   document.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{
-    const b2=LS.get('nw_builds',[])[+b.dataset.load]; if(b2){ Object.assign(C,b2.state); saveC(); openView('calc',false); toast('Loaded “'+b2.name+'”'); }
+    const b2=LS.get('nw_builds',[])[+b.dataset.load]; if(b2){ Object.assign(C,b2.state); if(!b2.state.v){ C.critD=Math.max(0,(C.critD||0)-30); C.v=2; } saveC(); openView('calc',false); toast('Loaded “'+b2.name+'”'); }
   });
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
     const list=LS.get('nw_builds',[]); list.splice(+b.dataset.del,1); LS.set('nw_builds',list); renderSaved();
@@ -877,7 +1064,7 @@ function allChosen(g=G){
   add(g.w1gem,'Weapon 1 gem'); add(g.w2gem,'Weapon 2 gem');
   add(g.w1perk,'Weapon 1 charm'); add(g.w2perk,'Weapon 2 charm');
   add(g.w1off,'Weapon 1 charm 2'); add(g.w2off,'Weapon 2 charm 2');
-  ['w1p1','w1p2','w1p3'].forEach(k=>add(G[k],'Weapon 1')); ['w2p1','w2p2','w2p3'].forEach(k=>add(G[k],'Weapon 2'));
+  ['w1p1','w1p2','w1p3'].forEach(k=>add(g[k],'Weapon 1')); ['w2p1','w2p2','w2p3'].forEach(k=>add(g[k],'Weapon 2'));
   ARMOR_SLOTS.forEach(s=>{ const a=g.armor[s]; add(a.gem,s+' gem'); add(a.p1,s); add(a.p2,s); add(a.p3,s); add(a.ch,s+' charm'); });
   JEW_SLOTS.forEach(s=>{ const j=g.jew[s]; add(j.gem,s+' gem'); add(j.p1,s); add(j.p2,s); add(j.ch,s+' charm'); });
   return out;
@@ -1160,18 +1347,22 @@ function gearEvents(){
     saveG(); openView('gear',false);
   };
   const tc=document.getElementById('tocalc');
-  if(tc) tc.onclick=()=>{
-    const {t}=totals();
-    C.emp=Math.min(50,Math.round(t.emp)); C.fort=Math.min(200,Math.round(t.fort));
-    C.tRend=Math.min(70,Math.round(t.rend));
-    const tb=[treeBonuses(G.w1,G.trees[1])];   // the calculator models weapon 1 const tv=k=>tb.reduce((s,b)=>s+((b[k]&&b[k].always)||0),0);
-    C.critC=Math.min(100,Math.round(t.crit+tv('crit'))); C.critD=30+Math.round(t.critd+tv('critd')); C.base=Math.round(t.dmg+tv('dmg'));
-    C.abs=Math.min(100,Math.round(t.abs));
-    const counts={}; ARMOR_SLOTS.forEach(s=>counts[G.armor[s].wt]=(counts[G.armor[s].wt]||0)+1);
-    C.weight=(counts.Heavy>=3?'Heavy':counts.Light>=4?'Light':'Medium'); C.mit=WEIGHTS[C.weight];
-    C.weapon=G.w1; const l=(CALC?.abilities?.[G.w1]||[]); if(l[0]) C.ability=l[0].n;
-    saveC(); openView('calc'); toast('Totals copied into the calculator');
-  };
+  if(tc) tc.onclick=()=>{ loadoutToCalc(G); openView('calc'); toast('Totals copied into the calculator'); };
+}
+/* copy a loadout (the builder's current one, or a saved one) into the calculator */
+function loadoutToCalc(g){
+  const {t}=totals(g);
+  C.emp=Math.min(50,Math.round(t.emp)); C.fort=Math.min(200,Math.round(t.fort));
+  C.tRend=Math.min(70,Math.round(t.rend));
+  const tb=[treeBonuses(g.w1,(g.trees||{})[1]||[])];   // the calculator models weapon 1
+  const tv=k=>tb.reduce((s,b)=>s+((b[k]&&b[k].always)||0),0);
+  C.critC=Math.min(100,Math.round(t.crit+tv('crit'))); C.critD=Math.round(t.critd+tv('critd')); C.base=Math.round(t.dmg+tv('dmg'));
+  C.abs=Math.min(100,Math.round(t.abs));
+  const counts={}; ARMOR_SLOTS.forEach(s=>{ const w=(g.armor&&g.armor[s]&&g.armor[s].wt)||'Medium'; counts[w]=(counts[w]||0)+1; });
+  C.weight=(counts.Heavy>=3?'Heavy':counts.Light>=4?'Light':'Medium'); C.mit=WEIGHTS[C.weight];
+  if(CALC?.abilities?.[g.w1]){ C.weapon=g.w1; const l=CALC.abilities[g.w1]; if(l[0]) C.ability=l[0].n; }
+  const a=g.attrs||{}; if(Object.values(a).some(v=>+v>0)) [['STR','Str'],['DEX','Dex'],['INT','Int'],['FOC','Foc'],['CON','Con']].forEach(([k,c])=>C[c]=Math.max(0,Math.min(500,parseInt(a[k])||0)));
+  saveC();
 }
 
 /* ================= your loadouts: saved in this browser, shared by link ================= */

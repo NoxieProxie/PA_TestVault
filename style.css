@@ -374,3 +374,13 @@ body.light .edbanner{background:#fbf6ea}
 .crbtn{flex:none;background:var(--bg3);border:1px solid var(--line);border-left:none;border-radius:0 7px 7px 0;height:30px;padding:0 7px;cursor:pointer;font-size:13px}
 .crbtn:hover{border-color:var(--gold)}
 .pkrow.itm .pk:has(+ .crbtn){border-radius:7px 0 0 7px}
+/* calculator: toggles, weapon stats */
+.togs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}
+.tog{display:flex;align-items:flex-start;gap:8px;background:var(--bg3);border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;font-size:13.5px}
+.tog input{margin-top:3px;accent-color:var(--gold)}
+.tog i{display:block;color:var(--dim);font-style:normal;font-size:12px}
+.tog.on{border-color:var(--gold)}
+.panel > .tog{margin:6px 0}
+.wstats{margin:-4px 0 10px}
+.chip[disabled]{opacity:.45;cursor:not-allowed}
+@media(max-width:700px){.togs{grid-template-columns:1fr}}
