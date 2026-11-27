@@ -729,3 +729,15 @@ span.ddel{color:#f0a08c}
 .edadd{max-width:620px;margin-top:14px}
 .edpvart{max-height:70vh;overflow:auto}
 .edai{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 8px}
+.edroles{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.edrolecard{display:grid;gap:8px;align-content:start}
+.edrchead{display:flex;gap:8px;align-items:center}
+.edrchead .pk{font:700 16px var(--serif);color:var(--gold2);flex:1}
+.edtree{display:grid;gap:4px}
+.edtn{border-bottom:1px solid var(--line);padding:3px 0}
+.edtsubs{display:flex;flex-wrap:wrap;gap:2px 12px;padding:2px 0 4px 24px}
+.edtsubs .amon{font-size:13px}
+.edtsubs .amon.inc{opacity:.6}
+.edsavebar{position:sticky;bottom:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:14px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.edsavebar.on{border-color:var(--gold);box-shadow:0 8px 30px #000a}
+.mini:disabled{opacity:.5;cursor:default}
