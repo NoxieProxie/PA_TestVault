@@ -677,3 +677,22 @@ img.fi{display:inline-block;vertical-align:middle;filter:drop-shadow(0 2px 3px #
 .favwhere{margin:4px 0 12px;padding-left:4px;list-style:none}
 .favwhere li{padding:3px 0}
 .favfoot{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:28px;padding-top:14px;border-top:1px solid var(--line)}
+/* ideas and problems */
+.fbform{max-width:680px;display:grid;gap:12px}
+.fbform textarea{font:inherit;resize:vertical}
+.fbkinds{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fbkind{display:flex;flex-direction:column;gap:2px;text-align:left;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;color:var(--fg);font:inherit}
+.fbkind span{font-size:13px;color:var(--dim)}
+.fbkind:hover{border-color:var(--dim)}
+.fbkind.on{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.fbdone{max-width:620px}
+.fbdone h2{margin-top:0}
+.fbline{margin-top:28px;padding-top:12px;border-top:1px solid var(--line);color:var(--dim);font-size:14.5px}
+.fbitem{align-items:flex-start}
+.fbmain{flex:1;min-width:0}
+.fbtop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.fbtag{font-size:12px;border-radius:5px;padding:1px 7px;border:1px solid}
+.fbtag.idea{color:var(--gold2);border-color:#5a4a2a}
+.fbtag.problem{color:#f0a08c;border-color:#7a3d31}
+.fbbody{white-space:pre-line;margin:4px 0 6px;color:var(--fg);font-size:14.5px}
+@media(max-width:560px){ .fbkinds{grid-template-columns:1fr} }

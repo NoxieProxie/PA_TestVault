@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 16:10';
+const BUILD_AT = '2026-11-27 16:43';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -188,7 +188,8 @@ function navTabs(){
     ${tool('weight','Weight calculator','Equip load, and what light, medium and heavy give and cost','weight')}
     ${tool('trophyplanner','Trophy planner','Plan trophies for your houses, see the totals and what to craft','trophy')}
     ${tool('builds','Build browser','Filter every build by role, mode and weapon','buildbrowser')}
-    ${tool('bosses','Boss browser','Filter bosses by expedition and weakness','bosses')}</div></div>`});
+    ${tool('bosses','Boss browser','Filter bosses by expedition and weakness','bosses')}
+    <a class="mi tl2" data-fbopen="idea">${ui('mypages')}<div><b>Ideas and problems</b><span>Suggest something, or report what's wrong</span></div></a></div></div>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">${ui('loadouts')}Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
   if(typeof favMenu==='function') T.push({k:'Favourites', h:`<div class="drop"><button class="nb">&#9733; Favourites <span id="favcount" class="favn"></span><span class="car">&#9662;</span></button><div class="menu" id="favmenu">${favMenu()}</div></div>`});
   if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">${ui('admin')}Admin</button>`});
@@ -256,7 +257,7 @@ function renderDataMenu(){
      ${(typeof canWrite==='function'&&canWrite()&&!GHMODE)?`<div class="mn tiny">Pick the <b>New World</b> folder in your vault. ${(typeof CMODE!=='undefined'&&CMODE==='db'&&IS_OWNER)?'The pages are saved into this page\'s own storage, so they stay put between sessions and show on every device. Only you can change them.':'The page reads the .md files in your browser and remembers them in this browser.'}</div>`:''}
      ${SRC!=='snapshot'&&typeof canWrite==='function'&&canWrite()&&!GHMODE?`<a class="mi" id="resetdata">&#8634; Back to the built-in snapshot</a>`:''}
      ${(typeof canWrite==='function'&&canWrite())?`<div class="mh">Adding or changing things</div>
-     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}<div class="mh">About</div><a class="mi" href="terms.html">Terms of Service</a><a class="mi" href="privacy.html">Privacy Policy</a>`;
+     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}<div class="mh">About</div><a class="mi" data-fbopen="idea">Send an idea or report a problem</a><a class="mi" href="terms.html">Terms of Service</a><a class="mi" href="privacy.html">Privacy Policy</a>`;
   const pf=document.getElementById('pickfolder'); if (pf) pf.onclick=pickFolder;
   const rd=document.getElementById('resetdata');
   if (rd) rd.onclick=async ()=>{ LS.del('nw_vault'); LS.del('nw_vault_at'); if(typeof clearVaultDb==='function') await clearVaultDb(); location.reload(); };
@@ -425,7 +426,8 @@ function openNote(name, push=true){
          ${next?`<button class="pg" data-note="${esc(next)}">${esc(label(next))} &rarr;</button>`:'<span></span>'}</div>
        ${m.custom&&typeof canWrite==='function'&&canWrite()?`<div class="addbar"><button class="mini" data-editpage="${esc(m.cid)}">&#9998; Edit this page</button></div>`:''}
        ${!m.custom&&typeof addendumHTML==='function'?addendumHTML(name):''}
-       ${m.source?`<div class="srcline">Source: ${esc(m.source)}</div>`:''}</article></div>`;
+       ${m.source?`<div class="srcline">Source: ${esc(m.source)}</div>`:''}
+       ${typeof openFeedback==='function'&&!isHome?`<div class="fbline">Spotted something wrong or out of date on this page? <a href="#" data-fbopen="problem">Report it</a> &middot; <a href="#" data-fbopen="idea">Suggest an idea</a></div>`:''}</article></div>`;
   window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+slug(name)); } catch(e){}
   const pb0=document.querySelector('.crumb .pin'); if(pb0) pb0.style.marginLeft='auto';
@@ -436,7 +438,7 @@ function foldSections(art){
   if(!art) return;
   let body=null, n=0;
   for(const el of [...art.children]){
-    if(el.matches('.pager,.addbar,.mine,.srcline')) break;
+    if(el.matches('.pager,.addbar,.mine,.srcline,.fbline')) break;
     if(el.tagName==='H2'){
       const sec=document.createElement('section'); sec.className='sec';
       body=document.createElement('div'); body.className='secb'; body.setAttribute('hidden','until-found');
@@ -466,7 +468,7 @@ function openView(v,push=true){
   if(push && current) hist.push(current);
   current={kind:'view',v};
   document.getElementById('main').classList.remove('home');
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():v==='favs'?viewFavs():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():v==='favs'?viewFavs():v==='feedback'?viewFeedback():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
@@ -476,6 +478,7 @@ function openView(v,push=true){
   if(v==='weight') weightEvents();
   if(v==='trophyplanner') trophyEvents();
   if(v==='favs') favsEvents();
+  if(v==='feedback') feedbackEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -1683,7 +1686,7 @@ function renderAcct(){
 function handleAuthHash(h){
   if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); OWNER=null; const u=dUser(); const after=LS.get('nw_after_login','')||'myloadouts'; LS.del('nw_after_login');
     try{ history.replaceState(null,'','#'+after); }catch(e){}
-    if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs'].includes(after)) openView(after,false);
+    if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback'].includes(after)) openView(after,false);
     else { const hit=Object.keys(NAMES).find(n=>slug(n)===after); hit?openNote(hit,false):openView('myloadouts',false); }
     renderAcct(); if(typeof renderPinMenu==='function') renderPinMenu(); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
   if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); const why=(h.match(/why=([a-z]+)/)||[])[1]||''; const WHY={discord:'you cancelled on Discord',nocode:'Discord sent nothing back',nocookie:'it took too long, or your browser blocked the login cookie',state:'another login was started in a different tab',token:'Discord refused the login code',user:'Discord would not share your profile'}; toast('Discord login did not finish'+(WHY[why]?': '+WHY[why]:'')+'. Try again.'); return true; }
@@ -1966,6 +1969,7 @@ function viewReview(){
       <div class="lobtns">${s.code?`<button class="mini" data-subprev="${i}">Preview</button><button class="mini go" data-subpub="${i}">Publish</button>`:''}<button class="mini" data-subrej="${i}">Reject</button></div></div>`).join(''):'<p class="dimtx">No submissions waiting.</p>');
   const com=communityLos().filter(x=>x.src==='site');
   const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['advanced','&#129513; Advanced rules'],['live','&#128994; Live bot'],['roles','&#127917; Role menus'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
+  if(helper && typeof fbAdminHTML==='function') tabs.splice(1,0,['feedback','&#128172; Ideas and problems'+(fbNewCount()?` <span class="admn">${fbNewCount()}</span>`:'')]);
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
   <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
@@ -1980,6 +1984,7 @@ function viewReview(){
     <div class="two"><label class="lof"><span>Name</span><input id="addname" class="pk" placeholder="Leave blank to use its own name"></label><label class="lof"><span>By</span><input id="addby" class="pk" placeholder="Who made it"></label></div>
     <label class="lof"><span>Made for</span>${loTagSelect('addmode')}</label>
     <div class="lbtns"><button class="mini go" id="addpub">Publish</button></div></div></div>`;
+  if(ADMTAB==='feedback') body=fbAdminHTML();
   if(ADMTAB==='published') body=`<p class="dimtx">Everything in Community loadouts. Changes go live after GitHub rebuilds the site (a minute or two).</p>
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}${x.img?' &middot; has pictures':''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}`;
   if(ADMTAB==='bot') body=helper&&OWNER.bot?botCard(OWNER.bot).replace('<h2>Discord bot</h2>',''):`<p class="dimtx">The Discord bot settings need the Discord login (helper Version 5 or newer).</p>`;
@@ -2011,6 +2016,7 @@ function reviewEvents(){
   on('ghtoksave',()=>{ const v=document.getElementById('ghtok').value.trim(); if(!v) return; LS.set('nw_gh_token',v); toast('Token saved in this browser'); refreshSubs(); openView('admin',false); });
   on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('admin',false); });
   on('subrefresh',refreshSubs);
+  if(ADMTAB==='feedback' && typeof fbAdminEvents==='function') fbAdminEvents();
   document.querySelectorAll('[data-admtab]').forEach(el=>el.onclick=()=>{ ADMTAB=el.dataset.admtab; LS.set('nw_admtab',ADMTAB); openView('admin',false); });
   const hs=document.getElementById('helperst');
   const chk=async()=>{ if(!hs||!CFG.worker) return; hs.textContent='Checking…'; try{ const r=await fetch(CFG.worker+'/',{cache:'no-store'}); hs.textContent=(await r.text()).trim(); }catch(e){ hs.textContent='Could not reach the helper: '+e.message; } };
@@ -3331,6 +3337,94 @@ function favsEvents(){
     go(); });
 }
 
+/* ================= ideas and problem reports =================
+   Anyone logged in with Discord can send one. The helper (/feedback) posts it to a Discord channel webhook
+   and keeps it for the owner, who sees and sorts them on the Admin page. */
+let FB = {kind:'idea', page:'', sent:false};
+let FBLIST = null, FBERR = '', FBFILT = {kind:'', status:'open'};
+const FB_STATUS = {new:'New', planned:'Planned', done:'Done', closed:'Closed'};
+
+async function fbApi(body){
+  const r = await fetch(CFG.worker+'/feedback', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pass:dPass(), ...body})});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(r.status===401){ LS.del('nw_discord'); if(typeof renderAcct==='function') renderAcct(); }
+  if(!r.ok) throw new Error(d.error||('error '+r.status));
+  return d;
+}
+/* open the form, remembering which page you came from */
+function openFeedback(kind){
+  FB.kind = kind==='problem' ? 'problem' : 'idea'; FB.sent = false;
+  FB.page = current && current.kind==='note' ? location.href.split('?')[0] : (current && current.kind==='view' && current.v!=='feedback' ? location.href.split('?')[0] : FB.page);
+  document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
+  openView('feedback');
+}
+document.addEventListener('click', e=>{
+  const b=e.target.closest('[data-fbopen]'); if(!b) return;
+  e.preventDefault(); e.stopPropagation(); openFeedback(b.dataset.fbopen);
+}, true);
+
+function viewFeedback(){
+  const u = typeof dUser==='function' && CFG.worker ? dUser() : null;
+  const head = `<h1>Ideas and problems</h1>
+    <p class="lede">Got an idea for the vault, or spotted something wrong? Send it here and it goes straight to the site owner.</p>`;
+  if(!CFG.worker) return head+`<p class="bad">Sending isn't set up on this copy of the site.</p>`;
+  if(!u) return head+`<div class="favlogin"><p>You need to be logged in with Discord to send ideas and reports. It shows the owner who sent it, so they can reply, and it keeps spam out.</p>
+    <a class="dbtn" href="${esc(loginHref())}" data-fblogin="1">Log in with Discord</a></div>`;
+  if(FB.sent) return head+`<div class="slot lcard fbdone"><h2>Thanks, ${esc(u.name)}!</h2><p>Your ${FB.kind==='problem'?'report':'idea'} has been sent to the site owner.</p>
+    <div class="lbtns"><button class="mini go" data-fbopen="idea">Send another idea</button><button class="mini" data-fbopen="problem">Report a problem</button></div></div>`;
+  return head+`<div class="slot lcard fbform">
+    <div class="fbkinds" role="radiogroup" aria-label="What are you sending?">
+      <button class="fbkind ${FB.kind==='idea'?'on':''}" data-fbk="idea" role="radio" aria-checked="${FB.kind==='idea'}"><b>&#128161; An idea</b><span>Something to add or improve</span></button>
+      <button class="fbkind ${FB.kind==='problem'?'on':''}" data-fbk="problem" role="radio" aria-checked="${FB.kind==='problem'}"><b>&#128030; A problem</b><span>Something broken, wrong or out of date</span></button></div>
+    <label class="lof"><span>Title</span><input id="fbt" class="pk" maxlength="100" placeholder="${FB.kind==='problem'?'e.g. The Hive of Gorgons boss table shows the wrong weakness':'e.g. Add a timer for respawning bosses'}"></label>
+    <label class="lof"><span>Details</span><textarea id="fbb" class="pk" rows="6" maxlength="2000" placeholder="${FB.kind==='problem'?'What happened, and what did you expect? Which item, build or page?':'What would it do, and how would you use it?'}"></textarea></label>
+    ${FB.page?`<label class="amon"><input type="checkbox" id="fbp" checked> Include the page I was on <span class="dimtx tiny">${esc(decodeURIComponent(FB.page.replace(/^https?:\/\/[^/]+\/?/,'')).slice(0,80)||'home')}</span></label>`:''}
+    <div class="lbtns"><button class="mini go" id="fbsend">Send to the site owner</button><span class="dimtx tiny">Sent as ${esc(u.name)}. See the <a href="privacy.html">Privacy Policy</a>.</span></div></div>`;
+}
+function feedbackEvents(){
+  const m=document.getElementById('main');
+  m.querySelectorAll('[data-fbk]').forEach(b=>b.onclick=()=>{ const t=document.getElementById('fbt').value, d=document.getElementById('fbb').value; FB.kind=b.dataset.fbk; openView('feedback',false);
+    document.getElementById('fbt').value=t; document.getElementById('fbb').value=d; });
+  const lg=m.querySelector('[data-fblogin]'); if(lg) lg.addEventListener('click',()=>LS.set('nw_after_login','feedback'));
+  const s=document.getElementById('fbsend'); if(!s) return;
+  s.onclick=async()=>{
+    const title=document.getElementById('fbt').value.trim(), body=document.getElementById('fbb').value.trim(), pg=document.getElementById('fbp');
+    if(title.length<3){ document.getElementById('fbt').focus(); return toast('Give it a short title'); }
+    s.disabled=true; s.textContent='Sending…';
+    try{ await fbApi({op:'send', kind:FB.kind, title, body, page:pg&&pg.checked?FB.page:''}); FB.sent=true; openView('feedback',false); }
+    catch(e){ s.disabled=false; s.textContent='Send to the site owner'; toast('Couldn\'t send it: '+e.message); }
+  };
+}
+
+/* ---------- Admin page tab ---------- */
+async function fbLoad(){ FBERR=''; try{ FBLIST=(await fbApi({op:'list'})).items||[]; }catch(e){ FBERR=e.message; FBLIST=[]; } if(current&&current.v==='admin'&&ADMTAB==='feedback') openView('admin',false); }
+const fbNewCount = () => FBLIST ? FBLIST.filter(x=>x.status==='new').length : 0;
+function fbAdminHTML(){
+  if(FBLIST===null){ fbLoad(); return '<p class="dimtx">Loading ideas and reports&hellip;</p>'; }
+  if(FBERR) return `<p class="bad">Couldn't load them: ${esc(FBERR)}</p><button class="mini" id="fbref">&#8635; Try again</button>`;
+  const open=x=>x.status==='new'||x.status==='planned';
+  const list=FBLIST.filter(x=>(!FBFILT.kind||x.kind===FBFILT.kind)&&(FBFILT.status==='all'||(FBFILT.status==='open'?open(x):x.status===FBFILT.status)));
+  const chip=(k,v,l)=>`<button class="chip ${FBFILT[k]===v?'on':''}" data-fbf="${k}" data-v="${v}">${l}</button>`;
+  return `<p class="dimtx">Ideas and problem reports people sent from the site. Each one was also posted to your Discord feedback channel.</p>
+  <div class="filters" data-h="Show"><div class="frow"><span class="fl">Type</span>${chip('kind','','All')}${chip('kind','idea','&#128161; Ideas')}${chip('kind','problem','&#128030; Problems')}</div>
+    <div class="frow"><span class="fl">Status</span>${chip('status','open','Open')}${chip('status','new','New')}${chip('status','planned','Planned')}${chip('status','done','Done')}${chip('status','closed','Closed')}${chip('status','all','All')}</div></div>
+  <div class="presetbar"><button class="mini" id="fbref">&#8635; Refresh</button><span class="count">${list.length} of ${FBLIST.length}</span></div>
+  ${list.map(x=>`<div class="locard fbitem ${x.kind}"><div class="fbmain">
+      <div class="fbtop"><span class="fbtag ${x.kind}">${x.kind==='problem'?'&#128030; Problem':'&#128161; Idea'}</span><b>${esc(x.title)}</b></div>
+      ${x.body?`<div class="fbbody">${esc(x.body)}</div>`:''}
+      <div class="dimtx tiny">From ${esc(x.by&&x.by.name||'someone')} (@${esc(x.by&&x.by.user||'')}) &middot; ${new Date(x.at).toLocaleString()}${x.page?` &middot; <a href="${esc(x.page)}">the page they were on</a>`:''}</div></div>
+    <div class="lobtns"><select class="mini" data-fbst="${esc(x.id)}" aria-label="Status">${Object.entries(FB_STATUS).map(([k,l])=>`<option value="${k}" ${x.status===k?'selected':''}>${l}</option>`).join('')}</select>
+      <button class="mini" data-fbdel="${esc(x.id)}">Delete</button></div></div>`).join('')||'<p class="empty">Nothing here.</p>'}`;
+}
+function fbAdminEvents(){
+  const m=document.getElementById('main');
+  const r=document.getElementById('fbref'); if(r) r.onclick=()=>{ FBLIST=null; openView('admin',false); };
+  m.querySelectorAll('[data-fbf]').forEach(b=>b.onclick=()=>{ FBFILT[b.dataset.fbf]=b.dataset.v; openView('admin',false); });
+  m.querySelectorAll('[data-fbst]').forEach(s=>s.onchange=async()=>{ const x=FBLIST.find(y=>y.id===s.dataset.fbst); try{ await fbApi({op:'status', id:x.id, status:s.value}); x.status=s.value; toast('Marked '+FB_STATUS[s.value].toLowerCase()); openView('admin',false); }catch(e){ toast('Couldn\'t change it: '+e.message); } });
+  m.querySelectorAll('[data-fbdel]').forEach(b=>b.onclick=async()=>{ if(!b.dataset.sure){ b.dataset.sure=1; b.textContent='Delete for good?'; b.classList.add('danger'); return; }
+    try{ await fbApi({op:'del', id:b.dataset.fbdel}); FBLIST=FBLIST.filter(y=>y.id!==b.dataset.fbdel); toast('Deleted'); openView('admin',false); }catch(e){ toast('Couldn\'t delete it: '+e.message); } });
+}
+
 /* ---------- boot ---------- */
 (async function(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
@@ -3355,7 +3449,7 @@ function favsEvents(){
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
   else if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);
