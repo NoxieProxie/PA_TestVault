@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 22:12';
+const BUILD_AT = '2026-11-27 22:28';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -2974,6 +2974,10 @@ function favItemSlot(id){ const it=itemByName(id); if(!it) return ''; return it.
 function favRepItem(e){
   if(typeof ITEMDB==='undefined'||!ITEMDB) return null;
   const s=e.s.startsWith('Weapon')?'Weapon':e.s;
+  // the plain season 10 loot piece of that kind ("Hatchet", "Cloth Gloves", "Exemplary Ring") shows the basic picture
+  const W={Light:'Light',Medium:'Medium',Heavy:'Heavy'}[e.wt];
+  const plain=ITEMDB.items.find(i=>i.x>=0&&i.r==='Loot'&&/^Infix_/.test(i.i||'')&&i.s===s&&(s==='Weapon'?i.t===e.wt:(!W||i.w===W)));
+  if(plain) return plain;
   return ITEMDB.items.find(i=>i.x>=0&&i.s===s&&(s==='Weapon'?i.t===e.wt:(!e.wt||!['Light','Medium','Heavy'].includes(e.wt)||i.w===e.wt)))||ITEMDB.items.find(i=>i.x>=0&&i.s===s)||null;
 }
 /* everything a build's Full loadout table holds, as favourites */
