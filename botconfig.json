@@ -41,6 +41,7 @@
      "nwdb.info",
      "newworld.com",
      "github.io",
+     "pages.dev",
      "tenor.com",
      "discord.com"
     ],
@@ -69,7 +70,7 @@
  "live": {
   "presence": {
    "type": "playing",
-   "text": "https://noxieproxie.github.io/PA_TestVault/"
+   "text": "https://project-azoth-vault.pages.dev/"
   },
   "spam": {
    "on": true,

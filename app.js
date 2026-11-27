@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-26 trophies';
+const BUILD_AT = '2026-11-27 14:06';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1428,7 +1428,7 @@ function loadoutToCalc(g){
 }
 
 /* ================= your loadouts: saved in this browser, shared by link ================= */
-const PUBLIC_SITE='https://noxieproxie.github.io/PA_TestVault/';
+const PUBLIC_SITE=((document.querySelector('meta[name="nw-site"]')||{}).content)||'https://project-azoth-vault.pages.dev/';
 let MYLO=LS.get('nw_myloadouts',[]);
 const saveMYLO=()=>LS.set('nw_myloadouts',MYLO);
 function snapG(){ const g=JSON.parse(JSON.stringify(G)); delete g.note; delete g.mode; return g; }
@@ -1477,7 +1477,7 @@ async function decodeLo(str){
   if(tag==='z'){ const ds=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')); bytes=new Uint8Array(await new Response(ds).arrayBuffer()); }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
-function shareBase(){ return /github\.io$/.test(location.hostname) ? location.href.split('#')[0] : PUBLIC_SITE; }
+function shareBase(){ const h=location.hostname; return /^https?:$/.test(location.protocol) && h && !/github\.io$|^localhost$|^127\./.test(h) ? location.href.split('#')[0].split('?')[0] : PUBLIC_SITE; }
 async function shareLink(rec){ return shareBase()+'#lo='+(await encodeLo(rec)); }
 async function copyText(t){ try{ await navigator.clipboard.writeText(t); return true; }catch(e){ return false; } }
 async function openSharedLo(code){
