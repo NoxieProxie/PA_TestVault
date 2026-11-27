@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 17:10';
+const BUILD_AT = '2026-11-27 17:19';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -192,7 +192,7 @@ function navTabs(){
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">${ui('loadouts')}Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
   if(typeof favMenu==='function') T.push({k:'Favourites', h:`<div class="drop"><button class="nb">&#9733; Favourites <span id="favcount" class="favn"></span><span class="car">&#9662;</span></button><div class="menu" id="favmenu">${favMenu()}</div></div>`});
   if(typeof openFeedback==='function') T.push({k:'Ideas & problems', h:`<button class="nb" data-fbopen="idea">Ideas &amp; problems</button>`});
-  if(typeof edEnsure==='function'){ edEnsure(); if(ED.roles.length && !edIsOwner()) T.push({k:'Editor', h:`<button class="nb" data-view="editor">Editor</button>`}); }
+  if(typeof edEnsure==='function'){ edEnsure(); if(ED.roles.length && !edIsOwner()) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">Admin</button>`}); }
   if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">${ui('admin')}Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
     T.push({k:'My Pages', h:`<div class="drop"><button class="nb">${ui('mypages')}My Pages <span class="car">&#9662;</span></button><div class="menu"><a class="mi hi" data-newpage="1">&#65291; New page</a><div class="mn">Pages you write yourself show up here.</div></div></div>`});
@@ -466,6 +466,8 @@ function openSec(sec,o){ if(!sec) return; const h=sec.firstElementChild, b=sec.q
   const all=document.querySelector('[data-secall]'); if(all){ const any=[...document.querySelectorAll('section.sec')].some(s=>!s.classList.contains('open')); all.textContent=any?'Open all sections':'Close all sections'; } }
 function openView(v,push=true){
   if(v==='review') v='admin';
+  // editors (not the owner) get an Admin page with one section: suggesting changes in their area
+  if(v==='admin' && typeof ED!=='undefined' && !(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner) && (ED.roles.length||ED.loading)) v='editor';
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
   if(push && current) hist.push(current);
   current={kind:'view',v};
@@ -3461,8 +3463,9 @@ function edEnsure(){
   if(!u){ ED={roles:[],areas:{},uid:null,loading:false}; return; }
   if(ED.uid===u.id||ED.loading) return;
   ED.loading=true; const c=LS.get('nw_ed_'+u.id,null); if(c){ ED.roles=c.roles||[]; ED.areas=c.areas||{}; }
-  edApi({op:'me'}).then(d=>{ ED={roles:d.roles||[], areas:d.areas||{}, uid:u.id, loading:false}; LS.set('nw_ed_'+u.id,{roles:ED.roles,areas:ED.areas}); topnav(); })
-    .catch(()=>{ ED.loading=false; ED.uid=u.id; });
+  edApi({op:'me'}).then(d=>{ ED={roles:d.roles||[], areas:d.areas||{}, uid:u.id, loading:false}; LS.set('nw_ed_'+u.id,{roles:ED.roles,areas:ED.areas}); topnav();
+      if(current&&current.kind==='view'&&current.v==='editor') openView(ED.roles.length?'editor':'admin',false); })
+    .catch(()=>{ ED.loading=false; ED.uid=u.id; if(current&&current.kind==='view'&&current.v==='editor') openView('editor',false); });
 }
 const edIsOwner = () => !!(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner);
 const edAreaOf = path => ED.roles.find(r=>(ED.areas[r]||ED_AREAS_ALL[r]||[]).some(a=>path.startsWith(a)));
@@ -3548,11 +3551,13 @@ function edFolders(){
     Object.keys(META).forEach(p=>{ if(p.startsWith(a)&&!META[p].custom){ const f=p.split('/').slice(0,-1).join('/'); if(f) out.add(f); } }); }));
   return [...out].sort();
 }
+const edHead = (lede) => `<h1>Admin</h1><p class="lede">${lede}</p><div class="admtabs"><button class="chip on">&#128221; Suggest a change</button></div>`;
 function viewEditor(){
   edEnsure();
+  if(ED.loading && !ED.roles.length) return '<p class="dimtx">Loading&hellip;</p>';
   const u=typeof dUser==='function'&&CFG.worker?dUser():null;
-  if(!u) return `<h1>Editor</h1>${typeof favLoginBox==='function'?favLoginBox('Log in with Discord to suggest updates.'):''}`;
-  if(!ED.roles.length) return `<h1>Editor</h1><p class="lede">You don't have an editor role yet. Ask the site owner to add you, and send them your Discord ID: <code>${esc(u.id)}</code></p>`;
+  if(!u) return `<h1>Admin</h1>${typeof favLoginBox==='function'?favLoginBox('Log in with Discord to suggest updates.'):''}`;
+  if(!ED.roles.length) return `<h1>Admin</h1><p class="lede">You don't have an editor role yet. Ask the site owner to add you, and send them your Discord ID: <code>${esc(u.id)}</code></p>`;
   const roleTags=ED.roles.map(r=>`<span class="edrole ${r}">${esc(ED_NAMES[r]||r)}</span>`).join(' ');
   if(EDV.mode==='edit'||EDV.mode==='new') return edEditorHTML(u);
   if(EDV.mine===null){ edApi({op:'mine'}).then(d=>{ EDV.mine=d.items||[]; if(current&&current.v==='editor') openView('editor',false); }).catch(()=>{ EDV.mine=[]; }); }
@@ -3560,8 +3565,7 @@ function viewEditor(){
   const pages=Object.keys(META).filter(p=>!META[p].custom&&edAreaOf(p)&&(!q||META[p].name.toLowerCase().includes(q))).sort();
   const groups={}; pages.forEach(p=>{ const f=p.split('/').slice(0,-1).join(' / '); (groups[f]=groups[f]||[]).push(p); });
   const st={pending:['Waiting for the owner','wait'],approved:['Approved and live','ok'],rejected:['Not approved','no']};
-  return `<h1>Editor</h1>
-  <p class="lede">Suggest changes to pages in your area. Everything you send waits for the site owner, who approves it before anyone else sees it. Your role: ${roleTags}</p>
+  return `${edHead(`Signed in as <b>${esc(u.name)}</b>. Suggest changes to pages in your area: everything you send waits for the site owner, who approves it before anyone else sees it. Your role: ${roleTags}`)}
   <div class="lbtns"><button class="mini go" id="ednew">&#65291; New page</button></div>
   <h2>Your updates</h2>
   ${EDV.mine===null?'<p class="dimtx">Loading&hellip;</p>':EDV.mine.length?`<div class="edmine">${EDV.mine.map(x=>`<div class="locard"><div><b>${esc(x.kind==='new'?'New page: ':'')}${esc(x.name)}</b>
@@ -3576,7 +3580,7 @@ function edEditorHTML(u){
   const isNew=EDV.mode==='new'; const m=isNew?null:META[EDV.path];
   const folders=edFolders();
   const tpl=isNew?(EDV.folder&&EDV.folder.startsWith('Builds')?`---\ntags: [new-world, builds]\n---\n# Build name\n\nOne or two lines on what it does and who it's for.\n\n| | |\n|---|---|\n| **Role** | |\n| **Modes** | |\n| **Armor** | |\n| **Attributes** | |\n\n## How to play it\n\n`:'# Page title\n\n'):'';
-  return `<div class="crumb"><a href="#" class="wl" id="edback">&larr; Editor</a></div>
+  return `<div class="crumb"><a href="#" class="wl" id="edback">&larr; Admin</a></div>
   <h1>${isNew?'New page':'Suggest a change to “'+esc(label(m.name))+'”'}</h1>
   <p class="lede">The owner sees exactly what you changed and approves it before it goes on the site.</p>
   <div class="edgrid"><div class="edl">
