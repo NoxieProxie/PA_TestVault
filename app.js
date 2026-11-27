@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 16:43';
+const BUILD_AT = '2026-11-27 17:10';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -188,10 +188,11 @@ function navTabs(){
     ${tool('weight','Weight calculator','Equip load, and what light, medium and heavy give and cost','weight')}
     ${tool('trophyplanner','Trophy planner','Plan trophies for your houses, see the totals and what to craft','trophy')}
     ${tool('builds','Build browser','Filter every build by role, mode and weapon','buildbrowser')}
-    ${tool('bosses','Boss browser','Filter bosses by expedition and weakness','bosses')}
-    <a class="mi tl2" data-fbopen="idea">${ui('mypages')}<div><b>Ideas and problems</b><span>Suggest something, or report what's wrong</span></div></a></div></div>`});
+    ${tool('bosses','Boss browser','Filter bosses by expedition and weakness','bosses')}</div></div>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">${ui('loadouts')}Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
   if(typeof favMenu==='function') T.push({k:'Favourites', h:`<div class="drop"><button class="nb">&#9733; Favourites <span id="favcount" class="favn"></span><span class="car">&#9662;</span></button><div class="menu" id="favmenu">${favMenu()}</div></div>`});
+  if(typeof openFeedback==='function') T.push({k:'Ideas & problems', h:`<button class="nb" data-fbopen="idea">Ideas &amp; problems</button>`});
+  if(typeof edEnsure==='function'){ edEnsure(); if(ED.roles.length && !edIsOwner()) T.push({k:'Editor', h:`<button class="nb" data-view="editor">Editor</button>`}); }
   if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">${ui('admin')}Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
     T.push({k:'My Pages', h:`<div class="drop"><button class="nb">${ui('mypages')}My Pages <span class="car">&#9662;</span></button><div class="menu"><a class="mi hi" data-newpage="1">&#65291; New page</a><div class="mn">Pages you write yourself show up here.</div></div></div>`});
@@ -214,7 +215,7 @@ function navTabs(){
     T.push({k:label(t), h:`<div class="drop"><button class="nb">${iconOf(t)}${esc(label(t))} <span class="car">&#9662;</span></button><div class="menu">${menu}</div></div>`});
   }
   const order=(typeof SITE!=='undefined'&&SITE.order)||[];
-  const pos=k=>{ let i=order.indexOf(k); if(i<0&&k==='Tools') i=order.indexOf('Items'); if(i<0&&k==='Favourites'){ const y=order.indexOf('Your loadouts'); if(y>=0) return y+.5; } return i<0?1000:i; };
+  const pos=k=>{ let i=order.indexOf(k); if(i<0&&k==='Tools') i=order.indexOf('Items'); const after={'Favourites':.5,'Ideas & problems':.6,'Editor':.7}; if(i<0&&after[k]){ const y=order.indexOf('Your loadouts'); if(y>=0) return y+after[k]; } return i<0?1000:i; };
   const plain=h=>/Favourites/.test(h.slice(0,120))?h:h.replace(/(<button class="nb[^"]*"[^>]*>)\s*(?:&#\d+;)+\s*/,'$1');
   return T.map((t,i)=>({...t,h:plain(t.h),i})).sort((a,b)=>pos(a.k)-pos(b.k)||a.i-b.i).map(t=>({...t,hidden:hid.includes(t.k)}));
 }
@@ -419,6 +420,7 @@ function openNote(name, push=true){
   document.getElementById('main').innerHTML=(isHome?homeHero():'')+
     `<div class="crumb"><span>${esc(sectionOf(p))}${m.folder.includes('/')?' &rsaquo; '+esc(label(m.folder.split('/').slice(1).join(' / '))):''}</span>
        ${typeof canWrite==='function'&&canWrite()?(m.custom?`<button class="pin" data-editpage="${esc(m.cid)}">&#9998; Edit</button>`:`<button class="pin" data-noteedit="${esc(name)}">&#9998; Edit</button>`):''}
+       ${typeof edCanEdit==='function'&&edCanEdit(name)?`<button class="pin" data-edsug="${esc(name)}">&#9998; Suggest a change</button>`:''}
        ${typeof favBtn==='function'?favBtn('note',name,'pin'):''}</div>
      ${typeof editedBanner==='function'?editedBanner(name):''}
      <div class="cols">${toc}<article>${md(m.body)}
@@ -468,7 +470,7 @@ function openView(v,push=true){
   if(push && current) hist.push(current);
   current={kind:'view',v};
   document.getElementById('main').classList.remove('home');
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():v==='favs'?viewFavs():v==='feedback'?viewFeedback():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():v==='favs'?viewFavs():v==='feedback'?viewFeedback():v==='editor'?viewEditor():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
@@ -479,6 +481,7 @@ function openView(v,push=true){
   if(v==='trophyplanner') trophyEvents();
   if(v==='favs') favsEvents();
   if(v==='feedback') feedbackEvents();
+  if(v==='editor') editorEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -1678,15 +1681,17 @@ function renderAcct(){
   el.innerHTML=`<div class="drop right acctd"><button class="nb acctnb" title="${esc(u.name)}"><span class="avw"><span class="avl">${letter}</span>${u.av?`<img class="av" src="${esc(dAvatar(u))}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`:''}</span><span class="acn">${esc(u.name)}</span>${own?'<span class="ownb">owner</span>':''}<span class="car">&#9662;</span></button>
     <div class="menu"><div class="mh">Logged in with Discord</div><div class="mn"><b>${esc(u.name)}</b> <span class="dimtx">@${esc(u.user||'')}</span></div>
       ${u.av?'':`<div class="mn tiny">No profile picture in this login. ${(OWNER&&OWNER.owner)?'Check the helper page says <b>Version 3</b>, then log out and back in.':'Log out and back in to load it.'}</div>`}
+      <div class="mn tiny">Your Discord ID: <code>${esc(u.id)}</code> <button class="mini tiny" id="acctid">Copy</button></div>
       <a class="mi" data-view="myloadouts">&#128190; Your loadouts</a>
       ${own?`<a class="mi" data-view="admin">&#128736; Admin</a><div class="mn tiny">You can edit this site: use <b>&#9998; Edit</b> on any page, <b>&#9881;</b> (top right) for the look, and drag tabs to reorder.</div>`:''}
       <a class="mi" id="acctout">&#8617; Log out</a></div></div>`;
   document.getElementById('acctout').onclick=()=>{ LS.del('nw_discord'); location.reload(); };
+  const ci=document.getElementById('acctid'); if(ci) ci.onclick=async e=>{ e.stopPropagation(); try{ await navigator.clipboard.writeText(u.id); toast('Copied your Discord ID'); }catch(err){ toast('Your Discord ID is '+u.id); } };
 }
 function handleAuthHash(h){
   if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); OWNER=null; const u=dUser(); const after=LS.get('nw_after_login','')||'myloadouts'; LS.del('nw_after_login');
     try{ history.replaceState(null,'','#'+after); }catch(e){}
-    if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback'].includes(after)) openView(after,false);
+    if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback','editor'].includes(after)) openView(after,false);
     else { const hit=Object.keys(NAMES).find(n=>slug(n)===after); hit?openNote(hit,false):openView('myloadouts',false); }
     renderAcct(); if(typeof renderPinMenu==='function') renderPinMenu(); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
   if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); const why=(h.match(/why=([a-z]+)/)||[])[1]||''; const WHY={discord:'you cancelled on Discord',nocode:'Discord sent nothing back',nocookie:'it took too long, or your browser blocked the login cookie',state:'another login was started in a different tab',token:'Discord refused the login code',user:'Discord would not share your profile'}; toast('Discord login did not finish'+(WHY[why]?': '+WHY[why]:'')+'. Try again.'); return true; }
@@ -1970,6 +1975,7 @@ function viewReview(){
   const com=communityLos().filter(x=>x.src==='site');
   const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['advanced','&#129513; Advanced rules'],['live','&#128994; Live bot'],['roles','&#127917; Role menus'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
   if(helper && typeof fbAdminHTML==='function') tabs.splice(1,0,['feedback','&#128172; Ideas and problems'+(fbNewCount()?` <span class="admn">${fbNewCount()}</span>`:'')]);
+  if(helper && typeof edAdminHTML==='function') tabs.splice(2,0,['updates','&#128221; Waiting updates'+(edWaiting()?` <span class="admn">${edWaiting()}</span>`:'')],['editors','&#128101; Editors']);
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
   <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
@@ -1985,6 +1991,8 @@ function viewReview(){
     <label class="lof"><span>Made for</span>${loTagSelect('addmode')}</label>
     <div class="lbtns"><button class="mini go" id="addpub">Publish</button></div></div></div>`;
   if(ADMTAB==='feedback') body=fbAdminHTML();
+  if(ADMTAB==='updates') body=edAdminHTML();
+  if(ADMTAB==='editors') body=edRolesHTML();
   if(ADMTAB==='published') body=`<p class="dimtx">Everything in Community loadouts. Changes go live after GitHub rebuilds the site (a minute or two).</p>
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}${x.img?' &middot; has pictures':''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}`;
   if(ADMTAB==='bot') body=helper&&OWNER.bot?botCard(OWNER.bot).replace('<h2>Discord bot</h2>',''):`<p class="dimtx">The Discord bot settings need the Discord login (helper Version 5 or newer).</p>`;
@@ -2017,6 +2025,7 @@ function reviewEvents(){
   on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('admin',false); });
   on('subrefresh',refreshSubs);
   if(ADMTAB==='feedback' && typeof fbAdminEvents==='function') fbAdminEvents();
+  if((ADMTAB==='updates'||ADMTAB==='editors') && typeof edAdminEvents==='function') edAdminEvents();
   document.querySelectorAll('[data-admtab]').forEach(el=>el.onclick=()=>{ ADMTAB=el.dataset.admtab; LS.set('nw_admtab',ADMTAB); openView('admin',false); });
   const hs=document.getElementById('helperst');
   const chk=async()=>{ if(!hs||!CFG.worker) return; hs.textContent='Checking…'; try{ const r=await fetch(CFG.worker+'/',{cache:'no-store'}); hs.textContent=(await r.text()).trim(); }catch(e){ hs.textContent='Could not reach the helper: '+e.message; } };
@@ -2290,8 +2299,13 @@ function injectCustom(){
     if(!pg||!pg.title) return;
     let name=pg.title.trim(); if(NAMES[name] && !(META[NAMES[name]]||{}).custom) name+=' (mine)';
     const sec=(pg.section||'').trim();
-    const path='My Pages/'+(sec?sec.replace(/[\/]/g,'-')+'/':'')+name+'.md';
-    META[path]={name, folder:path.split('/').slice(0,-1).join('/'), tags:['custom'], source:'', body:'# '+pg.title+'\n\n'+(pg.body||''), path, custom:true, cid:id};
+    // pages an editor added (approved by the owner) sit in their real folder; only editor areas are allowed
+    const fol=String(pg.folder||'').replace(/\/$/,''), AREAS=['Builds/','6 Crafting/','1 References/Game Data/','1 References/Housing/'];
+    const inArea=fol && !fol.includes('..') && AREAS.some(a=>(fol+'/').startsWith(a));
+    const path=inArea ? fol+'/'+name+'.md' : 'My Pages/'+(sec?sec.replace(/[\/]/g,'-')+'/':'')+name+'.md';
+    let body=pg.body||'', tags=['custom'];
+    const fm=body.match(/^---\n([\s\S]*?)\n---\n?/); if(fm){ body=body.slice(fm[0].length); const tg=fm[1].match(/tags:\s*\[(.*?)\]/); if(tg) tags=tags.concat(tg[1].split(',').map(s=>s.trim()).filter(Boolean)); }
+    META[path]={name, folder:path.split('/').slice(0,-1).join('/'), tags, source:'', body:/^#\s/.test(body.trim())?body:'# '+pg.title+'\n\n'+body, path, custom:true, cid:id, by:pg.by||''};
     NAMES[name]=path;
   });
 }
@@ -3425,6 +3439,260 @@ function fbAdminEvents(){
     try{ await fbApi({op:'del', id:b.dataset.fbdel}); FBLIST=FBLIST.filter(y=>y.id!==b.dataset.fbdel); toast('Deleted'); openView('admin',false); }catch(e){ toast('Couldn\'t delete it: '+e.message); } });
 }
 
+/* ================= editors: people with a role suggest updates in their own area =================
+   Roles and areas live in the helper (ROLE_AREAS). Suggestions wait on the owner's Admin page; once approved
+   they're saved into custom.json like the owner's own edits. Every suggestion is checked here as you type,
+   then again by the helper when it's sent, and again when it's approved. */
+const ED_AREAS_ALL = {builds:['Builds/'], crafting:['6 Crafting/','1 References/Game Data/','1 References/Housing/']};
+const ED_NAMES = {builds:'Builds', crafting:'Crafting & materials'};
+let ED = {roles:[], areas:{}, uid:null, loading:false};
+let EDV = {mode:'home', path:'', mine:null, q:''};
+let EDP = null, EDPERR = '', EDPF = 'pending', EDROLES = null;
+
+/* ---------- who you are ---------- */
+async function edApi(body){
+  const r=await fetch(CFG.worker+'/editor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:dPass(),...body})});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(!r.ok) throw Object.assign(new Error(d.error||('error '+r.status)),{status:r.status, bad:d.bad});
+  return d;
+}
+function edEnsure(){
+  const u=typeof dUser==='function'&&CFG.worker?dUser():null;
+  if(!u){ ED={roles:[],areas:{},uid:null,loading:false}; return; }
+  if(ED.uid===u.id||ED.loading) return;
+  ED.loading=true; const c=LS.get('nw_ed_'+u.id,null); if(c){ ED.roles=c.roles||[]; ED.areas=c.areas||{}; }
+  edApi({op:'me'}).then(d=>{ ED={roles:d.roles||[], areas:d.areas||{}, uid:u.id, loading:false}; LS.set('nw_ed_'+u.id,{roles:ED.roles,areas:ED.areas}); topnav(); })
+    .catch(()=>{ ED.loading=false; ED.uid=u.id; });
+}
+const edIsOwner = () => !!(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner);
+const edAreaOf = path => ED.roles.find(r=>(ED.areas[r]||ED_AREAS_ALL[r]||[]).some(a=>path.startsWith(a)));
+const edCanEdit = name => { const p=NAMES[name]; return !!(p && !META[p].custom && ED.roles.length && !edIsOwner() && edAreaOf(p)); };
+
+/* the same safety check the helper runs, so problems show while you type */
+const ED_OK_TAGS=['br','sub','sup','b','i','u','kbd','mark','small'];
+const ED_SITES=['nwdb.info','newworld.com','youtube.com','youtu.be','twitch.tv','discord.com','discord.gg','github.com','reddit.com','icy-veins.com','aoeah.com','iggm.com','gamesfuze.com','mein-mmo.de','nw-buddy.de','gaming.tools','pages.dev'];
+function edCheck(body,title,orig){
+  const bad=[],warn=[];
+  if(!body.trim()) bad.push('The page is empty');
+  if(body.length>60000) bad.push('The page is too long (over 60,000 characters)');
+  if(title!=null && !/^[A-Za-z0-9 '’&()+,.:!?-]{3,80}$/.test(title)) bad.push('The title can only use letters, numbers, spaces and simple punctuation (3 to 80 characters)');
+  if(/[\u202A-\u202E\u2066-\u2069\u200B-\u200F\u2028\u2029\uFEFF]/.test(body+(title||''))) bad.push('It contains hidden or direction-changing characters');
+  if(/(javascript|vbscript|livescript)\s*:|data\s*:\s*text\/html/i.test(body)) bad.push('It contains a script link');
+  if(/<[^>]*\son[a-z]+\s*=/i.test(body)) bad.push('It contains HTML event code');
+  const tags=[...body.matchAll(/<\s*\/?\s*([a-zA-Z][\w-]*)/g)].map(m=>m[1].toLowerCase()).filter(x=>!ED_OK_TAGS.includes(x));
+  if(tags.length) bad.push(`It contains HTML that isn't allowed (${[...new Set(tags)].slice(0,5).map(x=>'<'+x+'>').join(', ')}). Use Markdown instead.`);
+  const hosts=[...body.matchAll(/https?:\/\/([^\s/)\]>"']+)/gi)].map(m=>m[1].toLowerCase().replace(/^www\./,''));
+  const odd=[...new Set(hosts.filter(h=>!ED_SITES.some(k=>h===k||h.endsWith('.'+k))))];
+  if(odd.length) warn.push('Links to sites not on the usual list: '+odd.slice(0,6).join(', ')+'. The owner will check these.');
+  if(orig && body.length<orig.length*0.4) warn.push('This removes more than half of the page.');
+  return {bad,warn};
+}
+
+/* ---------- line-by-line differences, for the owner's review ---------- */
+function edDiff(a,b){
+  const A=a.split('\n'), B=b.split('\n'), n=A.length, m=B.length;
+  if(n*m>4e6) return [{t:'-',s:'(too big to compare line by line)'},{t:'+',s:'(see Preview)'}];
+  const L=Array.from({length:n+1},()=>new Uint16Array(m+1));
+  for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--) L[i][j]=A[i]===B[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  const out=[]; let i=0,j=0;
+  while(i<n&&j<m){ if(A[i]===B[j]){ out.push({t:' ',s:A[i]}); i++; j++; } else if(L[i+1][j]>=L[i][j+1]) out.push({t:'-',s:A[i++]}); else out.push({t:'+',s:B[j++]}); }
+  while(i<n) out.push({t:'-',s:A[i++]}); while(j<m) out.push({t:'+',s:B[j++]});
+  return out;
+}
+function edDiffHTML(a,b){
+  const d=edDiff(a,b), keep=new Set();
+  d.forEach((x,k)=>{ if(x.t!==' ') for(let z=k-2;z<=k+2;z++) keep.add(z); });
+  let html='', skip=0; const flush=()=>{ if(skip){ html+=`<div class="dl dsk">&hellip; ${skip} unchanged line${skip===1?'':'s'}</div>`; skip=0; } };
+  d.forEach((x,k)=>{ if(x.t===' '&&!keep.has(k)){ skip++; return; } flush(); html+=`<div class="dl ${x.t==='+'?'dadd':x.t==='-'?'ddel':''}"><span>${x.t==='+'?'+':x.t==='-'?'&minus;':''}</span>${esc(x.s)||'&nbsp;'}</div>`; });
+  flush();
+  const adds=d.filter(x=>x.t==='+').length, dels=d.filter(x=>x.t==='-').length;
+  return {html:`<div class="ddiff">${html||'<div class="dl dsk">No changes</div>'}</div>`, adds, dels};
+}
+
+/* ---------- instructions to paste into Claude (or another assistant) ---------- */
+function edAIPrompt(isNew, path, title, body){
+  const isBuild=path.startsWith('Builds');
+  const names=Object.keys(META).filter(p=>!META[p].custom&&(edAreaOf(p)||/^1 References\//.test(p))).map(p=>META[p].name).sort();
+  return `I'm editing a page for the New World Vault, a fan website for New World: Aeternum (Season 10). ${isNew?`Write a new page called "${title||'(page name)'}" for the folder "${path}".`:'Rewrite the page below with my changes.'} Give me back ONLY the finished page, in one markdown code block, ready to paste.
+
+My changes: [DESCRIBE WHAT YOU WANT ADDED OR CHANGED HERE]
+
+The website rejects anything that breaks these rules, so follow them exactly:
+- Markdown only, with no HTML. The only tags allowed are <br>, <sub>, <sup>, <b>, <i>, <u>, <kbd>, <mark> and <small>. No scripts, iframes, images or styles.
+- Link to other vault pages as [[Page Name]], or [[Page Name|shown text]], using only names from the list at the end. Link to websites as [text](https://...), https only.
+- One "# Title" line at the top, "##" for sections and "###" for sub-sections.
+- Tables use pipes, with a header row and a |---| row under it.
+- Tips and warnings use Obsidian callouts: "> [!info]", "> [!tip]" or "> [!warning]" on the first line.
+- UK spelling. Write item, perk, gem, ability and set names exactly as they are in the game. Don't make up numbers: if you're not sure of a value, say so.
+- Keep everything I didn't ask to change.${isBuild?`
+- Keep the "## Quick reference" table (columns: Item | Detail) with rows called Role, Modes, Armor and Attributes. The site's Build browser reads them.
+- A "## Full loadout" section has a table with exactly these columns: Slot | Item | Type | Gem | Perk 1 | Perk 2 | Perk 3 | Charm. Slots are named Weapon 1, Weapon 2, Shield (only if used), Helmet, Chest, Gloves, Pants, Boots, Amulet, Ring, Earring, Heartrune. Write "Crafted legendary" as the Item for crafted gear and "–" for an empty cell. Type is the weapon (e.g. Hatchet) or the armour weight (Light, Medium, Heavy).
+- Under it: "### Abilities" (Weapon | Ability 1 | Ability 2 | Ability 3), "### Attributes" (Strength | Dexterity | Intelligence | Focus | Constitution, then one row of numbers) and "### Skill trees" (Weapon | Tree | Points | Nodes, with nodes separated by commas). The site builds the loadout and draws the skill trees from these tables.`:''}${isNew&&isBuild?`
+- Start the page with this front matter, filled in:
+---
+tags: [new-world, builds, <mode, e.g. pve or pvp or open-world>, <weapon 1>, <weapon 2>]
+---`:''}
+
+Vault pages you can link to: ${names.join(', ')}
+
+${isNew?'Here is my rough draft (it may be empty):':'Here is the page as it is now:'}
+\`\`\`markdown
+${body}
+\`\`\``;
+}
+
+/* ---------- the Editor page ---------- */
+function edFolders(){
+  const out=new Set();
+  ED.roles.forEach(r=>(ED.areas[r]||ED_AREAS_ALL[r]||[]).forEach(a=>{ out.add(a.replace(/\/$/,''));
+    Object.keys(META).forEach(p=>{ if(p.startsWith(a)&&!META[p].custom){ const f=p.split('/').slice(0,-1).join('/'); if(f) out.add(f); } }); }));
+  return [...out].sort();
+}
+function viewEditor(){
+  edEnsure();
+  const u=typeof dUser==='function'&&CFG.worker?dUser():null;
+  if(!u) return `<h1>Editor</h1>${typeof favLoginBox==='function'?favLoginBox('Log in with Discord to suggest updates.'):''}`;
+  if(!ED.roles.length) return `<h1>Editor</h1><p class="lede">You don't have an editor role yet. Ask the site owner to add you, and send them your Discord ID: <code>${esc(u.id)}</code></p>`;
+  const roleTags=ED.roles.map(r=>`<span class="edrole ${r}">${esc(ED_NAMES[r]||r)}</span>`).join(' ');
+  if(EDV.mode==='edit'||EDV.mode==='new') return edEditorHTML(u);
+  if(EDV.mine===null){ edApi({op:'mine'}).then(d=>{ EDV.mine=d.items||[]; if(current&&current.v==='editor') openView('editor',false); }).catch(()=>{ EDV.mine=[]; }); }
+  const q=EDV.q.trim().toLowerCase();
+  const pages=Object.keys(META).filter(p=>!META[p].custom&&edAreaOf(p)&&(!q||META[p].name.toLowerCase().includes(q))).sort();
+  const groups={}; pages.forEach(p=>{ const f=p.split('/').slice(0,-1).join(' / '); (groups[f]=groups[f]||[]).push(p); });
+  const st={pending:['Waiting for the owner','wait'],approved:['Approved and live','ok'],rejected:['Not approved','no']};
+  return `<h1>Editor</h1>
+  <p class="lede">Suggest changes to pages in your area. Everything you send waits for the site owner, who approves it before anyone else sees it. Your role: ${roleTags}</p>
+  <div class="lbtns"><button class="mini go" id="ednew">&#65291; New page</button></div>
+  <h2>Your updates</h2>
+  ${EDV.mine===null?'<p class="dimtx">Loading&hellip;</p>':EDV.mine.length?`<div class="edmine">${EDV.mine.map(x=>`<div class="locard"><div><b>${esc(x.kind==='new'?'New page: ':'')}${esc(x.name)}</b>
+      <div class="dimtx tiny">${new Date(x.at).toLocaleString()}${x.summary?' &middot; '+esc(x.summary):''}</div>${x.note?`<div class="ednote">Owner: ${esc(x.note)}</div>`:''}</div>
+      <div class="lobtns"><span class="edst ${st[x.status][1]}">${st[x.status][0]}</span>${x.status==='pending'?`<button class="mini" data-edwd="${esc(x.id)}">Withdraw</button>`:''}</div></div>`).join('')}</div>`
+    :'<p class="dimtx">Nothing sent yet.</p>'}
+  <h2>Pages you can update</h2>
+  <input id="edq" class="isearch" placeholder="Find a page" value="${esc(EDV.q)}" autocomplete="off">
+  ${Object.entries(groups).map(([f,l])=>`<div class="edgrp"><div class="sh">${esc(label(f))}</div>${l.map(p=>`<div class="edrow"><span>${esc(label(META[p].name))}</span><button class="mini" data-edgo="${esc(p)}">&#9998; Suggest a change</button></div>`).join('')}</div>`).join('')||'<p class="empty">No pages match.</p>'}`;
+}
+function edEditorHTML(u){
+  const isNew=EDV.mode==='new'; const m=isNew?null:META[EDV.path];
+  const folders=edFolders();
+  const tpl=isNew?(EDV.folder&&EDV.folder.startsWith('Builds')?`---\ntags: [new-world, builds]\n---\n# Build name\n\nOne or two lines on what it does and who it's for.\n\n| | |\n|---|---|\n| **Role** | |\n| **Modes** | |\n| **Armor** | |\n| **Attributes** | |\n\n## How to play it\n\n`:'# Page title\n\n'):'';
+  return `<div class="crumb"><a href="#" class="wl" id="edback">&larr; Editor</a></div>
+  <h1>${isNew?'New page':'Suggest a change to “'+esc(label(m.name))+'”'}</h1>
+  <p class="lede">The owner sees exactly what you changed and approves it before it goes on the site.</p>
+  <div class="edgrid"><div class="edl">
+    ${isNew?`<div class="two"><label class="lof"><span>Folder</span><select id="edf" class="pk">${folders.map(f=>`<option ${EDV.folder===f?'selected':''}>${esc(f)}</option>`).join('')}</select></label>
+      <label class="lof"><span>Page name</span><input id="edt" class="pk" maxlength="80" placeholder="e.g. Void Gauntlet Healer" value="${esc(EDV.title||'')}"></label></div>`:''}
+    <label class="lof"><span>What did you change? (for the owner)</span><input id="eds" class="pk" maxlength="300" placeholder="e.g. Updated the Season 10 perks on the chest piece"></label>
+    <div class="edai"><button class="mini" id="edai">&#128203; Copy instructions for Claude</button><span class="dimtx tiny">Paste them into Claude or another assistant, describe your change where it says, then paste its answer back in the box below. It's checked the same way.</span></div>
+    <textarea id="edb" rows="24">${esc(isNew?(EDV.body||tpl):m.body)}</textarea>
+    ${typeof MDHELP!=='undefined'?MDHELP:''}
+    <div id="edchk" class="edchk"></div>
+    <div class="saverow"><button class="mini go" id="edsend">Send for review</button><button class="mini" id="edcancel">Cancel</button><span class="dimtx tiny">Sending as ${esc(u.name)}</span></div>
+  </div><div class="edr"><div class="dimtx">Preview</div><article id="edprev"></article></div></div>`;
+}
+function editorEvents(){
+  const on=(id,f)=>{ const e=document.getElementById(id); if(e) e.onclick=f; };
+  if(EDV.mode==='home'){
+    on('ednew',()=>{ EDV={...EDV,mode:'new',folder:edFolders()[0]||'',title:'',body:''}; openView('editor',false); });
+    const q=document.getElementById('edq'); if(q){ let tm; q.oninput=()=>{ clearTimeout(tm); tm=setTimeout(()=>{ EDV.q=q.value; openView('editor',false); const n=document.getElementById('edq'); n.focus(); n.setSelectionRange(n.value.length,n.value.length); },200); }; }
+    document.querySelectorAll('[data-edgo]').forEach(b=>b.onclick=()=>{ EDV.mode='edit'; EDV.path=b.dataset.edgo; openView('editor',false); });
+    document.querySelectorAll('[data-edwd]').forEach(b=>b.onclick=async()=>{ try{ await edApi({op:'withdraw',id:b.dataset.edwd}); EDV.mine=null; toast('Withdrawn'); openView('editor',false); }catch(e){ toast(e.message); } });
+    return;
+  }
+  const isNew=EDV.mode==='new', m=isNew?null:META[EDV.path], orig=m?(m.orig!=null?m.orig:m.body):'';
+  const tb=document.getElementById('edb'), pv=document.getElementById('edprev'), ck=document.getElementById('edchk'), send=document.getElementById('edsend');
+  const run=()=>{ pv.innerHTML=md(tb.value.replace(/^---\n[\s\S]*?\n---\n?/,''));
+    const r=edCheck(tb.value, isNew?(document.getElementById('edt').value.trim()):null, orig);
+    if(!isNew && tb.value===m.body) r.bad.unshift('Nothing has changed yet');
+    if(isNew){ const t=document.getElementById('edt').value.trim(); if(t&&NAMES[t]) r.bad.push('There\'s already a page called '+t); }
+    ck.innerHTML=r.bad.map(x=>`<div class="edbad">&#10006; ${esc(x)}</div>`).join('')+r.warn.map(x=>`<div class="edwarn">&#9888; ${esc(x)}</div>`).join('')||'<div class="edgood">&#10004; Passes the safety check</div>';
+    send.disabled=!!r.bad.length; };
+  let tm; tb.oninput=()=>{ clearTimeout(tm); tm=setTimeout(run,200); }; if(isNew){ document.getElementById('edt').oninput=tb.oninput; document.getElementById('edf').onchange=()=>{ EDV.folder=document.getElementById('edf').value; }; }
+  run();
+  const back=()=>{ EDV.mode='home'; EDV.mine=null; openView('editor',false); };
+  on('edback',e=>{ if(e) e.preventDefault(); back(); }); on('edcancel',back);
+  on('edai',async()=>{ const txt=edAIPrompt(isNew, isNew?document.getElementById('edf').value:EDV.path, isNew?document.getElementById('edt').value.trim():'', tb.value.replace(/^\s+|\s+$/g,''));
+    try{ await navigator.clipboard.writeText(txt); toast('Copied. Paste it into Claude, then fill in “My changes”'); }
+    catch(e){ favPop('Instructions for Claude',`<p class="dimtx">Copy everything in the box.</p><textarea class="pk" rows="16" style="width:100%">${esc(txt)}</textarea>`); } });
+  // whatever comes back, take just the page out of a pasted code block
+  tb.addEventListener('paste',()=>setTimeout(()=>{ const m=tb.value.match(/^\s*```(?:markdown|md)?\n([\s\S]*?)\n```\s*$/); if(m){ tb.value=m[1]; run(); toast('Took the page out of the code block'); } },0));
+  send.onclick=async()=>{ send.disabled=true; send.textContent='Sending…';
+    try{
+      const d = isNew ? await edApi({op:'submit',kind:'new',folder:document.getElementById('edf').value,title:document.getElementById('edt').value.trim(),body:tb.value,summary:document.getElementById('eds').value})
+                      : await edApi({op:'submit',kind:'edit',path:EDV.path,body:tb.value,base:h32(orig),summary:document.getElementById('eds').value});
+      toast('Sent. The owner will review it'+(d.warn&&d.warn.length?' (with a note about links)':'')); back();
+    }catch(e){ send.disabled=false; send.textContent='Send for review'; ck.innerHTML=`<div class="edbad">&#10006; ${esc(e.message)}</div>`; }
+  };
+}
+/* "Suggest a change" on a page in your area */
+document.addEventListener('click', e=>{
+  const b=e.target.closest('[data-edsug]'); if(!b) return;
+  e.preventDefault(); e.stopPropagation(); const p=NAMES[b.dataset.edsug]; if(!p) return;
+  EDV.mode='edit'; EDV.path=p; openView('editor');
+}, true);
+
+/* ---------- Admin: waiting updates and editors ---------- */
+async function edLoadProps(){ EDPERR=''; try{ EDP=(await ownerApi('props_list')).items||[]; }catch(e){ EDPERR=e.message; EDP=[]; } if(current&&current.v==='admin') openView('admin',false); }
+const edWaiting = () => EDP ? EDP.filter(x=>x.status==='pending').length : 0;
+function edAdminHTML(){
+  if(EDP===null){ edLoadProps(); return '<p class="dimtx">Loading updates&hellip;</p>'; }
+  if(EDPERR) return `<p class="bad">Couldn't load them: ${esc(EDPERR)}</p><button class="mini" id="edpref">&#8635; Try again</button>`;
+  const list=EDP.filter(x=>EDPF==='all'||x.status===EDPF);
+  const chip=(v,l)=>`<button class="chip ${EDPF===v?'on':''}" data-edpf="${v}">${l}</button>`;
+  return `<p class="dimtx">Updates your editors sent. Each one passed the safety check when it was sent, and is checked again when you approve it. Approved updates go live after the site rebuilds (a minute or two).</p>
+  <div class="presetbar">${chip('pending','Waiting')}${chip('approved','Approved')}${chip('rejected','Not approved')}${chip('all','All')}<button class="mini" id="edpref">&#8635; Refresh</button></div>
+  ${list.map(x=>{ const D=x.kind==='edit'&&x.orig?edDiffHTML(x.orig,x.body):null;
+    return `<div class="slot lcard edprop">
+      <div class="edph"><span class="edrole ${x.role}">${esc(ED_NAMES[x.role]||x.role)}</span><b>${x.kind==='new'?'New page: ':''}${esc(x.name)}</b>
+        <span class="dimtx tiny">${esc(x.path)}</span></div>
+      <div class="dimtx tiny">From <b>${esc(x.by.name)}</b> (@${esc(x.by.user||'')}) &middot; ${new Date(x.at).toLocaleString()}${D?` &middot; <span class="dadd">+${D.adds}</span> <span class="ddel">&minus;${D.dels}</span> lines`:''}</div>
+      ${x.summary?`<p class="edsum">${esc(x.summary)}</p>`:''}
+      ${x.warn&&x.warn.length?x.warn.map(w=>`<div class="edwarn">&#9888; ${esc(w)}</div>`).join(''):'<div class="edgood">&#10004; Passed the safety check with nothing to flag</div>'}
+      ${x.status==='pending'?(D?D.html:`<details class="edsrc"><summary>Show the Markdown</summary><pre>${esc(x.body)}</pre></details>`):''}
+      ${x.note?`<div class="ednote">Your note: ${esc(x.note)}</div>`:''}
+      <div class="lbtns">${x.status==='pending'?`<button class="mini go" data-edok="${esc(x.id)}">Approve and publish</button><button class="mini" data-edpv="${esc(x.id)}">Preview</button>
+        <input class="pk edrej" data-edrn="${esc(x.id)}" maxlength="300" placeholder="Reason if you say no (they'll see it)"><button class="mini" data-edno="${esc(x.id)}">Not approved</button>`
+        :`<span class="edst ${x.status==='approved'?'ok':'no'}">${x.status==='approved'?'Approved':'Not approved'}</span><button class="mini" data-eddel="${esc(x.id)}">Remove from list</button>`}</div></div>`; }).join('')||'<p class="empty">Nothing here.</p>'}`;
+}
+function edRolesHTML(){
+  if(EDROLES===null){ ownerApi('roles_get').then(d=>{ EDROLES=d.roles||{}; if(current&&current.v==='admin') openView('admin',false); }).catch(e=>{ EDROLES={}; toast(e.message); }); return '<p class="dimtx">Loading&hellip;</p>'; }
+  const rows=Object.entries(EDROLES);
+  return `<p class="dimtx">People you trust to suggest updates. <b>Builds</b> can update pages in Builds. <b>Crafting &amp; materials</b> can update Crafting, Game Data and Housing. Everything they send waits for you under Waiting updates.</p>
+  <div class="tw"><table><thead><tr><th>Person</th><th>Discord ID</th>${Object.keys(ED_NAMES).map(r=>`<th>${esc(ED_NAMES[r])}</th>`).join('')}<th></th></tr></thead><tbody>
+  ${rows.map(([id,x])=>`<tr><td>${esc(x.name)}</td><td><code>${esc(id)}</code></td>${Object.keys(ED_NAMES).map(r=>`<td><input type="checkbox" data-edr="${esc(id)}" data-role="${r}" ${x.roles.includes(r)?'checked':''} aria-label="${esc(ED_NAMES[r])} for ${esc(x.name)}"></td>`).join('')}<td><button class="mini" data-edrm="${esc(id)}">Remove</button></td></tr>`).join('')||`<tr><td colspan="5" class="dimtx">No editors yet.</td></tr>`}
+  </tbody></table></div>
+  <div class="slot lcard edadd"><div class="sh">Add an editor</div>
+    <div class="two"><label class="lof"><span>Name (for you)</span><input id="edan" class="pk" maxlength="40" placeholder="e.g. Sam"></label>
+    <label class="lof"><span>Discord ID</span><input id="edai" class="pk" inputmode="numeric" placeholder="17 to 20 digits"></label></div>
+    <div class="frow">${Object.entries(ED_NAMES).map(([r,n])=>`<label class="amon"><input type="checkbox" data-edar="${r}"> ${esc(n)}</label>`).join('')}</div>
+    <div class="lbtns"><button class="mini go" id="edaadd">Add</button></div>
+    <p class="dimtx tiny">They can find their ID in the account menu (top right) once they log in on the site, or in Discord with Developer Mode on: right-click their name, then Copy User ID.</p></div>`;
+}
+function edAdminEvents(){
+  const main=document.getElementById('main');
+  const r=document.getElementById('edpref'); if(r) r.onclick=()=>{ EDP=null; openView('admin',false); };
+  main.querySelectorAll('[data-edpf]').forEach(b=>b.onclick=()=>{ EDPF=b.dataset.edpf; openView('admin',false); });
+  const busy=async(btn,f,ok)=>{ btn.disabled=true; try{ await f(); toast(ok); EDP=null; openView('admin',false); }catch(e){ btn.disabled=false; toast(e.message); } };
+  main.querySelectorAll('[data-edok]').forEach(b=>b.onclick=()=>busy(b,()=>ownerApi('prop_approve',{id:b.dataset.edok}),'Approved. It goes live after the site rebuilds'));
+  main.querySelectorAll('[data-edno]').forEach(b=>b.onclick=()=>{ const n=main.querySelector(`[data-edrn="${b.dataset.edno}"]`); busy(b,()=>ownerApi('prop_reject',{id:b.dataset.edno,note:n?n.value:''}),'Marked as not approved'); });
+  main.querySelectorAll('[data-eddel]').forEach(b=>b.onclick=()=>busy(b,()=>ownerApi('prop_delete',{id:b.dataset.eddel}),'Removed'));
+  main.querySelectorAll('[data-edpv]').forEach(b=>b.onclick=()=>{ const x=EDP.find(y=>y.id===b.dataset.edpv); if(!x) return;
+    if(typeof favPop==='function') favPop('Preview: '+x.name, `<article class="edpvart">${md(x.body.replace(/^---\n[\s\S]*?\n---\n?/,''))}</article>`); });
+  // editors
+  const setRoles=async(id,name,roles)=>{ const d=await ownerApi('roles_set',{id,name,roles}); EDROLES=d.roles||{}; openView('admin',false); };
+  main.querySelectorAll('[data-edr]').forEach(c=>c.onchange=async()=>{ const id=c.dataset.edr, x=EDROLES[id];
+    const roles=[...main.querySelectorAll(`[data-edr="${id}"]`)].filter(y=>y.checked).map(y=>y.dataset.role);
+    try{ await setRoles(id,x.name,roles); toast(roles.length?'Roles updated':'Removed '+x.name); }catch(e){ toast(e.message); } });
+  main.querySelectorAll('[data-edrm]').forEach(b=>b.onclick=async()=>{ const id=b.dataset.edrm; if(!b.dataset.sure){ b.dataset.sure=1; b.textContent='Remove for good?'; b.classList.add('danger'); return; }
+    try{ await setRoles(id,EDROLES[id].name,[]); toast('Removed'); }catch(e){ toast(e.message); } });
+  const add=document.getElementById('edaadd'); if(add) add.onclick=async()=>{
+    const id=document.getElementById('edai').value.trim(), name=document.getElementById('edan').value.trim();
+    const roles=[...main.querySelectorAll('[data-edar]')].filter(c=>c.checked).map(c=>c.dataset.edar);
+    if(!/^\d{15,22}$/.test(id)) return toast('A Discord ID is 17 to 20 digits');
+    if(!roles.length) return toast('Tick at least one role');
+    try{ await setRoles(id,name,roles); toast('Added '+(name||id)); }catch(e){ toast(e.message); } };
+}
+
 /* ---------- boot ---------- */
 (async function(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
@@ -3449,7 +3717,7 @@ function fbAdminEvents(){
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
   else if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback','editor'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);

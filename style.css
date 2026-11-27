@@ -696,3 +696,36 @@ img.fi{display:inline-block;vertical-align:middle;filter:drop-shadow(0 2px 3px #
 .fbtag.problem{color:#f0a08c;border-color:#7a3d31}
 .fbbody{white-space:pre-line;margin:4px 0 6px;color:var(--fg);font-size:14.5px}
 @media(max-width:560px){ .fbkinds{grid-template-columns:1fr} }
+/* editors */
+.edrole{display:inline-block;font-size:12px;border-radius:5px;padding:1px 8px;border:1px solid}
+.edrole.builds{color:#e6c37c;border-color:#5a4a2a}
+.edrole.crafting{color:#9fd18b;border-color:#3d5a33}
+.edgrp{margin:10px 0 14px}
+.edrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.edrow:hover{background:var(--bg2)}
+.edst{font-size:12.5px;border-radius:6px;padding:2px 8px}
+.edst.wait{color:#e8c37a;background:#2b2516}
+.edst.ok{color:#9fd18b;background:#1b2a1a}
+.edst.no{color:#f0a08c;background:#2d1b17}
+.ednote{margin-top:5px;font-size:13.5px;border-left:2px solid var(--gold);padding-left:8px;color:var(--fg)}
+.edchk{display:grid;gap:4px;margin:8px 0}
+.edbad{color:#f0a08c;font-size:13.5px}
+.edwarn{color:#e8c37a;font-size:13.5px}
+.edgood{color:#9fd18b;font-size:13.5px}
+.edprop{margin:12px 0;display:grid;gap:7px}
+.edph{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.edph b{font:700 18px var(--serif);color:var(--gold2)}
+.edsum{margin:0;font-size:14.5px}
+.edrej{max-width:280px}
+.ddiff{font:12.5px/1.5 ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line);border-radius:8px;max-height:420px;overflow:auto;padding:6px 0}
+.dl{white-space:pre-wrap;word-break:break-word;padding:0 10px 0 28px;position:relative}
+.dl span{position:absolute;left:10px;color:var(--mute)}
+.dl.dadd{background:#17301b;color:#c6efbf}
+.dl.ddel{background:#3a1d18;color:#f5c1b5;text-decoration:line-through;text-decoration-color:#a8473b}
+.dl.dsk{color:var(--mute);font-style:italic;padding-left:10px}
+span.dadd{color:#9fd18b}
+span.ddel{color:#f0a08c}
+.edsrc pre{white-space:pre-wrap;font-size:12.5px;max-height:300px;overflow:auto}
+.edadd{max-width:620px;margin-top:14px}
+.edpvart{max-height:70vh;overflow:auto}
+.edai{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 8px}
