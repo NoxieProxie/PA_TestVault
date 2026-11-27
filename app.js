@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 23:22';
+const BUILD_AT = '2026-11-27 23:40';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -53,6 +53,28 @@ function itemIco(n){
     const id=CR.byName[n.toLowerCase()]; if(id) return crIcon(id,22);
   }
   return '';
+}
+/* gem perks ("Cruel IV") and charms ("Gravity Well" skill charm, "Slash Harnessing") get their gem/charm picture, with hover text saying which gem or charm it is */
+let GCRX=null;
+function gcIcon(k){ const g=NOTEICO.gc[k]; if(!g) return '';
+  const T=NOTEICO.tile,C=NOTEICO.cols,sheet=Math.floor(g[0]/NOTEICO.per),j=g[0]%NOTEICO.per,size=22,sc=size/T;
+  return `<span class="iic gci" style="width:${size}px;height:${size}px;background-image:url(${NOTEICO.urls[sheet]});background-size:${C*T*sc}px auto;background-position:-${(j%C)*T*sc}px -${Math.floor(j/C)*T*sc}px" title="${esc(g[1])}" aria-label="${esc(g[1].split('\n')[0])}"></span>`; }
+function gcDeco(html){
+  if(!NOTEICO||!NOTEICO.gc) return html;
+  if(!GCRX){ const q=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); const ks=Object.keys(NOTEICO.gc).sort((a,b)=>b.length-a.length);
+    GCRX={gem:new RegExp('\\b('+ks.filter(k=>NOTEICO.gc[k][2]==='gem').map(q).join('|')+')\\b','gi'),
+          charm:new RegExp('\\b('+ks.filter(k=>NOTEICO.gc[k][2]==='charm').map(q).join('|')+')\\b','gi')}; }
+  const charm=/charm/i.test(stripTags(html));
+  const parts=html.split(/(<[^>]+>)/); let inTag=0, prevIco=false;
+  return parts.map(p=>{
+    if(p.startsWith('<')){ prevIco=/class="(ico|iic)/.test(p)||(prevIco&&/^<\/span>$/.test(p)); return p; }
+    if(!p) return p;
+    let out=p.replace(GCRX.gem,(m,_,off)=>(off===0&&prevIco)?m:gcIcon(m.toLowerCase())+m);
+    if(charm){
+      out=out.replace(/\b(\w+)(?= or \w+ Harnessing\b)/g,(m)=>NOTEICO.gc[(m+' harnessing').toLowerCase()]?gcIcon((m+' harnessing').toLowerCase())+m:m);
+      out=out.split(/(<[^>]+>)/).map(q=>q.startsWith('<')?q:q.replace(GCRX.charm,(m,_,off)=>(off===0&&prevIco)?m:gcIcon(m.toLowerCase())+m)).join('');
+    }
+    prevIco=false; return out; }).join('');
 }
 /* table columns that label or describe a row never get icons: the icon belongs next to the thing itself */
 const NOICO_HEAD=/^(slots?|weapons?( type)?|weapon \d|type|types|role|roles|mode|modes|made for|tier|tiers|points|tree|trees|level|lvl|rank|weight|armou?r( weight)?|attributes?|stats?|when|where|location|sources?|drops? from|dropped by|boss|bosses|expedition|phase|time|cost|price|fee|gs|gear score|difficulty|what it does|what it gives|effects?|why|notes?|details?|description|how|how to get it|tip|tips|use|used for|best for|good for|values?|amount|qty|quantity|count|#|bonus|bonuses|requirement|requirements|cooldown|duration|percent|%)$/i;
@@ -128,7 +150,7 @@ function md(src){
           const seen=new Set();   // the same name twice in a row gets one icon
           return `<tr>${r.map((c,ci)=>{ const h=inline(c), k=stripTags(h).trim().toLowerCase();
             if(ci===wIdx||noIco[ci]||isTypeWord(h)||seen.has(k)) return `<td>${h}</td>`;
-            const d=deco(h,w); if(d!==h) seen.add(k); return `<td>${d}</td>`; }).join('')}</tr>`; }).join('')+`</tbody></table></div>`);
+            const d=gcDeco(deco(h,w)); if(d!==h) seen.add(k); return `<td>${d}</td>`; }).join('')}</tr>`; }).join('')+`</tbody></table></div>`);
       continue;
     }
     const co=ln.match(/^>\s*\[!(\w+)\]\s*(.*)$/i);
