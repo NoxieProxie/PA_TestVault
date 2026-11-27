@@ -92,7 +92,7 @@
    "timeout": 3600
   },
   "newacc": {
-   "on": false,
+   "on": true,
    "days": 7,
    "action": "log"
   },
