@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 22:28';
+const BUILD_AT = '2026-11-27 22:50';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -54,6 +54,12 @@ function itemIco(n){
   }
   return '';
 }
+/* table columns that label or describe a row never get icons: the icon belongs next to the thing itself */
+const NOICO_HEAD=/^(slots?|weapons?( type)?|weapon \d|type|types|role|roles|mode|modes|made for|tier|tiers|points|tree|trees|level|lvl|rank|weight|armou?r( weight)?|attributes?|stats?|when|where|location|sources?|drops? from|dropped by|boss|bosses|expedition|phase|time|cost|price|fee|gs|gear score|difficulty|what it does|what it gives|effects?|why|notes?|details?|description|how|how to get it|tip|tips|use|used for|best for|good for|values?|amount|qty|quantity|count|#|bonus|bonuses|requirement|requirements|cooldown|duration|percent|%)$/i;
+/* a cell that is only a weapon type, a gear slot or an armour weight is a label, not an item */
+const TYPE_WORDS=new Set(['sword and shield','sword & shield','s&s','sword','longsword','shield','round shield','kite shield','tower shield','rapier','hatchet','spear','great axe','greataxe','war hammer','warhammer','hammer','greatsword','flail','bow','flatbow','musket','blunderbuss','fire staff','life staff','ice gauntlet','void gauntlet','weapon','weapons','weapon 1','weapon 2','main hand','off hand',
+  'helmet','helm','head','chest','gloves','hands','pants','legs','boots','feet','amulet','ring','earring','jewellery','jewelry','trinkets','heartrune','heart rune','light','medium','heavy','armour','armor','tool','tools','bag','bags','charm','charms','gem','gems']);
+const isTypeWord = h => TYPE_WORDS.has(stripTags(h).replace(/&amp;/g,'&').replace(/\s*\(.*\)\s*$/,'').trim().toLowerCase());
 function deco(html,w){
   if(!ICO) return html;
   let done=false;
@@ -115,8 +121,14 @@ function md(src){
       flush(); const head=splitRow(ln); i+=2; const rows=[];
       while(i<L.length && /^\s*\|/.test(L[i])){ rows.push(splitRow(L[i])); i++; }
       const wIdx=head.findIndex(h=>/^weapon$/i.test(h.replace(/\*/g,'').trim()));
+      // icons only where a column names things (items, perks, abilities, gems...): never in label or description columns
+      const noIco=head.map(h=>NOICO_HEAD.test(stripTags(inline(h)).replace(/\*/g,'').trim()));
       out.push(`<div class="tw"><table><thead><tr>${head.map(h=>`<th>${inline(h)}</th>`).join('')}</tr></thead><tbody>`+
-        rows.map(r=>{ const w=(wIdx>=0&&walias(r[wIdx]))||ctxW; return `<tr>${r.map((c,ci)=>`<td>${ci===wIdx?inline(c):deco(inline(c),w)}</td>`).join('')}</tr>`; }).join('')+`</tbody></table></div>`);
+        rows.map(r=>{ const w=(wIdx>=0&&walias(r[wIdx]))||ctxW;
+          const seen=new Set();   // the same name twice in a row gets one icon
+          return `<tr>${r.map((c,ci)=>{ const h=inline(c), k=stripTags(h).trim().toLowerCase();
+            if(ci===wIdx||noIco[ci]||isTypeWord(h)||seen.has(k)) return `<td>${h}</td>`;
+            const d=deco(h,w); if(d!==h) seen.add(k); return `<td>${d}</td>`; }).join('')}</tr>`; }).join('')+`</tbody></table></div>`);
       continue;
     }
     const co=ln.match(/^>\s*\[!(\w+)\]\s*(.*)$/i);
