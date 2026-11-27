@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 22:50';
+const BUILD_AT = '2026-11-27 23:22';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -990,7 +990,7 @@ function viewItems(){
     <span>Page <b>${IQ.page+1}</b> of ${pages} &middot; ${list.length} items</span>
     <button class="mini" data-ipg="1" ${IQ.page>=pages-1?'disabled':''}>Next &rarr;</button></div>`;
   return `<h1>Items</h1>
-  <p class="lede">${ITEMDB.items.length.toLocaleString()} endgame items from your game's own item tables. Searches names, perks <i>and</i> where things drop, so "gorgon", "Refreshing" or "Chardis" all work.</p>
+  <p class="lede">${ITEMDB.items.length.toLocaleString()} endgame items from your game's own item tables. Searches names, perks <i>and</i> where things drop, so "gorgon", "Refreshing" or "Chardis" all work.${ITEMDB.srcNote?` <span class="credit">Drop sources and pictures from <a href="https://nw-buddy.de" target="_blank" rel="noopener">NW Buddy</a>.</span>`:''}</p>
   <div class="filters" data-h="Search items">
     <input id="iq" class="isearch" placeholder="Search items or perks, e.g. gorgon" value="${esc(IQ.q)}" autocomplete="off">
     <div class="frow"><span class="fl">Slot</span>${['',...slots].map(s=>`<button class="chip ${IQ.slot===s?'on':''}" data-is="${esc(s)}">${esc(s)||'All'}</button>`).join('')}</div>
@@ -2625,7 +2625,7 @@ async function loadCrafting(){
   CRLOAD=(async()=>{
     try{
       const d=await (await fetch('crafting.json')).json();
-      for(let k=0;k<d.sheets;k++){ const b=await (await fetch('craft_'+k+'.webp')).blob(); CRSHEETS.push(URL.createObjectURL(b)); }
+      for(let k=0;k<d.sheets;k++) CRSHEETS.push('craft_'+k+'.webp?v='+d.tile);
       d.byOut={}; d.byId={}; d.usedIn={};
       d.recipes.forEach((r,i)=>{ r.ix=i; d.byId[r.id]=r; (d.byOut[r.o]=d.byOut[r.o]||[]).push(r);
         r.ev=!r.ts || EVENT_RX.test(r.cat+' '+r.grp+' '+r.id) || /Seasons|SeasonalServers/.test(r.src) || r.cat==='Furniture' || /Dye|Pattern|Faction/.test(r.cat);
@@ -2682,7 +2682,7 @@ function viewCraft(){
   const cats=[...new Set(CR.recipes.filter(r=>(CQ.all||!r.ev)&&(!CQ.ts||r.ts===CQ.ts)).map(r=>r.cat).filter(Boolean))].sort();
   const sel=CQ.sel&&CR.byId[CQ.sel];
   return `<h1>Crafting</h1>
-  <p class="lede">${CR.recipes.length.toLocaleString()} recipes straight from the game's own data. Pick one to see what it needs, where to make it and the full list of materials to gather.</p>
+  <p class="lede">${CR.recipes.length.toLocaleString()} recipes straight from the game's own data. Pick one to see what it needs, where to make it and the full list of materials to gather.${CR.where?` <span class="credit">Where to gather each material comes from <a href="https://nw-buddy.de" target="_blank" rel="noopener">NW Buddy</a>'s game data.</span>`:''}</p>
   <div class="crwrap"><div class="crleft">
    <div class="filters" data-h="Find a recipe"><input id="crq" class="isearch" placeholder="Search, e.g. prismatic ingot, artisan, infused health" value="${esc(CQ.q)}" autocomplete="off">
     <div class="frow"><span class="fl">Skill</span>${['',...CR.tradeskills].map(t=>`<button class="chip ${CQ.ts===t?'on':''}" data-crts="${esc(t)}">${esc(t)||'All'}</button>`).join('')}</div>
@@ -2713,7 +2713,7 @@ function craftDetail(r){
       <button class="mini" id="crexp">Expand all</button><button class="mini" id="crcol">Collapse</button></div>
     <div class="crtree">${r.i.map(([id,q],k)=>crTree(id,q*n,0,[r.o],r.id+':'+k)).join('')}</div>
     <div class="advhd" style="margin-top:10px"><span class="sh">Shopping list</span><select id="crraw" style="max-width:320px"><option value="raw" ${CQ.raw==='raw'?'selected':''}>Break refined materials down to what you gather</option><option value="direct" ${CQ.raw==='direct'?'selected':''}>Just the ingredients (buy refined materials)</option></select></div>
-    <div class="crshop">${rawList.map(([id,q])=>`<div class="crrow">${crIcon(id,24)}<span class="crq">${q.toLocaleString()}&times;</span><span class="crn">${esc(crName(id))}</span></div>`).join('')}</div>
+    <div class="crshop">${rawList.map(([id,q])=>`<div class="crrow">${crIcon(id,24)}<span class="crq">${q.toLocaleString()}&times;</span><span class="crn">${esc(crName(id))}</span>${(CR.where||{})[id]?`<div class="crw">&#128205; ${CR.where[id].map(esc).join('<br>&#128205; ')}</div>`:''}</div>`).join('')}</div>
     <div class="lbtns">${typeof favBtn==='function'?favBtn('recipe',r.id):''}<button class="mini" id="crcopy">&#128203; Copy shopping list</button><button class="mini" id="crlink">&#128279; Copy link to this recipe</button></div>
     ${others.length?`<div class="sh" style="margin-top:10px">Other ways to make it</div>${others.slice(0,6).map(x=>`<div class="crrow"><button class="mini tiny" data-crsel="${esc(x.id)}">Open</button> ${esc(x.n)} <span class="dimtx tiny">${esc(x.ts)} ${x.lv||''} &middot; ${esc(x.cat)}</span></div>`).join('')}`:''}
     ${used.length?`<div class="sh" style="margin-top:10px">Used to make</div>${used.map(x=>`<div class="crrow">${crIcon(x.o,22)}<a class="wl" data-crsel="${esc(x.id)}">${esc(x.n)}</a> <span class="dimtx tiny">${esc(x.ts)} ${x.lv||''}</span></div>`).join('')}`:''}
@@ -3785,9 +3785,9 @@ function edAdminEvents(){
   try { PERKS = await (await fetch('gear_perks.json')).json(); } catch(e){ PERKS = null; }
   try { ICO = await (await fetch('icons.json')).json(); ICO.img = await sliceSprite('icons_0.webp', ICO); } catch(e){ ICO = null; }
   try { ITEMDB = await (await fetch('items.json')).json();
-        for(let k=0;k<ITEMDB.sheets;k++){ const b=await (await fetch('items_'+k+'.webp')).blob(); SPRITES.push(URL.createObjectURL(b)); } } catch(e){ ITEMDB = null; }
+        for(let k=0;k<ITEMDB.sheets;k++) SPRITES.push('items_'+k+'.webp?v='+ITEMDB.tile); } catch(e){ ITEMDB = null; }
   try { PRESETS = await (await fetch('gear_presets.json')).json(); } catch(e){ PRESETS = null; }
-  try { NOTEICO = await (await fetch('noteicons.json')).json(); NOTEICO.urls=[]; for(let k=0;k<NOTEICO.sheets;k++){ const b=await (await fetch('noteicons_'+k+'.webp')).blob(); NOTEICO.urls.push(URL.createObjectURL(b)); } } catch(e){ NOTEICO = null; }
+  try { NOTEICO = await (await fetch('noteicons.json')).json(); NOTEICO.urls=[]; for(let k=0;k<NOTEICO.sheets;k++) NOTEICO.urls.push('noteicons_'+k+'.webp?v='+NOTEICO.tile); } catch(e){ NOTEICO = null; }
   if(typeof loadCommunity==='function') await loadCommunity();
   try { TREES = await (await fetch('trees.json')).json(); } catch(e){ TREES = null; }
   reindex(); topnav(); if(typeof renderAcct==='function') renderAcct();
