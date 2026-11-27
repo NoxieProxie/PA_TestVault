@@ -33,6 +33,14 @@
    "updated": "2026-11-27T21:41:10.142Z",
    "by": "Giz",
    "via": "editor"
+  },
+  "overrides/1-raids": {
+   "note": "1 Raids",
+   "body": "# 1 Raids\n\nThe three big group fights in Season 10: two 10-player raids and the 20-player Sandworm trial.\n\nRelated: [[1 Expeditions]] · [[1 Game Data]] · [[Set Pieces]] · [[Drop Limits]] · [[Consumables]] · [[1 Bosses]]\n\n| Raid | Players | Where | Level / GS to aim for | Bosses | Main rewards |\n|---|---|---|---|---|---|\n| [[Isle of Night]] | 10 (opens with 6) | South coast of Nighthaven | 70 · 740–800 | Twin Jesters, Dahut and the Palatine Guards, Commander Thorpe | Spectral Wrath, Dreadwarden's and Hallowed Aegis set pieces (726–800 GS) |\n| [[Hive of Gorgons]] | 10 (opens with 6) | South-east Cutlass Keys | 65 · 675+ | Echidna, Typhon, Broodmother Medusa | Gorgon's gear, Hoplite named items, artifacts (Azoth Conductors, Trsna, Elemental Band) |\n| [[Sandworm]] | 20 (opens with 12) | Brimstone Sands (Elite Trial) | 65 · 690+ | Shah Neshen, the Devourer | Daily and weekly Sandworm Spoils, Sclerite Pincer, Heartrune of the Devourer |\n\n## Checklist for every role\n\n| Who | What to bring or do |\n|---|---|\n| Everyone | Ward potion and coating for the enemy type: Angry Earth for Hive, Lost for Isle of Night, Beast for Sandworm (all from the game data). See [[Consumables]] |\n| Everyone | Attribute food for your main stat and a recovery food. The calculator's Target buttons show each boss's weaknesses |\n| Tank | Hold the boss where the group can hit it; every fight has a \"lead it away\" step. Dreadwarden's is the Isle of Night tank set |\n| Damage | Raid bosses resist Rend: it works at half strength. Bring the weakness damage type where you can (Fire/Slash for Hive, Nature/Strike for Isle of Night) |\n| Healer | Assign who watches the tank and who watches the group; Hallowed Aegis is the Isle of Night healer set |\n\nGear for each role: [[Gear Basics]] · set pieces: [[Set Pieces]]\n\nBack to [[New World Home]]\n",
+   "base": "qmpfv8",
+   "updated": "2026-11-27T21:41:45.593Z",
+   "by": "Giz",
+   "via": "editor"
   }
  }
 }
