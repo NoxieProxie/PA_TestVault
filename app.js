@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 15:00';
+const BUILD_AT = '2026-11-27 15:19';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1683,9 +1683,9 @@ function renderAcct(){
 function handleAuthHash(h){
   if(h.startsWith('discord=')){ LS.set('nw_discord',h.slice(8)); OWNER=null; const u=dUser(); const after=LS.get('nw_after_login','')||'myloadouts'; LS.del('nw_after_login');
     try{ history.replaceState(null,'','#'+after); }catch(e){}
-    if(['builds','bosses','calc','gear','items','myloadouts','review','admin'].includes(after)) openView(after,false);
+    if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs'].includes(after)) openView(after,false);
     else { const hit=Object.keys(NAMES).find(n=>slug(n)===after); hit?openNote(hit,false):openView('myloadouts',false); }
-    renderAcct(); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
+    renderAcct(); if(typeof renderPinMenu==='function') renderPinMenu(); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
   if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); const why=(h.match(/why=([a-z]+)/)||[])[1]||''; const WHY={discord:'you cancelled on Discord',nocode:'Discord sent nothing back',nocookie:'it took too long, or your browser blocked the login cookie',state:'another login was started in a different tab',token:'Discord refused the login code',user:'Discord would not share your profile'}; toast('Discord login did not finish'+(WHY[why]?': '+WHY[why]:'')+'. Try again.'); return true; }
   return false;
 }
@@ -2924,26 +2924,96 @@ function trophyEvents(){
 }
 
 /* ================= favourites: your own folders of items, recipes, builds and pages =================
-   Saved in this browser (localStorage 'nw_favs').
+   Needs a Discord login. Saved to your Discord account through the helper worker (/favs), with a copy in
+   this browser ('nw_favs_u_<discord id>') so the page shows them straight away.
    FAV = { folders:[ {id, name, desc, icon, made, items:[ {t:'item'|'recipe'|'note', id, note, at} ]} ] }
    icon is 'ui:<key>' (vault icons in ui/), 'item:<item name>' or 'rcp:<recipe id>'. */
-let FAV = LS.get('nw_favs', null) || {folders:[]};
+let FAV = {folders:[]}, FAVUID = null, FAVSTATE = 'out', FAVERR = '', FAVTIMER = null;
 let FAVSEL = '', FAVTYPE = '';
 const FAV_UI = ['builds','gear','items','calc','recipe','weight','trophy','buildbrowser','bosses','raids','pvp','war','outpost','craft','grind','refs','loadouts','tools','home','page','admin','mypages'];
-const FAV_T = {item:'Item', recipe:'Recipe', note:'Page'};
+const FAV_T = {item:'Item', gear:'Gear', abil:'Abilities', recipe:'Recipe', note:'Page'};
+/* gear goes in slots, one thing per slot (two for weapons); recipes and pages can hold as many as you like */
+const FAV_SLOTS = ['Weapon 1','Weapon 2','Shield','Helmet','Chest','Gloves','Pants','Boots','Amulet','Ring','Earring','Heartrune'];
+const FAV_SECT = [
+  ['Weapons', x=>['Weapon 1','Weapon 2','Shield'].includes(x.s), ['Weapon 1','Weapon 2','Shield']],
+  ['Armour', x=>['Helmet','Chest','Gloves','Pants','Boots'].includes(x.s), ['Helmet','Chest','Gloves','Pants','Boots']],
+  ['Jewellery and heart rune', x=>['Amulet','Ring','Earring','Heartrune'].includes(x.s), ['Amulet','Ring','Earring','Heartrune']],
+  ['Abilities', x=>x.t==='abil'],
+  ['Recipes', x=>x.t==='recipe'],
+  ['Builds and pages', x=>x.t==='note'],
+  ['Other items', x=>x.t==='item'&&!x.s]];
+const favSlotName = s => s==='Heartrune' ? 'Heart rune' : s;
+const favSame = (a,b) => a.t===b.t && a.id===b.id;
+function favItemSlot(id){ const it=itemByName(id); if(!it) return ''; return it.s==='Weapon'?'Weapon':(FAV_SLOTS.includes(it.s)?it.s:''); }
+/* a stand-in picture for "Crafted legendary" gear: the first real item of that weapon type or armour weight */
+function favRepItem(e){
+  if(typeof ITEMDB==='undefined'||!ITEMDB) return null;
+  const s=e.s.startsWith('Weapon')?'Weapon':e.s;
+  return ITEMDB.items.find(i=>i.x>=0&&i.s===s&&(s==='Weapon'?i.t===e.wt:(!e.wt||!['Light','Medium','Heavy'].includes(e.wt)||i.w===e.wt)))||ITEMDB.items.find(i=>i.x>=0&&i.s===s)||null;
+}
+/* everything a build's Full loadout table holds, as favourites */
+function favBuildEntries(name){
+  const L=typeof parseLoadout==='function'?parseLoadout(name):null; if(!L) return [];
+  const out=[];
+  FAV_SLOTS.forEach(s=>{ const r=L.slots[s]; if(!r||!(r.item||r.type)) return;
+    out.push({t:'gear', id:s+'|'+name, s, n:r.item, wt:r.type, gem:r.gem, p:(r.p||[]).filter(Boolean), ch:r.ch, from:name}); });
+  (L.abil||[]).forEach(x=>{ if(x.a.length) out.push({t:'abil', id:'abil|'+x.w, s:'Abilities: '+x.w, w:x.w, a:x.a.slice(0,3), from:name}); });
+  return out;
+}
+const favHasLoadout = n => !!(NAMES[n] && /\n## Full loadout/.test('\n'+META[NAMES[n]].body));
 
 // pages pinned with the old Pin button move into a folder once
 (function(){
   if(LS.get('nw_favs_mig',0)) return;
-  const old = LS.get('nw_pins', []);
-  if(old.length && !FAV.folders.length)
-    FAV.folders.push({id:favId(), name:'Pinned pages', desc:'Pages you pinned before folders existed.', icon:'ui:page', made:Date.now(),
+  const old = LS.get('nw_pins', []), pre = LS.get('nw_favs', null) || {folders:[]};
+  if(old.length && !pre.folders.length)
+    pre.folders.push({id:favId(), name:'Pinned pages', desc:'Pages you pinned before folders existed.', icon:'ui:page', made:Date.now(),
       items:old.map(n=>({t:'note', id:n, note:'', at:Date.now()}))});
-  LS.set('nw_favs', FAV); LS.set('nw_favs_mig', 1);
+  if(pre.folders.length) LS.set('nw_favs', pre); LS.set('nw_favs_mig', 1);
 })();
 
 function favId(){ return Math.random().toString(36).slice(2,9); }
-function favSave(){ if(!LS.set('nw_favs', FAV)) toast('Could not save: this browser\'s storage is full'); }
+/* ---------- your account ---------- */
+const favUser = () => (typeof dUser==='function' && typeof CFG!=='undefined' && CFG.worker) ? dUser() : null;
+async function favApi(body){
+  const r = await fetch(CFG.worker+'/favs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pass:dPass(), ...body})});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(r.status===401){ LS.del('nw_discord'); FAVUID=null; FAVSTATE='out'; if(typeof renderAcct==='function') renderAcct(); }
+  if(!r.ok) throw Object.assign(new Error(d.error||('error '+r.status)), {status:r.status});
+  return d;
+}
+function favEnsure(){
+  const u = favUser();
+  if(!u){ if(FAVSTATE!=='out'){ FAV={folders:[]}; FAVUID=null; FAVSTATE='out'; } return; }
+  if(u.id===FAVUID) return;
+  FAVUID = u.id; FAV = LS.get('nw_favs_u_'+u.id, null) || {folders:[]}; FAVSTATE = 'loading';
+  favApi({op:'get'}).then(async d=>{
+    if(FAVUID!==u.id) return;
+    const pre = LS.get('nw_favs', null);   // favourites made in this browser before logging in
+    FAV = d.data && Array.isArray(d.data.folders) ? {folders:d.data.folders} : FAV;
+    if(pre && pre.folders && pre.folders.length){
+      pre.folders.forEach(f=>{ const same=FAV.folders.find(x=>x.name.toLowerCase()===f.name.toLowerCase());
+        if(!same) FAV.folders.push(f); else f.items.forEach(x=>{ if(!same.items.some(y=>y.t===x.t&&y.id===x.id)) same.items.push(x); }); });
+      LS.del('nw_favs'); favSave(true); toast('Moved the favourites from this browser into your account');
+    }
+    LS.set('nw_favs_u_'+u.id, FAV); FAVSTATE='ready'; favRerender();
+  }).catch(e=>{ if(FAVUID!==u.id) return; FAVSTATE = e.status===401 ? 'out' : 'error'; FAVERR = e.status===503 ? 'Favourites aren\'t switched on for this site yet.' : 'Couldn\'t load your favourites ('+e.message+').'; favRerender(); });
+}
+function favRerender(){ favRefreshButtons(); if(current&&current.kind==='view'&&current.v==='favs') openView('favs',false); }
+function favSave(now){
+  if(!FAVUID) return;
+  LS.set('nw_favs_u_'+FAVUID, FAV);
+  clearTimeout(FAVTIMER);
+  const send=()=>favApi({op:'put', data:FAV}).catch(e=>toast('Couldn\'t save your favourites to Discord: '+e.message));
+  if(now) send(); else FAVTIMER=setTimeout(send, 1500);   // a burst of changes goes up as one save
+}
+window.addEventListener('pagehide',()=>{ if(FAVTIMER&&FAVUID){ clearTimeout(FAVTIMER); FAVTIMER=null;
+  try{ navigator.sendBeacon && navigator.sendBeacon(CFG.worker+'/favs', new Blob([JSON.stringify({pass:dPass(), op:'put', data:FAV})],{type:'text/plain'})); }catch(e){} } });
+function favLoginBox(why){
+  return `<div class="favlogin"><p>${why} Favourites are saved to your Discord account, so they follow you to any device. Only you can see them.</p>
+    <a class="dbtn" href="${esc(loginHref())}" data-favlogin="1">Log in with Discord</a></div>`;
+}
+document.addEventListener('click', e=>{ if(e.target.closest('[data-favlogin]') && typeof rememberReturn==='function') rememberReturn(); }, true);
 function favFolder(id){ return FAV.folders.find(f=>f.id===id); }
 function favHas(t,id){ return FAV.folders.filter(f=>f.items.some(x=>x.t===t&&x.id===id)); }
 
@@ -2952,6 +3022,12 @@ function favLookup(x){
   if(x.t==='item'){ const it=itemByName(x.id); return it ? {name:it.n, icon:s=>itemIcon(it,s),
       meta:[it.s, it.t, it.g?'GS '+it.g:'', it.r].filter(Boolean).join(' · '), open:()=>{ IQ.q=it.n; IQ.slot=''; IQ.rar=''; IQ.wt=''; IQ.page=0; openView('items'); }}
     : {name:x.id, icon:s=>favIcon('ui:items',s), meta:'Item (not in this season\'s item list)', open:()=>{}}; }
+  if(x.t==='gear'){ const real=x.n&&!/^crafted/i.test(x.n)?itemByName(x.n):null; const rep=real||favRepItem(x);
+    const nm=real?real.n:(x.n&&!/^crafted/i.test(x.n)?x.n:`${x.n||'Crafted'} ${x.wt&&x.wt!=='–'?x.wt+' ':''}${x.s.startsWith('Weapon')?'':favSlotName(x.s).toLowerCase()}`.trim());
+    return {name:nm, icon:s=>rep?itemIcon(rep,s):favIcon('ui:gear',s), meta:[favSlotName(x.s), x.wt].filter(Boolean).join(' · '),
+      open:()=>{ if(real){ IQ.q=real.n; IQ.slot=''; IQ.rar=''; IQ.wt=''; IQ.page=0; openView('items'); } else if(x.from&&NAMES[x.from]) openNote(x.from); }}; }
+  if(x.t==='abil') return {name:x.w+' abilities', icon:s=>{ const u=typeof icoFor==='function'&&x.a[0]?icoFor(x.a[0],x.w):''; return u?`<img class="fi" src="${u}" alt="" width="${s}" height="${s}">`:favIcon('ui:calc',s); },
+      meta:x.a.join(' · '), open:()=>{ if(x.from&&NAMES[x.from]) openNote(x.from); }};
   if(x.t==='recipe'){
     if(typeof CR==='undefined'||!CR) return {name:x.label||x.id, icon:s=>`<span class="iic none" style="width:${s}px;height:${s}px"></span>`, meta:'Recipe', open:()=>favOpenRecipe(x.id), wait:true};
     const r=CR.byId[x.id]; return r ? {name:r.n, icon:s=>crIcon(r.o,s), meta:[r.ts&&(r.ts+(r.lv?' '+r.lv:'')), r.cat, r.gs?'GS '+r.gs:''].filter(Boolean).join(' · '), open:()=>favOpenRecipe(x.id)}
@@ -2971,6 +3047,7 @@ const favDefaultIcon = (t,id) => t==='item' ? 'item:'+id : t==='recipe' ? 'rcp:'
 
 /* ---------- the button on items, recipes, build cards and pages ---------- */
 function favBtn(t,id,cls){
+  favEnsure();
   const on=favHas(t,id).length;
   if(cls==='card') return `<button class="peekbtn favc ${on?'on':''}" data-fav="${t}" data-id="${esc(id)}" title="${on?'In your favourites':'Add to favourites'}" aria-label="${on?'In your favourites':'Add to favourites'}">${on?'&#9733;':'&#9734;'}</button>`;
   return `<button class="${cls||'mini'} favb ${on?'on':''}" data-fav="${t}" data-id="${esc(id)}">${on?'&#9733; Saved':'&#9734; Favourite'}</button>`;
@@ -2983,7 +3060,10 @@ function favRefreshButtons(){
 }
 document.addEventListener('click', e=>{
   const b=e.target.closest('[data-fav]'); if(!b) return;
-  e.preventDefault(); e.stopPropagation(); favPick(b.dataset.fav, b.dataset.id, b.dataset.label||'');
+  e.preventDefault(); e.stopPropagation(); favEnsure();
+  if(FAVSTATE==='out'){ favPop('Favourites need a Discord login', favLoginBox('Log in with Discord to save this to a folder.')); return; }
+  if(FAVSTATE==='error'){ toast(FAVERR); return; }
+  favPick(b.dataset.fav, b.dataset.id, b.dataset.label||'');
 }, true);
 
 /* ---------- pop-up: choose folders, or make a new one ---------- */
@@ -2997,26 +3077,70 @@ function favPop(title, inner){
   m.onclick=e=>{ if(e.target===m||e.target.closest('.peekx')) favClose(); };
   return m;
 }
+/* add entries to a folder; anything that would take an occupied slot asks first */
+function favAdd(f, entries, done){
+  const add=[], ask=[];
+  for(const e0 of entries){ const e={...e0, note:e0.note||'', at:Date.now()};
+    if(f.items.some(y=>favSame(y,e))) continue;
+    if(e.s==='Weapon'){   // a weapon from the item list: the first free weapon slot, or ask which to swap
+      const w1=f.items.find(y=>y.s==='Weapon 1'), w2=f.items.find(y=>y.s==='Weapon 2');
+      if(!w1){ e.s='Weapon 1'; add.push(e); } else if(!w2){ e.s='Weapon 2'; add.push(e); } else ask.push({e, opts:[w1,w2]});
+      continue; }
+    const old=e.s?f.items.find(y=>y.s===e.s&&!favSame(y,e)):null;
+    old ? ask.push({e, opts:[old]}) : add.push(e);
+  }
+  const apply=(swaps)=>{ add.forEach(e=>f.items.push(e));
+    swaps.forEach(({e,old})=>{ if(old){ e.s=old.s; f.items=f.items.filter(y=>y!==old); f.items.push(e); } });
+    favSave(); done(add.length+swaps.filter(x=>x.old).length); };
+  if(!ask.length) return apply([]);
+  const box=document.querySelector('#favpop .favin');
+  box.innerHTML=`<div class="favask"><div class="sh">“${esc(f.name)}” already has ${ask.length===1?'something in this slot':'things in these slots'}</div>
+    <p class="dimtx tiny">Tick what to replace with the new pick. Anything left unticked stays as it is.${add.length?` ${add.length} other thing${add.length===1?'':'s'} will be added either way.`:''}</p>
+    ${ask.map((q,i)=>{ const N=favLookup(q.e);
+      return `<div class="favswap"><div class="favswapnew">${N.icon(36)}<div><b>${esc(N.name)}</b><div class="dimtx tiny">New${q.e.from?' · from '+esc(q.e.from):''}</div></div></div>
+        ${q.opts.map((o,k)=>{ const O=favLookup(o); return `<label class="favswapold"><input type="${q.opts.length>1?'radio':'checkbox'}" name="fsw${i}" data-sw="${i}" data-k="${k}" ${k===0?'checked':''}>
+          <span class="favslot">${esc(favSlotName(o.s||''))}</span>${O.icon(28)}<span>Replace <b>${esc(O.name)}</b></span></label>`; }).join('')}
+        ${q.opts.length>1?`<label class="favswapold"><input type="radio" name="fsw${i}" data-sw="${i}" data-k="-1"><span>Keep both weapons, skip this one</span></label>`:''}</div>`; }).join('')}
+    <div class="lbtns"><button class="mini go" data-swgo>Save</button><button class="mini" data-swno>Cancel</button></div></div>`;
+  box.querySelector('[data-swgo]').onclick=()=>{
+    const swaps=ask.map((q,i)=>{ const c=box.querySelector(`[data-sw="${i}"]:checked`); const k=c?+c.dataset.k:-1; return {e:q.e, old:k>=0?q.opts[k]:null}; });
+    apply(swaps); };
+  box.querySelector('[data-swno]').onclick=()=>{ done(-1); };
+}
 function favPick(t,id){
   if(t==='recipe' && typeof CR!=='undefined' && !CR && typeof loadCrafting==='function') loadCrafting();
-  const L=favLookup({t,id});
+  const L=favLookup({t,id}); const isBuild=t==='note'&&favHasLoadout(id);
+  const main=()=>({t, id, s:t==='item'?favItemSlot(id):''});
+  let withGear=isBuild;
+  const entries=()=>[main(), ...(withGear?favBuildEntries(id):[])];
   const list=()=>FAV.folders.map(f=>{ const has=f.items.some(x=>x.t===t&&x.id===id);
     return `<label class="favrow ${has?'on':''}"><input type="checkbox" data-ff="${f.id}" ${has?'checked':''}>${favIcon(f.icon,30)}<span><b>${esc(f.name)}</b><small>${f.items.length} saved</small></span></label>`; }).join('');
-  const m=favPop('Add to favourites', `
-    <div class="favwhat">${L.icon(40)}<div><b>${esc(L.name)}</b><div class="dimtx tiny">${esc(FAV_T[t])}${L.meta?' · '+esc(L.meta):''}</div></div></div>
+  const slot=t==='item'?favItemSlot(id):'';
+  const body=()=>`
+    <div class="favwhat">${L.icon(40)}<div><b>${esc(L.name)}</b><div class="dimtx tiny">${esc(FAV_T[t])}${slot?' · '+esc(slot==='Weapon'?'weapon slot':favSlotName(slot)+' slot'):''}${L.meta?' · '+esc(L.meta):''}</div></div></div>
+    ${isBuild?`<label class="favopt"><input type="checkbox" id="favgear" ${withGear?'checked':''}> Also add the build's weapons, armour, jewellery and abilities, each in its own slot</label>`:''}
+    ${slot?`<p class="dimtx tiny favrule">Each folder holds one ${slot==='Weapon'?'pair of weapons':favSlotName(slot).toLowerCase()}. If the folder already has one, you'll be asked whether to replace it.</p>`:''}
     <div class="favlist">${list()||'<p class="dimtx">You have no folders yet. Make your first one below.</p>'}</div>
-    <div class="favnew"><div class="sh">New folder</div>${favForm({name:'',desc:'',icon:favDefaultIcon(t,id)},'Create folder and add')}</div>`);
-  const wireList=()=>m.querySelectorAll('[data-ff]').forEach(cb=>cb.onchange=()=>{
-    const f=favFolder(cb.dataset.ff); if(!f) return;
-    if(cb.checked){ if(!f.items.some(x=>x.t===t&&x.id===id)) f.items.unshift({t,id,note:'',at:Date.now()}); toast(`Added to ${f.name}`); }
-    else { f.items=f.items.filter(x=>!(x.t===t&&x.id===id)); toast(`Removed from ${f.name}`); }
-    cb.closest('.favrow').classList.toggle('on',cb.checked); cb.closest('.favrow').querySelector('small').textContent=f.items.length+' saved';
-    favSave(); });
-  wireList();
-  favFormEvents(m, v=>{
-    const f={id:favId(), name:v.name, desc:v.desc, icon:v.icon, made:Date.now(), items:[{t,id,note:'',at:Date.now()}]};
-    FAV.folders.push(f); favSave(); toast(`Made “${f.name}” and added ${L.name}`); favClose();
-  });
+    <div class="favnew"><div class="sh">New folder</div>${favForm({name:'',desc:'',icon:favDefaultIcon(t,id)},'Create folder and add')}</div>`;
+  const m=favPop('Add to favourites', body());
+  const wire=()=>{
+    const g=m.querySelector('#favgear'); if(g) g.onchange=()=>{ withGear=g.checked; };
+    m.querySelectorAll('[data-ff]').forEach(cb=>cb.onchange=()=>{
+      const f=favFolder(cb.dataset.ff); if(!f) return;
+      if(cb.checked){
+        favAdd(f, entries(), n=>{ if(n<0){ m.querySelector('.favin').innerHTML=body(); wire(); return; }
+          toast(n?`Added to ${f.name}`:`Already in ${f.name}`); m.querySelector('.favin').innerHTML=body(); wire(); });
+      } else {
+        f.items=f.items.filter(x=>!(x.t===t&&x.id===id) && !(isBuild&&x.from===id));
+        favSave(); toast(isBuild?`Removed the build and its gear from ${f.name}`:`Removed from ${f.name}`);
+        m.querySelector('.favin').innerHTML=body(); wire();
+      } });
+    favFormEvents(m, v=>{
+      const f={id:favId(), name:v.name, desc:v.desc, icon:v.icon, made:Date.now(), items:[]};
+      FAV.folders.push(f); favAdd(f, entries(), ()=>{ toast(`Made “${f.name}” and added ${L.name}`); favClose(); });
+    });
+  };
+  wire();
 }
 
 /* folder form: name, description, icon picker */
@@ -3051,12 +3175,16 @@ function favFormEvents(root, done){
 
 /* ---------- the Favourites tab menu ---------- */
 function favMenu(){
+  favEnsure();
+  if(FAVSTATE==='out') return `<div class="mn">Favourites need a Discord login. Log in to make folders of items, recipes, builds and pages.</div><a class="mi hi" href="${esc(loginHref())}" data-favlogin="1">${ui('loadouts')}Log in with Discord</a>`;
+  if(FAVSTATE==='error') return `<div class="mn">${esc(FAVERR)}</div>`;
   const fs=FAV.folders;
   return (fs.length ? fs.map(f=>`<a class="mi favmi" data-favopen="${f.id}">${favIcon(f.icon,22)}<span>${esc(f.name)}</span><span class="cnt">${f.items.length}</span></a>`).join('')
                     : `<div class="mn">Press &#9734; Favourite on an item, recipe, build or page to start a folder.</div>`)
     + `<a class="mi hi" data-view="favs">${ui('loadouts')}All folders</a>`;
 }
 function renderPinMenu(){
+  if(typeof favMenu!=='function') return;
   const m=document.getElementById('favmenu'); if(m) m.innerHTML=favMenu();
   const c=document.getElementById('favcount'); if(c){ const n=FAV.folders.reduce((a,f)=>a+f.items.length,0); c.textContent=n?n:''; }
 }
@@ -3069,10 +3197,14 @@ document.addEventListener('click', e=>{
 
 /* ---------- the Favourites page ---------- */
 function viewFavs(){
+  favEnsure();
+  if(FAVSTATE==='out') return `<div id="favview"><h1>Favourites</h1><p class="lede">Make your own folders of items, recipes, builds and pages, each with a name, a description and an icon you choose.</p>${favLoginBox('You need to be logged in with Discord to use favourites.')}</div>`;
+  if(FAVSTATE==='error') return `<div id="favview"><h1>Favourites</h1><p class="bad">${esc(FAVERR)}</p></div>`;
+  if(FAVSTATE==='loading' && !FAV.folders.length) return `<div id="favview"><h1>Favourites</h1><p class="dimtx">Loading your favourites&hellip;</p></div>`;
   const f=FAVSEL&&favFolder(FAVSEL);
   if(!f){ FAVSEL='';
     return `<div id="favview"><h1>Favourites</h1>
-    <p class="lede">Your own folders of items, recipes, builds and pages. They're kept in this browser, so they stay private to you.</p>
+    <p class="lede">Your own folders of items, recipes, builds and pages. They're saved to your Discord account${favUser()?' ('+esc(favUser().name)+')':''}, so they follow you to any device, and only you can see them.</p>
     <div class="lbtns"><button class="mini go" id="favnew">&#65291; New folder</button></div>
     <div id="favnewbox" hidden class="slot lcard favnewbox">${favForm({name:'',desc:'',icon:'ui:builds'},'Create folder')}</div>
     <div class="count">${FAV.folders.length} folder${FAV.folders.length===1?'':'s'}</div>
@@ -3082,24 +3214,29 @@ function viewFavs(){
         <div class="favstrip">${f.items.slice(0,8).map(x=>favLookup(x).icon(26)).join('')}</div></div>`).join('')
       ||'<p class="empty">No folders yet. Make one here, or press &#9734; Favourite on an item, recipe, build card or page.</p>'}</div></div>`;
   }
-  const items=f.items.filter(x=>!FAVTYPE||x.t===FAVTYPE);
-  const types=['item','recipe','note'].filter(t=>f.items.some(x=>x.t===t));
   if(f.items.some(x=>x.t==='recipe') && typeof CR!=='undefined' && !CR && typeof loadCrafting==='function') loadCrafting().then(()=>{ if(current&&current.v==='favs') openView('favs',false); });
-  return `<div id="favview"><div class="crumb"><a href="#" class="wl" data-favall="1">&larr; All folders</a></div>
-  <div class="favhead">${favIcon(f.icon,64)}<div><h1>${esc(f.name)}</h1>${f.desc?`<p class="lede">${esc(f.desc)}</p>`:''}</div>
-    <div class="lbtns"><button class="mini" id="favedit">&#9998; Edit folder</button><button class="mini" id="favdel">Delete folder</button></div></div>
-  <div id="faveditbox" hidden class="slot lcard favnewbox">${favForm(f,'Save changes')}</div>
-  ${types.length>1?`<div class="filters" data-h="Show"><div class="frow">${['',...types].map(t=>`<button class="chip ${FAVTYPE===t?'on':''}" data-favtype="${t}">${t?FAV_T[t]+'s':'All'}</button>`).join('')}</div></div>`:''}
-  <div class="count">${items.length} of ${f.items.length}</div>
-  <div class="cards">${items.map(x=>{ const L=favLookup(x), k=x.t+'|'+x.id; const others=FAV.folders.filter(o=>o.id!==f.id);
+  const others=FAV.folders.filter(o=>o.id!==f.id);
+  const card=x=>{ const L=favLookup(x), k=x.t+'|'+x.id;
+    const extra = x.t==='gear' ? `${x.gem||x.p.length?`<div class="iperks">${[x.gem,...x.p].filter(Boolean).map(p=>`<span>${typeof icoFor==='function'&&icoFor(p)?`<img class="ico" src="${icoFor(p)}" alt="">`:''}${esc(p)}</span>`).join('')}</div>`:''}${x.ch?`<div class="dimtx tiny">Charm: ${esc(x.ch)}</div>`:''}`
+      : x.t==='abil' ? `<div class="iperks">${x.a.map(a=>`<span>${typeof icoFor==='function'&&icoFor(a,x.w)?`<img class="ico" src="${icoFor(a,x.w)}" alt="">`:''}${esc(a)}</span>`).join('')}</div>` : '';
     return `<div class="card favitem" data-favgo="${esc(k)}">
-      <div class="favch">${L.icon(44)}<div><div class="ct">${esc(L.name)}</div><div class="dimtx tiny">${esc(FAV_T[x.t])}${L.meta?' · '+esc(L.meta):''}</div></div></div>
+      <div class="favch">${L.icon(44)}<div>${x.s&&x.t!=='abil'?`<span class="favslot">${esc(favSlotName(x.s))}</span>`:''}<div class="ct">${esc(L.name)}</div><div class="dimtx tiny">${esc(x.t==='gear'||x.t==='abil'?(x.from?'From '+x.from:FAV_T[x.t]):FAV_T[x.t]+(L.meta?' · '+L.meta:''))}</div></div></div>
+      ${extra}
       ${x.note?`<div class="cs favnote">${esc(x.note)}</div>`:''}
       <div class="favact">
         <button class="mini" data-favnote="${esc(k)}">&#9998; ${x.note?'Edit note':'Add a note'}</button>
         ${others.length?`<select class="mini" data-favmove="${esc(k)}" aria-label="Move to another folder"><option value="">Move to&hellip;</option>${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>`:''}
-        <button class="mini" data-favrm="${esc(k)}">Remove</button></div></div>`; }).join('')
-    ||`<p class="empty">Nothing here yet. Press &#9734; Favourite on an item, recipe, build card or page and tick “${esc(f.name)}”.</p>`}</div></div>`;
+        <button class="mini" data-favrm="${esc(k)}">Remove</button></div></div>`; };
+  const secs=FAV_SECT.map(([h,test,slots])=>{ const l=f.items.filter(test); if(!l.length) return '';
+    if(slots) l.sort((a,b)=>slots.indexOf(a.s)-slots.indexOf(b.s));
+    const empty=slots?slots.filter(s=>!l.some(x=>x.s===s)&&s!=='Shield'&&s!=='Heartrune'):[];
+    return `<section class="favsec"><h2>${esc(h)} <span class="seccnt">${l.length}</span></h2><div class="cards">${l.map(card).join('')}
+      ${empty.map(s=>`<div class="card favempty"><span class="favslot">${esc(favSlotName(s))}</span><span class="dimtx tiny">Empty. Favourite ${/^[AEIOU]/.test(s)?'an':'a'} ${esc(s.startsWith('Weapon')?'weapon':favSlotName(s).toLowerCase())} to fill it.</span></div>`).join('')}</div></section>`; }).join('');
+  return `<div id="favview"><div class="crumb"><a href="#" class="wl" data-favall="1">&larr; All folders</a></div>
+  <div class="favhead">${favIcon(f.icon,64)}<div><h1>${esc(f.name)}</h1>${f.desc?`<p class="lede">${esc(f.desc)}</p>`:''}</div>
+    <div class="lbtns"><button class="mini" id="favedit">&#9998; Edit folder</button><button class="mini" id="favdel">Delete folder</button></div></div>
+  <div id="faveditbox" hidden class="slot lcard favnewbox">${favForm(f,'Save changes')}</div>
+  ${secs||`<p class="empty">Nothing here yet. Press &#9734; Favourite on an item, recipe, build card or page and tick “${esc(f.name)}”.</p>`}</div>`;
 }
 function favsEvents(){
   const main=document.getElementById('favview'); if(!main) return;
@@ -3115,7 +3252,6 @@ function favsEvents(){
   del.onclick=()=>{ if(del.dataset.sure){ FAV.folders=FAV.folders.filter(x=>x!==f); favSave(); renderPinMenu(); FAVSEL=''; openView('favs',false); toast(`Deleted “${f.name}”`); return; }
     del.dataset.sure=1; del.textContent=`Delete “${f.name}” and its ${f.items.length} favourites?`; del.classList.add('danger'); };
   main.onclick=e=>{
-    const ty=e.target.closest('[data-favtype]'); if(ty){ FAVTYPE=ty.dataset.favtype; openView('favs',false); return; }
     const al=e.target.closest('[data-favall]'); if(al){ e.preventDefault(); e.stopPropagation(); FAVSEL=''; openView('favs',false); return; }
     const rm=e.target.closest('[data-favrm]'); if(rm){ e.stopPropagation(); const x=find(rm.dataset.favrm); f.items=f.items.filter(y=>y!==x); favSave(); renderPinMenu(); openView('favs',false); toast('Removed'); return; }
     const nt=e.target.closest('[data-favnote]'); if(nt){ e.stopPropagation(); const x=find(nt.dataset.favnote); const card=nt.closest('.card');
@@ -3129,8 +3265,9 @@ function favsEvents(){
   };
   main.querySelectorAll('[data-favmove]').forEach(s=>s.onchange=()=>{
     const x=find(s.dataset.favmove), to=favFolder(s.value); if(!x||!to) return;
-    f.items=f.items.filter(y=>y!==x); if(!to.items.some(y=>y.t===x.t&&y.id===x.id)) to.items.unshift(x);
-    favSave(); renderPinMenu(); openView('favs',false); toast(`Moved to ${to.name}`); });
+    const go=()=>{ favPop('Move to '+to.name,'<p class="dimtx">Checking the folder&hellip;</p>');
+      favAdd(to, [{...x, s:x.t==='item'&&x.s&&x.s.startsWith('Weapon')?'Weapon':x.s}], n=>{ if(n>=0){ f.items=f.items.filter(y=>y!==x); favSave(); toast(`Moved to ${to.name}`); } favClose(); renderPinMenu(); openView('favs',false); }); };
+    go(); });
 }
 
 /* ---------- boot ---------- */

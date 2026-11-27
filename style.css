@@ -651,3 +651,20 @@ img.fi{display:inline-block;vertical-align:middle;filter:drop-shadow(0 2px 3px #
 .favnoteed textarea{width:100%;box-sizing:border-box;font:inherit}
 .mini.danger{color:#ff9a8a;border-color:#a8473b}
 .favnewbox[hidden],.favpick[hidden]{display:none}
+.favlogin{background:var(--bg2);border:1px solid var(--line);border-left:3px solid #5865f2;border-radius:10px;padding:14px 16px;max-width:640px}
+.favlogin p{margin:0 0 12px;color:var(--dim)}
+.favsec{margin:18px 0 6px}
+.favsec>h2{display:flex;align-items:center;gap:10px;font-size:22px;margin:0 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.favsec>h2 .seccnt{margin-left:0}
+.favslot{display:inline-block;font-size:11px;color:var(--gold);border:1px solid #5a4a2a;border-radius:5px;padding:0 6px;margin-bottom:3px}
+.favempty{border-style:dashed;display:flex;flex-direction:column;gap:6px;justify-content:center;min-height:86px;background:transparent}
+.favopt{display:flex;gap:9px;align-items:flex-start;background:var(--bg3);border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:10px;cursor:pointer}
+.favopt input{accent-color:var(--gold);margin-top:3px}
+.favrule{margin:-2px 0 10px}
+.favask .sh{margin-bottom:4px}
+.favswap{border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0;background:var(--bg3)}
+.favswapnew{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.favswapnew b{color:var(--gold2)}
+.favswapold{display:flex;gap:9px;align-items:center;padding:6px 4px;cursor:pointer;border-top:1px solid var(--line)}
+.favswapold input{accent-color:var(--gold)}
+.favitem .iperks{margin-top:6px}
