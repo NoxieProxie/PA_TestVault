@@ -1,0 +1,20 @@
+@font-face{font-family:"Cardo";src:url(fonts/Cardo-Regular.woff) format("woff");font-weight:400;font-display:swap}
+@font-face{font-family:"Cardo";src:url(fonts/Cardo-Bold.woff) format("woff");font-weight:700;font-display:swap}
+@font-face{font-family:"Source Sans 3";src:url(fonts/SourceSans3.woff) format("woff");font-weight:200 900;font-display:swap}
+:root{--bg:#0d1316;--bg2:#131c1f;--line:#283639;--fg:#ebe4d3;--dim:#9aa7a4;--gold:#cfa557;--gold2:#e6c37c;--azoth:#6cc7b7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 "Source Sans 3","Segoe UI",system-ui,sans-serif}
+header{border-bottom:1px solid var(--line);padding:14px 24px}
+header a{font:700 20px "Cardo",Georgia,serif;color:var(--gold2);text-decoration:none}
+main{max-width:46rem;margin:0 auto;padding:36px 24px 72px}
+h1{font:700 2.6rem/1.1 "Cardo",Georgia,serif;color:var(--gold2);margin:0 0 6px}
+h2{font:700 1.45rem/1.25 "Cardo",Georgia,serif;color:var(--gold2);margin:2.1em 0 .5em}
+.date{color:var(--dim);margin:0 0 1.6em}
+a{color:var(--azoth)}
+table{width:100%;border-collapse:collapse;margin:.8em 0 1.2em;font-size:15.5px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--dim);font-weight:600}
+td:first-child{font-weight:600;width:28%}
+.note{background:var(--bg2);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:8px;padding:12px 16px}
+footer{color:var(--dim);font-size:14.5px;border-top:1px solid var(--line);margin-top:3em;padding-top:1em}
+@media(max-width:560px){ td:first-child{width:auto} table,thead,tbody,tr,th,td{font-size:15px} }

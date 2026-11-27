@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 15:37';
+const BUILD_AT = '2026-11-27 16:10';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -256,7 +256,7 @@ function renderDataMenu(){
      ${(typeof canWrite==='function'&&canWrite()&&!GHMODE)?`<div class="mn tiny">Pick the <b>New World</b> folder in your vault. ${(typeof CMODE!=='undefined'&&CMODE==='db'&&IS_OWNER)?'The pages are saved into this page\'s own storage, so they stay put between sessions and show on every device. Only you can change them.':'The page reads the .md files in your browser and remembers them in this browser.'}</div>`:''}
      ${SRC!=='snapshot'&&typeof canWrite==='function'&&canWrite()&&!GHMODE?`<a class="mi" id="resetdata">&#8634; Back to the built-in snapshot</a>`:''}
      ${(typeof canWrite==='function'&&canWrite())?`<div class="mh">Adding or changing things</div>
-     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}`;
+     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}<div class="mh">About</div><a class="mi" href="terms.html">Terms of Service</a><a class="mi" href="privacy.html">Privacy Policy</a>`;
   const pf=document.getElementById('pickfolder'); if (pf) pf.onclick=pickFolder;
   const rd=document.getElementById('resetdata');
   if (rd) rd.onclick=async ()=>{ LS.del('nw_vault'); LS.del('nw_vault_at'); if(typeof clearVaultDb==='function') await clearVaultDb(); location.reload(); };
@@ -3263,7 +3263,8 @@ function viewFavs(){
         <div class="favch">${favIcon(f.icon,48)}<div><div class="ct">${esc(f.name)}</div><div class="dimtx tiny">${f.items.length} saved</div></div></div>
         ${f.desc?`<div class="cs">${esc(f.desc)}</div>`:''}
         <div class="favstrip">${f.items.slice(0,8).map(x=>favLookup(x).icon(26)).join('')}</div></div>`).join('')
-      ||'<p class="empty">No folders yet. Make one here, or press &#9734; Favourite on an item, recipe, build card or page.</p>'}</div></div>`;
+      ||'<p class="empty">No folders yet. Make one here, or press &#9734; Favourite on an item, recipe, build card or page.</p>'}</div>
+    <div class="favfoot"><button class="mini" id="favwipe">Delete all my favourites</button><span class="dimtx tiny">Removes every folder from your Discord account. <a href="privacy.html">Privacy Policy</a></span></div></div>`;
   }
   if(f.items.some(x=>['recipe','item','gear'].includes(x.t)) && typeof CR!=='undefined' && !CR && typeof loadCrafting==='function') loadCrafting().then(()=>{ if(current&&current.v==='favs') openView('favs',false); });
   const others=FAV.folders.filter(o=>o.id!==f.id);
@@ -3295,6 +3296,11 @@ function favsEvents(){
   const nb=document.getElementById('favnew');
   if(nb){ const box=document.getElementById('favnewbox'); nb.onclick=()=>{ box.hidden=!box.hidden; if(!box.hidden) box.querySelector('[data-fn]').focus(); };
     favFormEvents(box, v=>{ const f={id:favId(), ...v, made:Date.now(), items:[]}; FAV.folders.push(f); favSave(); renderPinMenu(); FAVSEL=f.id; openView('favs',false); toast(`Made “${f.name}”`); }); }
+  const wipe=document.getElementById('favwipe');
+  if(wipe) wipe.onclick=async()=>{ if(!wipe.dataset.sure){ wipe.dataset.sure=1; wipe.classList.add('danger'); wipe.textContent='Click again to delete all '+FAV.folders.length+' folders for good'; return; }
+    wipe.disabled=true; clearTimeout(FAVTIMER);
+    try{ await favApi({op:'del'}); FAV={folders:[]}; LS.set('nw_favs_u_'+FAVUID, FAV); LS.del('nw_favs'); renderPinMenu(); openView('favs',false); toast('All your favourites are deleted'); }
+    catch(e){ wipe.disabled=false; toast('Couldn\'t delete them: '+e.message); } };
   const f=FAVSEL&&favFolder(FAVSEL); if(!f) return;
   const find=k=>f.items.find(x=>x.t+'|'+x.id===k);
   const eb=document.getElementById('faveditbox');

@@ -676,3 +676,4 @@ img.fi{display:inline-block;vertical-align:middle;filter:drop-shadow(0 2px 3px #
 .favgetrow .mini{flex:none}
 .favwhere{margin:4px 0 12px;padding-left:4px;list-style:none}
 .favwhere li{padding:3px 0}
+.favfoot{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:28px;padding-top:14px;border-top:1px solid var(--line)}
