@@ -741,3 +741,12 @@ span.ddel{color:#f0a08c}
 .edsavebar{position:sticky;bottom:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:14px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
 .edsavebar.on{border-color:var(--gold);box-shadow:0 8px 30px #000a}
 .mini:disabled{opacity:.5;cursor:default}
+/* changelog */
+.cl{border-top:1px solid var(--line)}
+.clrow{display:grid;grid-template-columns:130px 1fr;gap:16px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.clwhen{color:var(--dim);font-size:14px;display:flex;flex-direction:column}
+.clwhen span{font-size:12.5px;color:var(--mute)}
+.clwhat b{color:var(--fg);font-weight:600}
+.clwhat .dimtx{font-size:14px}
+.clstat{font:12.5px ui-monospace,Consolas,monospace;color:var(--mute)}
+@media(max-width:560px){ .clrow{grid-template-columns:1fr;gap:4px} .clwhen{flex-direction:row;gap:8px} }
