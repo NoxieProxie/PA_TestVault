@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 23:40';
+const BUILD_AT = '2026-11-27 23:48';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1165,7 +1165,6 @@ const JEW_SLOTS=['Amulet','Ring','Earring'];
 const STACKRULES=[
   [/^Refreshing$|^Refreshing II$/,'Refreshing',4,'No more than 4 in total'],
   [/^Freedom/,'Freedom',5,'Counts in stacks — run 3 or 5, never 1 or 2'],
-  [/^Resilient/,'Resilient',5,'5 for max PvP damage reduction; 4 is fine'],
   [/Punishing/,'Punishing runeglass',3,'1-3 only — it has an internal cooldown, so 5 is wasted'],
   [/Shirking Heals/,'Shirking Heals',5,'Each piece adds a stack'],
 ];
