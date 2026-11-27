@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 14:06';
+const BUILD_AT = '2026-11-27 14:14';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1652,7 +1652,7 @@ function handleAuthHash(h){
     if(['builds','bosses','calc','gear','items','myloadouts','review','admin'].includes(after)) openView(after,false);
     else { const hit=Object.keys(NAMES).find(n=>slug(n)===after); hit?openNote(hit,false):openView('myloadouts',false); }
     renderAcct(); toast(u?'Logged in as '+u.name:'Logged in'); return true; }
-  if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); toast('Discord login did not finish. Try again.'); return true; }
+  if(h.startsWith('error=login')){ try{ history.replaceState(null,'','#myloadouts'); }catch(e){} openView('myloadouts',false); const why=(h.match(/why=([a-z]+)/)||[])[1]||''; const WHY={discord:'you cancelled on Discord',nocode:'Discord sent nothing back',nocookie:'it took too long, or your browser blocked the login cookie',state:'another login was started in a different tab',token:'Discord refused the login code',user:'Discord would not share your profile'}; toast('Discord login did not finish'+(WHY[why]?': '+WHY[why]:'')+'. Try again.'); return true; }
   return false;
 }
 async function submitViaHelper(rec){
