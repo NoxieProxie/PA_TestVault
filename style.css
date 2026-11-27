@@ -668,3 +668,11 @@ img.fi{display:inline-block;vertical-align:middle;filter:drop-shadow(0 2px 3px #
 .favswapold{display:flex;gap:9px;align-items:center;padding:6px 4px;cursor:pointer;border-top:1px solid var(--line)}
 .favswapold input{accent-color:var(--gold)}
 .favitem .iperks{margin-top:6px}
+.favget{display:grid;gap:6px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+.favgetrow{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.favbadge{font-size:12.5px;line-height:1.35;color:var(--dim)}
+.favbadge.craft{color:#9fd18b}
+.favbadge.found{color:#e8c37a}
+.favgetrow .mini{flex:none}
+.favwhere{margin:4px 0 12px;padding-left:4px;list-style:none}
+.favwhere li{padding:3px 0}

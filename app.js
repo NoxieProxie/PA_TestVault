@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 15:19';
+const BUILD_AT = '2026-11-27 15:37';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -2960,6 +2960,57 @@ function favBuildEntries(name){
   (L.abil||[]).forEach(x=>{ if(x.a.length) out.push({t:'abil', id:'abil|'+x.w, s:'Abilities: '+x.w, w:x.w, a:x.a.slice(0,3), from:name}); });
   return out;
 }
+/* ---------- how to get a piece: craft it, or where it drops ---------- */
+const FAV_CRAFT_W={'Fire Staff':'Procedural_StaffFire_Sockets','Life Staff':'Procedural_StaffLife_Sockets','Ice Gauntlet':'Procedural_GauntletIce_Sockets','Void Gauntlet':'Procedural_GauntletVoid_Sockets',
+  'Flail':'Procedural_1hFlail_Sockets','Spear':'Procedural_Spear_Sockets','Hatchet':'Procedural_Hatchet_Sockets','Sword':'Procedural_Sockets_Longsword','Sword and Shield':'Procedural_Sockets_Longsword',
+  'Rapier':'Procedural_Sockets_Rapier','War Hammer':'Procedural_Sockets_WarHammer','Great Axe':'Procedural_Sockets_2hGreatAxe','Greatsword':'Procedural_Sockets_2hGreatSword',
+  'Bow':'Procedural_Bow_Sockets','Musket':'Procedural_Musket_Sockets','Blunderbuss':'Procedural_Blunderbuss_Sockets',
+  'Round Shield':'Procedural_Sockets_ShieldRound','Kite Shield':'Procedural_Sockets_ShieldKite','Tower Shield':'Procedural_Sockets_ShieldTower'};
+const FAV_WEIGHT={Light:'Cloth',Medium:'Leather',Heavy:'Plate'}, FAV_PART={Helmet:'Head',Chest:'Chest',Gloves:'Hands',Pants:'Legs',Boots:'Feet'};
+const FAV_FROM={Faction:'Faction shop (spend faction tokens at an outpost)',Seasons:'Season rewards (season pass or journey)',PVP:'PvP reward track or PvP store',Quest:'Quest reward',
+  Artifact:'Artifact: its own quest chain or a specific drop',Set:'Part of a gear set: drops in the content the set belongs to',ConquerorsItems:'Conqueror reward',
+  Named:'World drop (the game data lists no single source)',Loot:'World drop (the game data lists no single source)',Common:'World drop or vendor'};
+function favRecipeByName(n){ if(typeof CR==='undefined'||!CR||!n) return null; const lc=n.toLowerCase();
+  return CR.recipes.find(x=>x.lc===lc&&!x.ev)||CR.recipes.find(x=>x.lc===lc)||CR.recipes.find(x=>crItem(x.o)[0].toLowerCase()===lc)||null; }
+function favGenericRecipe(x){
+  const s=x.s||''; let id='';
+  if(s.startsWith('Weapon')||s==='Shield') id=FAV_CRAFT_W[x.wt]||(s==='Shield'?FAV_CRAFT_W['Kite Shield']:'');
+  else if(FAV_PART[s]) id=`Procedural_${FAV_WEIGHT[x.wt]||'Plate'}${FAV_PART[s]}_Sockets`;
+  else if(['Amulet','Ring','Earring'].includes(s)) id=`Procedural_${s}_Sockets`;
+  return id;
+}
+function favSource(x){
+  if(x.t!=='item'&&x.t!=='gear') return null;
+  const nm = x.t==='item' ? x.id : x.n;
+  const generic = x.t==='gear' && (!nm || /^crafted/i.test(nm));
+  if(generic){ const id=favGenericRecipe(x); return id ? {craft:{id, label:'Crafted, top-tier recipe (gear score 730)'}, found:null} : null; }
+  const it=itemByName(nm), r=favRecipeByName(nm);
+  const src=(it&&it.src||[]).filter(s=>!/^craftable$/i.test(s));
+  const craftable = !!r || (typeof CR!=='undefined'&&!CR && it && (it.r==='Crafting'||(it.src||[]).some(s=>/^craftable$/i.test(s))));
+  const found = src.length ? src : (!craftable && it ? [FAV_FROM[it.r]||'Found in the world'] : []);
+  return {craft: craftable?{id:r?r.id:'', name:nm, label:'Craftable'}:null, found: found.length?{list:found, it}:null, it};
+}
+function favGetHTML(x,k){
+  const S=favSource(x); if(!S||(!S.craft&&!S.found)) return '';
+  return `<div class="favget">
+    ${S.craft?`<div class="favgetrow"><span class="favbadge craft">&#9874; ${esc(S.craft.label)}</span><button class="mini go" data-favcraft="${esc(k)}">Craft it</button></div>`:''}
+    ${S.found?`<div class="favgetrow"><span class="favbadge found">&#128205; ${esc(S.found.list.slice(0,2).join(' · '))}${S.found.list.length>2?` +${S.found.list.length-2} more`:''}</span>${S.found.it?`<button class="mini" data-favfind="${esc(k)}">Where to find it</button>`:''}</div>`:''}</div>`;
+}
+/* item details: description, perks and every place it comes from */
+function favItemPop(it){
+  const S=favSource({t:'item', id:it.n}); const r=S&&S.craft;
+  const all=(it.src||[]).filter(s=>!/^craftable$/i.test(s)); const where=all.length?all:(S&&S.found?S.found.list:[]);
+  const m=favPop(it.n, `<div class="favwhat">${itemIcon(it,56)}<div><b>${esc(it.n)}</b> <span class="rb ${RARCLS[it.r]||''}">${esc(it.r)}</span>
+      <div class="dimtx tiny">${esc([it.s,it.t,it.w,it.g?'GS '+it.g:'',it.e?'set: '+it.e:''].filter(Boolean).join(' · '))}</div></div></div>
+    ${cleanPerks(it).length?`<div class="sh">Perks</div><div class="iperks">${cleanPerks(it).map(p=>`<span>${icoFor(p)?`<img class="ico" src="${icoFor(p)}" alt="">`:''}${esc(p)}</span>`).join('')}</div>`:''}
+    ${it.d?`<p class="idesc">${esc(it.d)}</p>`:''}
+    <div class="sh">Where to get it</div>
+    <ul class="favwhere">${r?'<li>&#9874; <b>Craftable</b>'+(r.id&&CR.byId[r.id]?' &middot; '+esc(CR.byId[r.id].ts||'')+(CR.byId[r.id].lv?' '+CR.byId[r.id].lv:'')+' at '+esc(CR.byId[r.id].st||'a crafting station'):'')+'</li>':''}
+      ${where.map(w=>`<li>&#128205; ${esc(w)}</li>`).join('')||(!r?'<li>No source listed in the game data</li>':'')}</ul>
+    <div class="lbtns">${r?`<button class="mini go" data-pc="1">Craft it</button>`:''}<button class="mini" data-pi="1">Open in the item list</button></div>`);
+  const c=m.querySelector('[data-pc]'); if(c) c.onclick=()=>{ favClose(); r.id?favOpenRecipe(r.id):craftItemByName(it.n); };
+  m.querySelector('[data-pi]').onclick=()=>{ favClose(); IQ.q=it.n; IQ.slot=''; IQ.rar=''; IQ.wt=''; IQ.page=0; openView('items'); };
+}
 const favHasLoadout = n => !!(NAMES[n] && /\n## Full loadout/.test('\n'+META[NAMES[n]].body));
 
 // pages pinned with the old Pin button move into a folder once
@@ -3214,7 +3265,7 @@ function viewFavs(){
         <div class="favstrip">${f.items.slice(0,8).map(x=>favLookup(x).icon(26)).join('')}</div></div>`).join('')
       ||'<p class="empty">No folders yet. Make one here, or press &#9734; Favourite on an item, recipe, build card or page.</p>'}</div></div>`;
   }
-  if(f.items.some(x=>x.t==='recipe') && typeof CR!=='undefined' && !CR && typeof loadCrafting==='function') loadCrafting().then(()=>{ if(current&&current.v==='favs') openView('favs',false); });
+  if(f.items.some(x=>['recipe','item','gear'].includes(x.t)) && typeof CR!=='undefined' && !CR && typeof loadCrafting==='function') loadCrafting().then(()=>{ if(current&&current.v==='favs') openView('favs',false); });
   const others=FAV.folders.filter(o=>o.id!==f.id);
   const card=x=>{ const L=favLookup(x), k=x.t+'|'+x.id;
     const extra = x.t==='gear' ? `${x.gem||x.p.length?`<div class="iperks">${[x.gem,...x.p].filter(Boolean).map(p=>`<span>${typeof icoFor==='function'&&icoFor(p)?`<img class="ico" src="${icoFor(p)}" alt="">`:''}${esc(p)}</span>`).join('')}</div>`:''}${x.ch?`<div class="dimtx tiny">Charm: ${esc(x.ch)}</div>`:''}`
@@ -3222,6 +3273,7 @@ function viewFavs(){
     return `<div class="card favitem" data-favgo="${esc(k)}">
       <div class="favch">${L.icon(44)}<div>${x.s&&x.t!=='abil'?`<span class="favslot">${esc(favSlotName(x.s))}</span>`:''}<div class="ct">${esc(L.name)}</div><div class="dimtx tiny">${esc(x.t==='gear'||x.t==='abil'?(x.from?'From '+x.from:FAV_T[x.t]):FAV_T[x.t]+(L.meta?' · '+L.meta:''))}</div></div></div>
       ${extra}
+      ${favGetHTML(x,k)}
       ${x.note?`<div class="cs favnote">${esc(x.note)}</div>`:''}
       <div class="favact">
         <button class="mini" data-favnote="${esc(k)}">&#9998; ${x.note?'Edit note':'Add a note'}</button>
@@ -3254,6 +3306,9 @@ function favsEvents(){
   main.onclick=e=>{
     const al=e.target.closest('[data-favall]'); if(al){ e.preventDefault(); e.stopPropagation(); FAVSEL=''; openView('favs',false); return; }
     const rm=e.target.closest('[data-favrm]'); if(rm){ e.stopPropagation(); const x=find(rm.dataset.favrm); f.items=f.items.filter(y=>y!==x); favSave(); renderPinMenu(); openView('favs',false); toast('Removed'); return; }
+    const cf=e.target.closest('[data-favcraft]'); if(cf){ e.stopPropagation(); const x=find(cf.dataset.favcraft); const S=x&&favSource(x); if(!S||!S.craft) return;
+      if(S.craft.id && CR && CR.byId[S.craft.id]) favOpenRecipe(S.craft.id); else craftItemByName(S.craft.name||''); return; }
+    const fd=e.target.closest('[data-favfind]'); if(fd){ e.stopPropagation(); const x=find(fd.dataset.favfind); const S=x&&favSource(x); if(S&&S.it) favItemPop(S.it); return; }
     const nt=e.target.closest('[data-favnote]'); if(nt){ e.stopPropagation(); const x=find(nt.dataset.favnote); const card=nt.closest('.card');
       if(card.querySelector('.favnoteed')) return;
       card.querySelector('.favact').insertAdjacentHTML('beforebegin',`<div class="favnoteed"><textarea class="pk" rows="3" maxlength="400" placeholder="Why it's here, e.g. craft with Refreshing + Sacred">${esc(x.note||'')}</textarea><div class="lbtns"><button class="mini go">Save note</button></div></div>`);
