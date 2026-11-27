@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 14:14';
+const BUILD_AT = '2026-11-27 14:39';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -467,10 +467,19 @@ document.addEventListener('click', e=>{
   const dd=e.target.closest('.drop > .nb');
   if(dd){ const d=dd.parentElement; const was=d.classList.contains('open');
     document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
-    if(!was){ d.classList.add('open'); const hb=document.querySelector('header').getBoundingClientRect().bottom; document.documentElement.style.setProperty('--hdr',Math.round(hb)+'px'); }
+    if(!was){ d.classList.add('open'); const hb=document.querySelector('header').getBoundingClientRect().bottom; document.documentElement.style.setProperty('--hdr',Math.round(hb)+'px');
+      // open the section that holds the page you're reading, and mark that page
+      d.querySelectorAll('.mi.cur').forEach(x=>x.classList.remove('cur'));
+      const cn=current&&current.kind==='note'?current.name:'';
+      const here=cn?[...d.querySelectorAll('.mi[data-note]')].find(x=>x.dataset.note===cn):null;
+      d.querySelectorAll('.fold').forEach(f=>{ const o=!!(here&&f.contains(here)); f.classList.toggle('open',o); f.firstElementChild.setAttribute('aria-expanded',o); });
+      if(here){ here.classList.add('cur'); here.scrollIntoView({block:'nearest'}); } }
     e.stopPropagation(); return; }
   const tg=e.target.closest('.mh.tg');
-  if(tg){ const f=tg.parentElement; const o=!f.classList.contains('open'); f.classList.toggle('open',o); tg.setAttribute('aria-expanded',o); e.stopPropagation(); return; }
+  if(tg){ const f=tg.parentElement; const o=!f.classList.contains('open');
+    // one section open at a time, so a long menu never runs past the bottom of the screen
+    if(o) f.parentElement.querySelectorAll(':scope > .fold.open').forEach(x=>{ x.classList.remove('open'); x.firstElementChild.setAttribute('aria-expanded','false'); });
+    f.classList.toggle('open',o); tg.setAttribute('aria-expanded',o); e.stopPropagation(); return; }
   if(!e.target.closest('.menu')) document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
   const pk=e.target.closest('[data-peek]');
   if(pk){ e.preventDefault(); e.stopPropagation(); if(typeof peekBuild==='function') peekBuild(pk.dataset.peek); return; }
