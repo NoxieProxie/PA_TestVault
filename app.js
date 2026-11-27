@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 14:39';
+const BUILD_AT = '2026-11-27 14:45';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -148,7 +148,9 @@ function md(src){
 }
 
 /* ---------- index ---------- */
-const ICONS=[[/craft/i,'&#9874;&#65039;'],[/my pages/i,'&#9998;'],[/build/i,'&#9876;'],[/boss/i,'&#128128;'],[/expedition/i,'&#128506;'],[/pvp/i,'&#128481;'],[/war/i,'&#127984;'],[/outpost/i,'&#128681;'],[/gear/i,'&#127890;'],[/reference/i,'&#128214;']];
+// tab and tool icons: real New World item art, small copies in ui/
+const ICONS=[[/craft/i,'craft'],[/my pages/i,'mypages'],[/build/i,'builds'],[/boss/i,'bosses'],[/expedition|raid/i,'raids'],[/pvp/i,'pvp'],[/war/i,'war'],[/outpost/i,'outpost'],[/gear/i,'grind'],[/reference/i,'refs']];
+const ui = (k, c='ui') => `<img class="${c}" src="ui/${k}.webp" alt="" width="64" height="64" decoding="async">`;
 const label = t => t.replace(/^\d+[\s._-]+/,'');
 let TOPS=[], TOP_BUILDS='Builds', TOP_BOSSES='Bosses';
 function reindex(){
@@ -170,34 +172,34 @@ function reindex(){
   TOP_BOSSES=TOPS.find(t=>/boss/i.test(t))||'Bosses';
 }
 const sectionOf = p => p.includes('/') ? label(p.split('/')[0]) : 'Home';
-const iconOf = t => (ICONS.find(([re])=>re.test(t))||[,'&#128196;'])[1];
+const iconOf = t => ui((ICONS.find(([re])=>re.test(t))||[,'page'])[1]);
 
 /* ---------- top nav ---------- */
 function navTabs(){
   const hid=(typeof SITE!=='undefined'&&SITE.hidden)||[];
   const T=[];
-  T.push({k:'Home', h:`<button class="nb" data-note="${esc((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home')}">&#127968; Home</button>`});
-  const tool=(v,n,d)=>`<a class="mi tl2" data-view="${v}"><b>${n}</b><span>${d}</span></a>`;
-  T.push({k:'Tools', h:`<div class="drop"><button class="nb">Tools <span class="car">&#9662;</span></button><div class="menu">
-    ${tool('items','Items','Search every weapon, armour piece and perk')}
-    ${tool('gear','Loadout builder','Plan gear, perks and attributes, then share it')}
-    ${tool('calc','Calculator','Real damage and health, against raid bosses too')}
-    ${tool('craft','Recipe finder','Every recipe, with a shopping list')}
-    ${tool('weight','Weight calculator','Equip load, and what light, medium and heavy give and cost')}
-    ${tool('trophyplanner','Trophy planner','Plan trophies for your houses, see the totals and what to craft')}
-    ${tool('builds','Build browser','Filter every build by role, mode and weapon')}
-    ${tool('bosses','Boss browser','Filter bosses by expedition and weakness')}</div></div>`});
-  if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">&#128190; Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
-  if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">&#128736; Admin</button>`});
+  T.push({k:'Home', h:`<button class="nb" data-note="${esc((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home')}">${ui('home')}Home</button>`});
+  const tool=(v,n,d,i)=>`<a class="mi tl2" data-view="${v}">${ui(i)}<div><b>${n}</b><span>${d}</span></div></a>`;
+  T.push({k:'Tools', h:`<div class="drop"><button class="nb">${ui('tools')}Tools <span class="car">&#9662;</span></button><div class="menu">
+    ${tool('items','Items','Search every weapon, armour piece and perk','items')}
+    ${tool('gear','Loadout builder','Plan gear, perks and attributes, then share it','gear')}
+    ${tool('calc','Calculator','Real damage and health, against raid bosses too','calc')}
+    ${tool('craft','Recipe finder','Every recipe, with a shopping list','recipe')}
+    ${tool('weight','Weight calculator','Equip load, and what light, medium and heavy give and cost','weight')}
+    ${tool('trophyplanner','Trophy planner','Plan trophies for your houses, see the totals and what to craft','trophy')}
+    ${tool('builds','Build browser','Filter every build by role, mode and weapon','buildbrowser')}
+    ${tool('bosses','Boss browser','Filter bosses by expedition and weakness','bosses')}</div></div>`});
+  if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">${ui('loadouts')}Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
+  if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">${ui('admin')}Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
-    T.push({k:'My Pages', h:`<div class="drop"><button class="nb">&#9998; My Pages <span class="car">&#9662;</span></button><div class="menu"><a class="mi hi" data-newpage="1">&#65291; New page</a><div class="mn">Pages you write yourself show up here.</div></div></div>`});
+    T.push({k:'My Pages', h:`<div class="drop"><button class="nb">${ui('mypages')}My Pages <span class="car">&#9662;</span></button><div class="menu"><a class="mi hi" data-newpage="1">&#65291; New page</a><div class="mn">Pages you write yourself show up here.</div></div></div>`});
   for (const t of TOPS){
     const paths=Object.keys(META).filter(p=>p.startsWith(t+'/')).sort();
     const groups={};
     paths.forEach(p=>{ const rel=p.slice(t.length+1); const sub=rel.includes('/')?rel.split('/')[0]:''; (groups[sub]=groups[sub]||[]).push(p); });
-    const extra = /build/i.test(t) ? `<a class="mi hi" data-view="builds">&#9881; Build browser (filterable)</a>`
-               : /boss/i.test(t) ? `<a class="mi hi" data-view="bosses">&#9881; Boss browser (filterable)</a>`
-               : /craft/i.test(t) ? `<a class="mi hi" data-view="craft">&#9874;&#65039; Recipe finder (every recipe, with shopping lists)</a>`
+    const extra = /build/i.test(t) ? `<a class="mi hi" data-view="builds">${ui('buildbrowser')}Build browser (filterable)</a>`
+               : /boss/i.test(t) ? `<a class="mi hi" data-view="bosses">${ui('bosses')}Boss browser (filterable)</a>`
+               : /craft/i.test(t) ? `<a class="mi hi" data-view="craft">${ui('recipe')}Recipe finder (every recipe, with shopping lists)</a>`
                : (/my pages/i.test(t) && typeof canWrite==='function' && canWrite()) ? `<a class="mi hi" data-newpage="1">&#65291; New page</a>` : '';
     let menu = extra;
     const fold = paths.length>12 && Object.keys(groups).some(g=>g);   // long menus: sub-folders start folded, click a heading to open it
@@ -207,7 +209,7 @@ function navTabs(){
       menu += fold ? `<div class="fold"><button class="mh tg" aria-expanded="false">${esc(label(g))} <span class="cnt">${groups[g].length}</span></button><div class="grp">${items(groups[g])}</div></div>`
                    : `<div class="mh">${esc(label(g))}</div>`+items(groups[g]);
     }
-    T.push({k:label(t), h:`<div class="drop"><button class="nb">${iconOf(t)} ${esc(label(t))} <span class="car">&#9662;</span></button><div class="menu">${menu}</div></div>`});
+    T.push({k:label(t), h:`<div class="drop"><button class="nb">${iconOf(t)}${esc(label(t))} <span class="car">&#9662;</span></button><div class="menu">${menu}</div></div>`});
   }
   const order=(typeof SITE!=='undefined'&&SITE.order)||[];
   const pos=k=>{ let i=order.indexOf(k); if(i<0&&k==='Tools') i=order.indexOf('Items'); return i<0?1000:i; };
@@ -400,10 +402,10 @@ function homeHero(){
     <p class="sub">Builds, bosses, raids and gear for Season 10, worked out from the game's own data.</p>
     <p class="end">${end}</p>
     <div class="tools">
-      <button class="tool" data-view="items"><b>Find an item</b><span>Search every weapon, armour piece and perk.</span></button>
-      <button class="tool" data-view="gear"><b>Build a loadout</b><span>Plan gear, perks and attributes, then share it.</span></button>
-      <button class="tool" data-view="calc"><b>Work out damage</b><span>Real hits and health for your build, against raid bosses too.</span></button>
-      <button class="tool" data-view="craft"><b>Look up a recipe</b><span>Every recipe, with a shopping list.</span></button>
+      <button class="tool" data-view="items">${ui('items','ti')}<b>Find an item</b><span>Search every weapon, armour piece and perk.</span></button>
+      <button class="tool" data-view="gear">${ui('gear','ti')}<b>Build a loadout</b><span>Plan gear, perks and attributes, then share it.</span></button>
+      <button class="tool" data-view="calc">${ui('calc','ti')}<b>Work out damage</b><span>Real hits and health for your build, against raid bosses too.</span></button>
+      <button class="tool" data-view="craft">${ui('recipe','ti')}<b>Look up a recipe</b><span>Every recipe, with a shopping list.</span></button>
     </div>
     ${again.length?`<p class="again">Carry on reading: ${again.map(n=>`<a href="#" data-note="${esc(n)}">${esc(n)}</a>`).join('')}</p>`:''}
   </section>`;

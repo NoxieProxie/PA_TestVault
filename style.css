@@ -576,3 +576,17 @@ td .iic,li .iic{width:22px;height:22px;margin-right:6px;border-radius:5px}
 
 /* menus: the page you're on */
 .menu .mi.cur{color:var(--gold);box-shadow:inset 3px 0 0 var(--gold)}
+
+/* New World item art as icons: tabs, tool menu, home tiles */
+img.ui{width:18px;height:18px;vertical-align:-4px;margin-right:7px;opacity:.82;transition:opacity .12s}
+.nb img.ui{display:none} /* top tabs stay text-only: icons there are too small to read and crowd the bar */
+.nb:hover img.ui,.drop.open>.nb img.ui,.mi:hover img.ui{opacity:1}
+.mi.hi img.ui{width:20px;height:20px;margin-right:9px}
+.mi.tl2{display:grid;grid-template-columns:34px 1fr;column-gap:12px;align-items:center}
+.mi.tl2 img.ui{width:34px;height:34px;margin:0;opacity:1;filter:drop-shadow(0 2px 3px #0008)}
+.tool img.ti{width:46px;height:46px;margin:0 0 10px -3px;filter:drop-shadow(0 3px 5px #000a);transition:transform .15s}
+.tool:hover img.ti{transform:translateY(-2px)}
+@media(prefers-reduced-motion:reduce){.tool img.ti{transition:none}.tool:hover img.ti{transform:none}}
+@media(max-width:900px){ img.ui{margin-right:5px} }
+@media(max-width:480px){ .tool{display:grid;grid-template-columns:40px 1fr;column-gap:12px;align-items:start}
+  .tool img.ti{grid-row:1/3;width:40px;height:40px;margin:2px 0 0} }
