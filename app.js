@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 14:45';
+const BUILD_AT = '2026-11-27 15:00';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -190,6 +190,7 @@ function navTabs(){
     ${tool('builds','Build browser','Filter every build by role, mode and weapon','buildbrowser')}
     ${tool('bosses','Boss browser','Filter bosses by expedition and weakness','bosses')}</div></div>`});
   if(typeof myLoMenu==='function') T.push({k:'Your loadouts', h:`<div class="drop"><button class="nb">${ui('loadouts')}Your loadouts <span class="car">&#9662;</span></button><div class="menu">${myLoMenu()}</div></div>`});
+  if(typeof favMenu==='function') T.push({k:'Favourites', h:`<div class="drop"><button class="nb">&#9733; Favourites <span id="favcount" class="favn"></span><span class="car">&#9662;</span></button><div class="menu" id="favmenu">${favMenu()}</div></div>`});
   if(typeof OWNER!=='undefined' && OWNER && OWNER.owner) T.push({k:'Admin', h:`<button class="nb calcnb admnb" data-view="admin">${ui('admin')}Admin</button>`});
   if(typeof canWrite==='function' && canWrite() && !TOPS.includes('My Pages'))
     T.push({k:'My Pages', h:`<div class="drop"><button class="nb">${ui('mypages')}My Pages <span class="car">&#9662;</span></button><div class="menu"><a class="mi hi" data-newpage="1">&#65291; New page</a><div class="mn">Pages you write yourself show up here.</div></div></div>`});
@@ -212,15 +213,14 @@ function navTabs(){
     T.push({k:label(t), h:`<div class="drop"><button class="nb">${iconOf(t)}${esc(label(t))} <span class="car">&#9662;</span></button><div class="menu">${menu}</div></div>`});
   }
   const order=(typeof SITE!=='undefined'&&SITE.order)||[];
-  const pos=k=>{ let i=order.indexOf(k); if(i<0&&k==='Tools') i=order.indexOf('Items'); return i<0?1000:i; };
-  const plain=h=>h.replace(/(<button class="nb[^"]*"[^>]*>)\s*(?:&#\d+;)+\s*/,'$1');
+  const pos=k=>{ let i=order.indexOf(k); if(i<0&&k==='Tools') i=order.indexOf('Items'); if(i<0&&k==='Favourites'){ const y=order.indexOf('Your loadouts'); if(y>=0) return y+.5; } return i<0?1000:i; };
+  const plain=h=>/Favourites/.test(h.slice(0,120))?h:h.replace(/(<button class="nb[^"]*"[^>]*>)\s*(?:&#\d+;)+\s*/,'$1');
   return T.map((t,i)=>({...t,h:plain(t.h),i})).sort((a,b)=>pos(a.k)-pos(b.k)||a.i-b.i).map(t=>({...t,hidden:hid.includes(t.k)}));
 }
 function topnav(){
   const own=typeof canWrite==='function' && canWrite();
   let h = navTabs().filter(t=>!t.hidden).map(t=>`<span class="tabw" ${own?'draggable="true"':''} data-tabkey="${esc(t.k)}">${t.h}</span>`).join('');
   if(own) h += `<span class="dragtip">drag tabs to reorder</span>`;
-  h += `<div class="drop right"><button class="nb" id="starbtn">&#9733; <span id="pincount"></span><span class="car">&#9662;</span></button><div class="menu" id="pinmenu"></div></div>`;
   h += `<div class="drop right"><button class="nb">Data <span class="car">&#9662;</span></button><div class="menu" id="datamenu"></div></div>`;
   if(own) h += `<button class="nb" id="gearbtn" title="Customise">&#9881;</button>`;
   document.getElementById('topnav').innerHTML = h;
@@ -246,15 +246,6 @@ async function moveTab(from, to, before){
   let i=keys.indexOf(to); if(i<0) return; if(!before) i++;
   keys.splice(i,0,from);
   await saveSite(Object.assign({},SITE,{order:keys})); topnav();
-}
-function renderPinMenu(){
-  document.getElementById('pincount').textContent = pins.length ? pins.length : '';
-  const m = document.getElementById('pinmenu');
-  const pl = pins.filter(n=>NAMES[n]);
-  const rl = recent.filter(n=>NAMES[n]).slice(0,8);
-  m.innerHTML = (pl.length ? `<div class="mh">Pinned</div>` + pl.map(n=>`<a class="mi" data-note="${esc(n)}">${esc(n)}</a>`).join('')
-                           : `<div class="mn">Press &#9734; on any page to pin it</div>`)
-    + (rl.length ? `<div class="mh">Recent</div>` + rl.map(n=>`<a class="mi" data-note="${esc(n)}">${esc(n)}</a>`).join('') : '');
 }
 function renderDataMenu(){
   const n = Object.keys(META).length;
@@ -336,7 +327,7 @@ function viewBuilds(){
     const title=(m.body.match(/^#\s+(.*)$/m)||[,m.name])[1];
     const sum=(m.body.split('\n').find(l=>l.trim()&&!/^[#>|]/.test(l)&&!l.startsWith('Related'))||'').replace(/\*\*/g,'');
     const hasLo=/\n## Full loadout/.test('\n'+m.body);
-    return `<div class="card" data-note="${esc(m.name)}">${hasLo?`<button class="peekbtn" data-peek="${esc(m.name)}" title="See the gear" aria-label="See the gear for ${esc(m.name)}"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 4C5.5 4 2.4 7.4 1.4 10c1 2.6 4.1 6 8.6 6s7.6-3.4 8.6-6C17.6 7.4 14.5 4 10 4zm0 10a4 4 0 110-8 4 4 0 010 8zm0-2.2a1.8 1.8 0 100-3.6 1.8 1.8 0 000 3.6z" fill="currentColor"/></svg> Gear</button>`:''}<div class="ct">${inline(title)}</div>
+    return `<div class="card" data-note="${esc(m.name)}">${typeof favBtn==='function'?favBtn('note',m.name,'card'):''}${hasLo?`<button class="peekbtn" data-peek="${esc(m.name)}" title="See the gear" aria-label="See the gear for ${esc(m.name)}"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 4C5.5 4 2.4 7.4 1.4 10c1 2.6 4.1 6 8.6 6s7.6-3.4 8.6-6C17.6 7.4 14.5 4 10 4zm0 10a4 4 0 110-8 4 4 0 010 8zm0-2.2a1.8 1.8 0 100-3.6 1.8 1.8 0 000 3.6z" fill="currentColor"/></svg> Gear</button>`:''}<div class="ct">${inline(title)}</div>
       <div class="cs">${inline(sum.slice(0,165))}</div>
       <div class="cmeta">${['Role','Modes','Armor','Attributes'].filter(k=>q[k]).map(k=>`<span><b>${k}</b> ${inline(q[k])}</span>`).join('')}</div>
       <div class="ctags">${m.tags.filter(t=>!['new-world','builds'].includes(t)).map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>`; };
@@ -427,7 +418,7 @@ function openNote(name, push=true){
   document.getElementById('main').innerHTML=(isHome?homeHero():'')+
     `<div class="crumb"><span>${esc(sectionOf(p))}${m.folder.includes('/')?' &rsaquo; '+esc(label(m.folder.split('/').slice(1).join(' / '))):''}</span>
        ${typeof canWrite==='function'&&canWrite()?(m.custom?`<button class="pin" data-editpage="${esc(m.cid)}">&#9998; Edit</button>`:`<button class="pin" data-noteedit="${esc(name)}">&#9998; Edit</button>`):''}
-       <button class="pin ${pinned?'on':''}" id="pinbtn">${pinned?'&#9733; Pinned':'&#9734; Pin'}</button></div>
+       ${typeof favBtn==='function'?favBtn('note',name,'pin'):''}</div>
      ${typeof editedBanner==='function'?editedBanner(name):''}
      <div class="cols">${toc}<article>${md(m.body)}
        <div class="pager">${prev?`<button class="pg" data-note="${esc(prev)}">&larr; ${esc(label(prev))}</button>`:'<span></span>'}
@@ -438,18 +429,44 @@ function openNote(name, push=true){
   window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+slug(name)); } catch(e){}
   const pb0=document.querySelector('.crumb .pin'); if(pb0) pb0.style.marginLeft='auto';
-  document.getElementById('pinbtn').onclick=()=>{
-    const i=pins.indexOf(name); i>=0?pins.splice(i,1):pins.push(name);
-    LS.set('nw_pins',pins); renderPinMenu(); openNote(name,false);
-  };
+  if(!isHome && heads.length>2) foldSections(document.querySelector('#main article'));
 }
+/* pages with an "On this page" list: each ## section folds shut, click its heading to open it */
+function foldSections(art){
+  if(!art) return;
+  let body=null, n=0;
+  for(const el of [...art.children]){
+    if(el.matches('.pager,.addbar,.mine,.srcline')) break;
+    if(el.tagName==='H2'){
+      const sec=document.createElement('section'); sec.className='sec';
+      body=document.createElement('div'); body.className='secb'; body.setAttribute('hidden','until-found');
+      el.before(sec); sec.append(el,body);
+      el.classList.add('sech'); el.tabIndex=0; el.setAttribute('role','button'); el.setAttribute('aria-expanded','false');
+      body.addEventListener('beforematch',()=>openSec(sec,true));   // the browser's own find (Ctrl+F) opens the section it finds text in
+      n++; continue;
+    }
+    if(body) body.append(el);
+  }
+  if(!n) return;
+  art.querySelectorAll('section.sec').forEach(sec=>{
+    const b=sec.querySelector('.secb'); const c=b.querySelectorAll('tbody tr').length||b.querySelectorAll(':scope > ul > li, :scope > ol > li').length;
+    if(c>1) sec.firstElementChild.insertAdjacentHTML('beforeend',`<span class="seccnt">${c}</span>`);
+  });
+  const bar=document.createElement('div'); bar.className='secbar';
+  bar.innerHTML=`<button class="mini" data-secall="1">Open all sections</button>`;
+  art.querySelector('section.sec').before(bar);
+}
+function openSec(sec,o){ if(!sec) return; const h=sec.firstElementChild, b=sec.querySelector('.secb');
+  if(o) b.removeAttribute('hidden'); else b.setAttribute('hidden','until-found');
+  sec.classList.toggle('open',o); h.setAttribute('aria-expanded',o);
+  const all=document.querySelector('[data-secall]'); if(all){ const any=[...document.querySelectorAll('section.sec')].some(s=>!s.classList.contains('open')); all.textContent=any?'Open all sections':'Close all sections'; } }
 function openView(v,push=true){
   if(v==='review') v='admin';
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
   if(push && current) hist.push(current);
   current={kind:'view',v};
   document.getElementById('main').classList.remove('home');
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():v==='favs'?viewFavs():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
@@ -458,6 +475,7 @@ function openView(v,push=true){
   if(v==='craft') craftEvents();
   if(v==='weight') weightEvents();
   if(v==='trophyplanner') trophyEvents();
+  if(v==='favs') favsEvents();
   if(!same) window.scrollTo(0,0);
   try { history.replaceState(null,'','#'+v); } catch(e){}
   const c=document.getElementById('clearf');
@@ -494,8 +512,11 @@ document.addEventListener('click', e=>{
   if(f){ const k=f.dataset.f,val=f.dataset.v; filt[k].has(val)?filt[k].delete(val):filt[k].add(val); openView('builds',false); return; }
   const b=e.target.closest('[data-bf]');
   if(b){ bfilt[b.dataset.bf]=bfilt[b.dataset.bf]===b.dataset.v?'':b.dataset.v; openView('bosses',false); return; }
+  const sh=e.target.closest('.sech'); if(sh){ openSec(sh.parentElement,!sh.parentElement.classList.contains('open')); return; }
+  const sa=e.target.closest('[data-secall]'); if(sa){ const o=sa.textContent.startsWith('Open'); document.querySelectorAll('section.sec').forEach(s=>openSec(s,o)); return; }
   const a=e.target.closest('[data-anchor]');
   if(a){ e.preventDefault(); const t=document.getElementById(a.dataset.anchor)||document.getElementById(slug(a.dataset.anchor));
+    if(t) openSec(t.closest('section.sec'),true);
     if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); return; }
   const np=e.target.closest('[data-newpage]'); if(np){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); openPageEditor(null); return; }
   const ep=e.target.closest('[data-editpage]'); if(ep){ openPageEditor(ep.dataset.editpage); return; }
@@ -513,7 +534,9 @@ qEl.addEventListener('input',()=>{
   document.getElementById('main').innerHTML=r;
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='/'&&document.activeElement!==qEl){ e.preventDefault(); qEl.focus(); }
+  const typing=/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||'')||(document.activeElement||{}).isContentEditable;
+  if(e.key==='/'&&!typing){ e.preventDefault(); qEl.focus(); }
+  if((e.key==='Enter'||e.key===' ')&&document.activeElement&&document.activeElement.classList.contains('sech')){ e.preventDefault(); const s=document.activeElement.parentElement; openSec(s,!s.classList.contains('open')); }
   if(e.key==='Escape'){ qEl.value=''; qEl.blur(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); }
 });
 /* drag a folder or files onto the page */
@@ -962,7 +985,7 @@ function viewItems(){
        ${cleanPerks(it).length?`<div class="iperks">${cleanPerks(it).map(p=>`<span>${icoFor(p)?`<img class="ico" src="${icoFor(p)}" alt="">`:''}${esc(p)}</span>`).join('')}</div>`:''}
        ${it.src?`<div class="isrc">&#128205; ${it.src.map(esc).join(' &middot; ')}</div>`:''}
        ${it.d?`<div class="idesc">${esc(it.d)}</div>`:''}</div>
-     <div class="lobtns" style="flex-direction:column"><button class="mini go" data-equip="${esc(it.n)}">Equip</button>${it.r==='Crafting'||/craft/i.test((it.src||[]).join(' '))?`<button class="mini" data-craftit="${esc(it.n)}">&#9874;&#65039; Craft</button>`:''}</div></div>`).join('')||'<p class="empty">No items match.</p>'}</div>
+     <div class="lobtns" style="flex-direction:column"><button class="mini go" data-equip="${esc(it.n)}">Equip</button>${typeof favBtn==='function'?favBtn('item',it.n):''}${it.r==='Crafting'||/craft/i.test((it.src||[]).join(' '))?`<button class="mini" data-craftit="${esc(it.n)}">&#9874;&#65039; Craft</button>`:''}</div></div>`).join('')||'<p class="empty">No items match.</p>'}</div>
   ${list.length>10?pager:''}`;
 }
 function equipItem(it, quiet){
@@ -2654,7 +2677,7 @@ function craftDetail(r){
     <div class="crtree">${r.i.map(([id,q],k)=>crTree(id,q*n,0,[r.o],r.id+':'+k)).join('')}</div>
     <div class="advhd" style="margin-top:10px"><span class="sh">Shopping list</span><select id="crraw" style="max-width:320px"><option value="raw" ${CQ.raw==='raw'?'selected':''}>Break refined materials down to what you gather</option><option value="direct" ${CQ.raw==='direct'?'selected':''}>Just the ingredients (buy refined materials)</option></select></div>
     <div class="crshop">${rawList.map(([id,q])=>`<div class="crrow">${crIcon(id,24)}<span class="crq">${q.toLocaleString()}&times;</span><span class="crn">${esc(crName(id))}</span></div>`).join('')}</div>
-    <div class="lbtns"><button class="mini" id="crcopy">&#128203; Copy shopping list</button><button class="mini" id="crlink">&#128279; Copy link to this recipe</button></div>
+    <div class="lbtns">${typeof favBtn==='function'?favBtn('recipe',r.id):''}<button class="mini" id="crcopy">&#128203; Copy shopping list</button><button class="mini" id="crlink">&#128279; Copy link to this recipe</button></div>
     ${others.length?`<div class="sh" style="margin-top:10px">Other ways to make it</div>${others.slice(0,6).map(x=>`<div class="crrow"><button class="mini tiny" data-crsel="${esc(x.id)}">Open</button> ${esc(x.n)} <span class="dimtx tiny">${esc(x.ts)} ${x.lv||''} &middot; ${esc(x.cat)}</span></div>`).join('')}`:''}
     ${used.length?`<div class="sh" style="margin-top:10px">Used to make</div>${used.map(x=>`<div class="crrow">${crIcon(x.o,22)}<a class="wl" data-crsel="${esc(x.id)}">${esc(x.n)}</a> <span class="dimtx tiny">${esc(x.ts)} ${x.lv||''}</span></div>`).join('')}`:''}
   </div>`;
@@ -2900,6 +2923,216 @@ function trophyEvents(){
   });
 }
 
+/* ================= favourites: your own folders of items, recipes, builds and pages =================
+   Saved in this browser (localStorage 'nw_favs').
+   FAV = { folders:[ {id, name, desc, icon, made, items:[ {t:'item'|'recipe'|'note', id, note, at} ]} ] }
+   icon is 'ui:<key>' (vault icons in ui/), 'item:<item name>' or 'rcp:<recipe id>'. */
+let FAV = LS.get('nw_favs', null) || {folders:[]};
+let FAVSEL = '', FAVTYPE = '';
+const FAV_UI = ['builds','gear','items','calc','recipe','weight','trophy','buildbrowser','bosses','raids','pvp','war','outpost','craft','grind','refs','loadouts','tools','home','page','admin','mypages'];
+const FAV_T = {item:'Item', recipe:'Recipe', note:'Page'};
+
+// pages pinned with the old Pin button move into a folder once
+(function(){
+  if(LS.get('nw_favs_mig',0)) return;
+  const old = LS.get('nw_pins', []);
+  if(old.length && !FAV.folders.length)
+    FAV.folders.push({id:favId(), name:'Pinned pages', desc:'Pages you pinned before folders existed.', icon:'ui:page', made:Date.now(),
+      items:old.map(n=>({t:'note', id:n, note:'', at:Date.now()}))});
+  LS.set('nw_favs', FAV); LS.set('nw_favs_mig', 1);
+})();
+
+function favId(){ return Math.random().toString(36).slice(2,9); }
+function favSave(){ if(!LS.set('nw_favs', FAV)) toast('Could not save: this browser\'s storage is full'); }
+function favFolder(id){ return FAV.folders.find(f=>f.id===id); }
+function favHas(t,id){ return FAV.folders.filter(f=>f.items.some(x=>x.t===t&&x.id===id)); }
+
+/* ---------- what a favourite is ---------- */
+function favLookup(x){
+  if(x.t==='item'){ const it=itemByName(x.id); return it ? {name:it.n, icon:s=>itemIcon(it,s),
+      meta:[it.s, it.t, it.g?'GS '+it.g:'', it.r].filter(Boolean).join(' · '), open:()=>{ IQ.q=it.n; IQ.slot=''; IQ.rar=''; IQ.wt=''; IQ.page=0; openView('items'); }}
+    : {name:x.id, icon:s=>favIcon('ui:items',s), meta:'Item (not in this season\'s item list)', open:()=>{}}; }
+  if(x.t==='recipe'){
+    if(typeof CR==='undefined'||!CR) return {name:x.label||x.id, icon:s=>`<span class="iic none" style="width:${s}px;height:${s}px"></span>`, meta:'Recipe', open:()=>favOpenRecipe(x.id), wait:true};
+    const r=CR.byId[x.id]; return r ? {name:r.n, icon:s=>crIcon(r.o,s), meta:[r.ts&&(r.ts+(r.lv?' '+r.lv:'')), r.cat, r.gs?'GS '+r.gs:''].filter(Boolean).join(' · '), open:()=>favOpenRecipe(x.id)}
+      : {name:x.label||x.id, icon:s=>favIcon('ui:recipe',s), meta:'Recipe (no longer in the game data)', open:()=>{}}; }
+  const p=NAMES[x.id];
+  return {name:label(x.id), icon:s=>(typeof noteIcon==='function'&&noteIcon(x.id,s))||favIcon(p&&/build/i.test(p)?'ui:builds':'ui:page',s),
+    meta:p?sectionOf(p)+(META[p].folder.includes('/')?' › '+label(META[p].folder.split('/').slice(1).join(' / ')):''):'Page (not found)', open:()=>{ if(p) openNote(x.id); }};
+}
+function favOpenRecipe(id){ CQ.sel=id; LS.set('nw_craft_sel',id); openView('craft'); }
+function favIcon(spec,size){
+  const [k,...r]=String(spec||'ui:page').split(':'); const v=r.join(':');
+  if(k==='item'){ const it=itemByName(v); if(it) return itemIcon(it,size); }
+  if(k==='rcp' && typeof CR!=='undefined' && CR && CR.byId[v]) return crIcon(CR.byId[v].o,size);
+  return `<img class="fi" src="ui/${esc(FAV_UI.includes(v)?v:'page')}.webp" alt="" width="${size}" height="${size}">`;
+}
+const favDefaultIcon = (t,id) => t==='item' ? 'item:'+id : t==='recipe' ? 'rcp:'+id : 'ui:page';
+
+/* ---------- the button on items, recipes, build cards and pages ---------- */
+function favBtn(t,id,cls){
+  const on=favHas(t,id).length;
+  if(cls==='card') return `<button class="peekbtn favc ${on?'on':''}" data-fav="${t}" data-id="${esc(id)}" title="${on?'In your favourites':'Add to favourites'}" aria-label="${on?'In your favourites':'Add to favourites'}">${on?'&#9733;':'&#9734;'}</button>`;
+  return `<button class="${cls||'mini'} favb ${on?'on':''}" data-fav="${t}" data-id="${esc(id)}">${on?'&#9733; Saved':'&#9734; Favourite'}</button>`;
+}
+function favRefreshButtons(){
+  document.querySelectorAll('[data-fav]').forEach(b=>{ const on=favHas(b.dataset.fav,b.dataset.id).length; b.classList.toggle('on',!!on);
+    if(b.classList.contains('favc')){ b.innerHTML=on?'&#9733;':'&#9734;'; b.title=on?'In your favourites':'Add to favourites'; b.setAttribute('aria-label',b.title); }
+    else b.innerHTML=on?'&#9733; Saved':'&#9734; Favourite'; });
+  renderPinMenu();
+}
+document.addEventListener('click', e=>{
+  const b=e.target.closest('[data-fav]'); if(!b) return;
+  e.preventDefault(); e.stopPropagation(); favPick(b.dataset.fav, b.dataset.id, b.dataset.label||'');
+}, true);
+
+/* ---------- pop-up: choose folders, or make a new one ---------- */
+function favClose(){ const m=document.getElementById('favpop'); if(m) m.remove(); document.removeEventListener('keydown',favKey); favRefreshButtons(); if(current&&current.kind==='view'&&current.v==='favs') openView('favs',false); }
+function favKey(e){ if(e.key==='Escape') favClose(); }
+function favPop(title, inner){
+  const old=document.getElementById('favpop'); if(old) old.remove();
+  const m=document.createElement('div'); m.id='favpop'; m.className='peekbg';
+  m.innerHTML=`<div class="peekbox favbox" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="peekhead"><b>${esc(title)}</b><button class="peekx" aria-label="Close">&times;</button></div><div class="favin">${inner}</div></div>`;
+  document.body.appendChild(m); document.addEventListener('keydown',favKey);
+  m.onclick=e=>{ if(e.target===m||e.target.closest('.peekx')) favClose(); };
+  return m;
+}
+function favPick(t,id){
+  if(t==='recipe' && typeof CR!=='undefined' && !CR && typeof loadCrafting==='function') loadCrafting();
+  const L=favLookup({t,id});
+  const list=()=>FAV.folders.map(f=>{ const has=f.items.some(x=>x.t===t&&x.id===id);
+    return `<label class="favrow ${has?'on':''}"><input type="checkbox" data-ff="${f.id}" ${has?'checked':''}>${favIcon(f.icon,30)}<span><b>${esc(f.name)}</b><small>${f.items.length} saved</small></span></label>`; }).join('');
+  const m=favPop('Add to favourites', `
+    <div class="favwhat">${L.icon(40)}<div><b>${esc(L.name)}</b><div class="dimtx tiny">${esc(FAV_T[t])}${L.meta?' · '+esc(L.meta):''}</div></div></div>
+    <div class="favlist">${list()||'<p class="dimtx">You have no folders yet. Make your first one below.</p>'}</div>
+    <div class="favnew"><div class="sh">New folder</div>${favForm({name:'',desc:'',icon:favDefaultIcon(t,id)},'Create folder and add')}</div>`);
+  const wireList=()=>m.querySelectorAll('[data-ff]').forEach(cb=>cb.onchange=()=>{
+    const f=favFolder(cb.dataset.ff); if(!f) return;
+    if(cb.checked){ if(!f.items.some(x=>x.t===t&&x.id===id)) f.items.unshift({t,id,note:'',at:Date.now()}); toast(`Added to ${f.name}`); }
+    else { f.items=f.items.filter(x=>!(x.t===t&&x.id===id)); toast(`Removed from ${f.name}`); }
+    cb.closest('.favrow').classList.toggle('on',cb.checked); cb.closest('.favrow').querySelector('small').textContent=f.items.length+' saved';
+    favSave(); });
+  wireList();
+  favFormEvents(m, v=>{
+    const f={id:favId(), name:v.name, desc:v.desc, icon:v.icon, made:Date.now(), items:[{t,id,note:'',at:Date.now()}]};
+    FAV.folders.push(f); favSave(); toast(`Made “${f.name}” and added ${L.name}`); favClose();
+  });
+}
+
+/* folder form: name, description, icon picker */
+function favForm(f, go){
+  return `<div class="favform" data-icon="${esc(f.icon)}">
+    <div class="favfrow"><button type="button" class="favicobtn" title="Choose an icon">${favIcon(f.icon,44)}<span>Icon</span></button>
+      <div class="favfields"><input class="pk" data-fn maxlength="40" placeholder="Folder name, e.g. Healer" value="${esc(f.name)}">
+      <textarea class="pk" data-fd maxlength="300" rows="2" placeholder="What it's for (optional), e.g. Life Staff gear and potions for raids">${esc(f.desc)}</textarea></div></div>
+    <div class="favpick" hidden><input class="pk" data-fq placeholder="Search item and recipe icons, e.g. life staff, health potion" autocomplete="off"><div class="favgrid"></div></div>
+    <div class="lbtns"><button class="mini go" data-fgo>${go}</button></div></div>`;
+}
+function favIconChoices(q){
+  q=q.trim().toLowerCase(); const out=[];
+  if(!q){ FAV_UI.forEach(k=>out.push(['ui:'+k,k])); }
+  else {
+    if(typeof ITEMDB!=='undefined'&&ITEMDB) for(const it of ITEMDB.items){ if(it.x>=0&&it.n.toLowerCase().includes(q)){ out.push(['item:'+it.n,it.n]); if(out.length>=36) break; } }
+    if(typeof CR!=='undefined'&&CR){ const seen=new Set(); for(const r of CR.recipes){ if(out.length>=60) break; if(r.n.toLowerCase().includes(q)&&!seen.has(r.o)&&crItem(r.o)[2]>=0){ seen.add(r.o); out.push(['rcp:'+r.id,r.n]); } } }
+  }
+  return out;
+}
+function favFormEvents(root, done){
+  const form=root.querySelector('.favform'), pick=form.querySelector('.favpick'), grid=form.querySelector('.favgrid'), fq=form.querySelector('[data-fq]');
+  const draw=()=>{ const ch=favIconChoices(fq.value); grid.innerHTML=ch.map(([s,n])=>`<button type="button" class="favgi ${form.dataset.icon===s?'on':''}" data-fi="${esc(s)}" title="${esc(n)}">${favIcon(s,40)}</button>`).join('')||'<p class="dimtx tiny">No icons match that.</p>'; };
+  form.querySelector('.favicobtn').onclick=()=>{ pick.hidden=!pick.hidden; if(!pick.hidden){ if(typeof CR!=='undefined'&&!CR&&typeof loadCrafting==='function') loadCrafting().then(draw); draw(); fq.focus(); } };
+  let tm; fq.oninput=()=>{ clearTimeout(tm); tm=setTimeout(draw,120); };
+  grid.onclick=e=>{ const b=e.target.closest('[data-fi]'); if(!b) return; form.dataset.icon=b.dataset.fi; form.querySelector('.favicobtn').innerHTML=favIcon(b.dataset.fi,44)+'<span>Icon</span>'; grid.querySelectorAll('.favgi').forEach(x=>x.classList.toggle('on',x===b)); };
+  form.querySelector('[data-fgo]').onclick=()=>{
+    const name=form.querySelector('[data-fn]').value.trim(); if(!name){ form.querySelector('[data-fn]').focus(); return toast('Give the folder a name'); }
+    done({name, desc:form.querySelector('[data-fd]').value.trim(), icon:form.dataset.icon});
+  };
+}
+
+/* ---------- the Favourites tab menu ---------- */
+function favMenu(){
+  const fs=FAV.folders;
+  return (fs.length ? fs.map(f=>`<a class="mi favmi" data-favopen="${f.id}">${favIcon(f.icon,22)}<span>${esc(f.name)}</span><span class="cnt">${f.items.length}</span></a>`).join('')
+                    : `<div class="mn">Press &#9734; Favourite on an item, recipe, build or page to start a folder.</div>`)
+    + `<a class="mi hi" data-view="favs">${ui('loadouts')}All folders</a>`;
+}
+function renderPinMenu(){
+  const m=document.getElementById('favmenu'); if(m) m.innerHTML=favMenu();
+  const c=document.getElementById('favcount'); if(c){ const n=FAV.folders.reduce((a,f)=>a+f.items.length,0); c.textContent=n?n:''; }
+}
+document.addEventListener('click', e=>{
+  if(e.target.closest('[data-view="favs"]')) FAVSEL='';   // "All folders" in the menu
+  const o=e.target.closest('[data-favopen]'); if(!o) return;
+  e.preventDefault(); e.stopPropagation(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
+  FAVSEL=o.dataset.favopen; FAVTYPE=''; openView('favs');
+}, true);
+
+/* ---------- the Favourites page ---------- */
+function viewFavs(){
+  const f=FAVSEL&&favFolder(FAVSEL);
+  if(!f){ FAVSEL='';
+    return `<div id="favview"><h1>Favourites</h1>
+    <p class="lede">Your own folders of items, recipes, builds and pages. They're kept in this browser, so they stay private to you.</p>
+    <div class="lbtns"><button class="mini go" id="favnew">&#65291; New folder</button></div>
+    <div id="favnewbox" hidden class="slot lcard favnewbox">${favForm({name:'',desc:'',icon:'ui:builds'},'Create folder')}</div>
+    <div class="count">${FAV.folders.length} folder${FAV.folders.length===1?'':'s'}</div>
+    <div class="cards">${FAV.folders.map(f=>`<div class="card favcard" data-favopen="${f.id}">
+        <div class="favch">${favIcon(f.icon,48)}<div><div class="ct">${esc(f.name)}</div><div class="dimtx tiny">${f.items.length} saved</div></div></div>
+        ${f.desc?`<div class="cs">${esc(f.desc)}</div>`:''}
+        <div class="favstrip">${f.items.slice(0,8).map(x=>favLookup(x).icon(26)).join('')}</div></div>`).join('')
+      ||'<p class="empty">No folders yet. Make one here, or press &#9734; Favourite on an item, recipe, build card or page.</p>'}</div></div>`;
+  }
+  const items=f.items.filter(x=>!FAVTYPE||x.t===FAVTYPE);
+  const types=['item','recipe','note'].filter(t=>f.items.some(x=>x.t===t));
+  if(f.items.some(x=>x.t==='recipe') && typeof CR!=='undefined' && !CR && typeof loadCrafting==='function') loadCrafting().then(()=>{ if(current&&current.v==='favs') openView('favs',false); });
+  return `<div id="favview"><div class="crumb"><a href="#" class="wl" data-favall="1">&larr; All folders</a></div>
+  <div class="favhead">${favIcon(f.icon,64)}<div><h1>${esc(f.name)}</h1>${f.desc?`<p class="lede">${esc(f.desc)}</p>`:''}</div>
+    <div class="lbtns"><button class="mini" id="favedit">&#9998; Edit folder</button><button class="mini" id="favdel">Delete folder</button></div></div>
+  <div id="faveditbox" hidden class="slot lcard favnewbox">${favForm(f,'Save changes')}</div>
+  ${types.length>1?`<div class="filters" data-h="Show"><div class="frow">${['',...types].map(t=>`<button class="chip ${FAVTYPE===t?'on':''}" data-favtype="${t}">${t?FAV_T[t]+'s':'All'}</button>`).join('')}</div></div>`:''}
+  <div class="count">${items.length} of ${f.items.length}</div>
+  <div class="cards">${items.map(x=>{ const L=favLookup(x), k=x.t+'|'+x.id; const others=FAV.folders.filter(o=>o.id!==f.id);
+    return `<div class="card favitem" data-favgo="${esc(k)}">
+      <div class="favch">${L.icon(44)}<div><div class="ct">${esc(L.name)}</div><div class="dimtx tiny">${esc(FAV_T[x.t])}${L.meta?' · '+esc(L.meta):''}</div></div></div>
+      ${x.note?`<div class="cs favnote">${esc(x.note)}</div>`:''}
+      <div class="favact">
+        <button class="mini" data-favnote="${esc(k)}">&#9998; ${x.note?'Edit note':'Add a note'}</button>
+        ${others.length?`<select class="mini" data-favmove="${esc(k)}" aria-label="Move to another folder"><option value="">Move to&hellip;</option>${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>`:''}
+        <button class="mini" data-favrm="${esc(k)}">Remove</button></div></div>`; }).join('')
+    ||`<p class="empty">Nothing here yet. Press &#9734; Favourite on an item, recipe, build card or page and tick “${esc(f.name)}”.</p>`}</div></div>`;
+}
+function favsEvents(){
+  const main=document.getElementById('favview'); if(!main) return;
+  const nb=document.getElementById('favnew');
+  if(nb){ const box=document.getElementById('favnewbox'); nb.onclick=()=>{ box.hidden=!box.hidden; if(!box.hidden) box.querySelector('[data-fn]').focus(); };
+    favFormEvents(box, v=>{ const f={id:favId(), ...v, made:Date.now(), items:[]}; FAV.folders.push(f); favSave(); renderPinMenu(); FAVSEL=f.id; openView('favs',false); toast(`Made “${f.name}”`); }); }
+  const f=FAVSEL&&favFolder(FAVSEL); if(!f) return;
+  const find=k=>f.items.find(x=>x.t+'|'+x.id===k);
+  const eb=document.getElementById('faveditbox');
+  document.getElementById('favedit').onclick=()=>{ eb.hidden=!eb.hidden; };
+  favFormEvents(eb, v=>{ Object.assign(f,v); favSave(); renderPinMenu(); openView('favs',false); toast('Folder saved'); });
+  const del=document.getElementById('favdel');
+  del.onclick=()=>{ if(del.dataset.sure){ FAV.folders=FAV.folders.filter(x=>x!==f); favSave(); renderPinMenu(); FAVSEL=''; openView('favs',false); toast(`Deleted “${f.name}”`); return; }
+    del.dataset.sure=1; del.textContent=`Delete “${f.name}” and its ${f.items.length} favourites?`; del.classList.add('danger'); };
+  main.onclick=e=>{
+    const ty=e.target.closest('[data-favtype]'); if(ty){ FAVTYPE=ty.dataset.favtype; openView('favs',false); return; }
+    const al=e.target.closest('[data-favall]'); if(al){ e.preventDefault(); e.stopPropagation(); FAVSEL=''; openView('favs',false); return; }
+    const rm=e.target.closest('[data-favrm]'); if(rm){ e.stopPropagation(); const x=find(rm.dataset.favrm); f.items=f.items.filter(y=>y!==x); favSave(); renderPinMenu(); openView('favs',false); toast('Removed'); return; }
+    const nt=e.target.closest('[data-favnote]'); if(nt){ e.stopPropagation(); const x=find(nt.dataset.favnote); const card=nt.closest('.card');
+      if(card.querySelector('.favnoteed')) return;
+      card.querySelector('.favact').insertAdjacentHTML('beforebegin',`<div class="favnoteed"><textarea class="pk" rows="3" maxlength="400" placeholder="Why it's here, e.g. craft with Refreshing + Sacred">${esc(x.note||'')}</textarea><div class="lbtns"><button class="mini go">Save note</button></div></div>`);
+      const ed=card.querySelector('.favnoteed'); ed.onclick=ev=>ev.stopPropagation(); ed.querySelector('textarea').focus();
+      ed.querySelector('button').onclick=()=>{ x.note=ed.querySelector('textarea').value.trim(); favSave(); openView('favs',false); };
+      return; }
+    if(e.target.closest('select,textarea,input,.favnoteed')) { e.stopPropagation(); return; }
+    const go=e.target.closest('[data-favgo]'); if(go){ const x=find(go.dataset.favgo); if(x) favLookup(x).open(); }
+  };
+  main.querySelectorAll('[data-favmove]').forEach(s=>s.onchange=()=>{
+    const x=find(s.dataset.favmove), to=favFolder(s.value); if(!x||!to) return;
+    f.items=f.items.filter(y=>y!==x); if(!to.items.some(y=>y.t===x.t&&y.id===x.id)) to.items.unshift(x);
+    favSave(); renderPinMenu(); openView('favs',false); toast(`Moved to ${to.name}`); });
+}
+
 /* ---------- boot ---------- */
 (async function(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
@@ -2924,7 +3157,7 @@ function trophyEvents(){
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
   else if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);

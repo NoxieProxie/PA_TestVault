@@ -590,3 +590,64 @@ img.ui{width:18px;height:18px;vertical-align:-4px;margin-right:7px;opacity:.82;t
 @media(max-width:900px){ img.ui{margin-right:5px} }
 @media(max-width:480px){ .tool{display:grid;grid-template-columns:40px 1fr;column-gap:12px;align-items:start}
   .tool img.ti{grid-row:1/3;width:40px;height:40px;margin:2px 0 0} }
+
+/* collapsible page sections */
+.secbar{display:flex;justify-content:flex-end;margin:4px 0 6px}
+section.sec{border-top:1px solid var(--line)}
+section.sec:last-of-type{border-bottom:1px solid var(--line)}
+h2.sech{display:flex;align-items:center;gap:10px;cursor:pointer;margin:0;padding:14px 4px;user-select:none;border-bottom:0}
+h2.sech::before{content:"";flex:none;width:8px;height:8px;border-right:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(-45deg);transition:transform .15s;margin-right:4px}
+section.sec.open>h2.sech::before{transform:rotate(45deg)}
+h2.sech:hover{color:var(--gold2)}
+h2.sech:focus-visible{outline:2px solid var(--azoth);outline-offset:2px;border-radius:4px}
+.seccnt{margin-left:auto;font:400 13px var(--sans);color:var(--mute);background:var(--bg3);border:1px solid var(--line);border-radius:20px;padding:1px 9px}
+.secb{padding:0 0 14px}
+@media(prefers-reduced-motion:reduce){h2.sech::before{transition:none}}
+
+/* favourites */
+.favn{font-size:12px;color:var(--mute);margin-left:2px}
+.favb.on,.pin.favb.on{color:var(--gold2);border-color:var(--gold)}
+.favc{font-size:15px;padding:2px 8px;line-height:1.2;margin-left:6px}
+.favc.on{color:var(--gold2);border-color:var(--gold)}
+.favmi{display:flex;align-items:center;gap:9px}
+.favmi .cnt{margin-left:auto;color:var(--mute);font-size:12px}
+img.fi{display:inline-block;vertical-align:middle;filter:drop-shadow(0 2px 3px #0008)}
+.favbox{max-width:560px}
+.favin{padding:14px}
+.favwhat{display:flex;gap:12px;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.favwhat b{font:700 17px var(--serif);color:var(--gold2)}
+.favlist{display:grid;gap:4px;max-height:38vh;overflow-y:auto;margin-bottom:12px}
+.favrow{display:flex;align-items:center;gap:10px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;cursor:pointer;background:var(--bg3)}
+.favrow:hover{border-color:var(--dim)}
+.favrow.on{border-color:var(--gold);background:#2a24171a}
+.favrow input{accent-color:var(--gold);width:16px;height:16px}
+.favrow span{display:flex;flex-direction:column}
+.favrow small{color:var(--mute);font-size:12px}
+.favnew{border-top:1px solid var(--line);padding-top:10px}
+.favfrow{display:flex;gap:12px;align-items:flex-start}
+.favicobtn{flex:none;display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--bg3);border:1px dashed var(--dim);border-radius:10px;padding:7px 8px 5px;cursor:pointer;color:var(--dim);font-size:11.5px}
+.favicobtn:hover{border-color:var(--gold);color:var(--gold2)}
+.favfields{flex:1;display:grid;gap:7px}
+.favfields .pk{width:100%;box-sizing:border-box;font:inherit}
+.favpick{margin-top:10px}
+.favpick .pk{width:100%;box-sizing:border-box}
+.favgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;margin-top:8px;max-height:230px;overflow-y:auto;padding:2px}
+.favgi{display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:5px;cursor:pointer}
+.favgi:hover{border-color:var(--dim)}
+.favgi.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.favnewbox{margin:10px 0 14px;max-width:620px}
+.favch{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.favch .ct{margin:0}
+.favstrip{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.favhead{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
+.favhead h1{margin:0}
+.favhead .lede{margin:.2em 0 0}
+.favhead .lbtns{margin-left:auto}
+.favitem{cursor:pointer}
+.favnote{border-left:2px solid var(--gold);padding-left:9px;white-space:pre-line}
+.favact{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.favact select.mini{max-width:150px}
+.favnoteed{margin-top:8px}
+.favnoteed textarea{width:100%;box-sizing:border-box;font:inherit}
+.mini.danger{color:#ff9a8a;border-color:#a8473b}
+.favnewbox[hidden],.favpick[hidden]{display:none}
