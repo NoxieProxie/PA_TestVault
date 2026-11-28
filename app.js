@@ -1,5 +1,5 @@
 /* ============ Azoth Vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 14:35';
+const BUILD_AT = '2026-11-28 14:59';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -425,7 +425,7 @@ function search(q){
   for(const p in META){ const m=META[p];
     const inName=m.name.toLowerCase().includes(q); const idx=m.body.toLowerCase().indexOf(q);
     if(!inName && idx<0) continue;
-    let snip=''; if(idx>=0){ const s=Math.max(0,idx-70),e=Math.min(m.body.length,idx+130); snip=m.body.slice(s,e).replace(/\n/g,' ').replace(/\|/g,' &middot; '); }
+    let snip=''; if(idx>=0){ const s=Math.max(0,idx-70),e=Math.min(m.body.length,idx+130); snip=m.body.slice(s,e).replace(/\n/g,' ').replace(/:?-{3,}:?/g,' ').replace(/\s*\|[\s|]*/g,' · ').replace(/\s{2,}/g,' '); }
     hits.push({m,p,score:inName?0:1,snip});
   }
   hits.sort((a,b)=>a.score-b.score||a.m.name.localeCompare(b.m.name));
@@ -2202,6 +2202,80 @@ function botCard(b){
 async function loadBotChannels(){ BOTCH=null; BOTCHERR=''; try{ const d=await ownerApi('botchannels'); BOTCH=d; if(OWNER&&OWNER.bot){ OWNER.bot.channel=d.channel; OWNER.bot.log=d.log; } }catch(e){ BOTCHERR=e.message; }
   if(current?.kind==='view'&&current.v==='admin'&&['bot','automod','advanced','roles','live'].includes(ADMTAB)) openView('admin',false); }
 let SUBS=null, SUBERR='', ADMTAB=LS.get('nw_admtab','subs');
+/* ---- admin tab bar: grouped, and the owner can rearrange it (saved in this browser) ---- */
+const ADM_DEFAULT=[{name:'Community',tabs:['subs','published','comments','feedback']},{name:'Site content',tabs:['updates','suggest','editors']},
+  {name:'Discord',tabs:['bot','live','automod','advanced','roles']},{name:'Running the site',tabs:['status','helper','security']}];
+let ADMEDIT=false, ADMLAY=null;
+function admLayout(keys){
+  let L=LS.get('nw_admlayout',null);
+  if(!L||!Array.isArray(L.groups)) L={groups:JSON.parse(JSON.stringify(ADM_DEFAULT)),hidden:[]};
+  L.hidden=Array.isArray(L.hidden)?L.hidden:[];
+  const seen=new Set([...L.groups.flatMap(g=>g.tabs),...L.hidden]);
+  for(const k of keys) if(!seen.has(k)){   // a tab added after the layout was saved goes to its usual group
+    const dg=ADM_DEFAULT.find(g=>g.tabs.includes(k));
+    let g=(dg&&L.groups.find(x=>x.name===dg.name))||L.groups[L.groups.length-1];
+    if(!g){ g={name:'Other',tabs:[]}; L.groups.push(g); }
+    g.tabs.push(k);
+  }
+  return L;
+}
+function admTabsHTML(tabs){
+  const lab=Object.fromEntries(tabs.map(([k,l])=>[k,l.replace(/^&#\d+;\s*/,'')]));
+  const L=ADMLAY=admLayout(Object.keys(lab));
+  const chip=(k,extra='')=>`<button class="chip ${ADMTAB===k?'on':''} ${extra}" data-admtab="${k}"${ADMEDIT?' draggable="true" aria-describedby="admhelp"':''}>${lab[k]}${ADMEDIT?`<span class="admx" data-admhide="${k}" role="button" aria-label="Hide ${esc(lab[k].replace(/<[^>]+>/g,''))}" title="Hide">&times;</span>`:''}</button>`;
+  const groups=L.groups.map((g,gi)=>{
+    const ks=g.tabs.filter(k=>lab[k]&&!L.hidden.includes(k));
+    if(!ks.length&&!ADMEDIT) return '';
+    return `<div class="admgrp">${ADMEDIT?`<input class="admgname" data-admgname="${gi}" value="${esc(g.name)}" aria-label="Group name" maxlength="30">`:`<span class="admglab">${esc(g.name)}</span>`}
+      <div class="admchips" data-admdrop="${gi}">${ks.map(k=>chip(k)).join('')}${ADMEDIT&&!ks.length?'<span class="dimtx tiny">Drag tabs here</span>':''}</div>
+      ${ADMEDIT?`<span class="admgbtns"><button class="mini" data-admgmove="${gi}:-1" ${gi?'':'disabled'} aria-label="Move group up">&uarr;</button><button class="mini" data-admgmove="${gi}:1" ${gi<L.groups.length-1?'':'disabled'} aria-label="Move group down">&darr;</button><button class="mini" data-admgdel="${gi}">Remove</button></span>`:''}</div>`;
+  }).join('');
+  const hid=L.hidden.filter(k=>lab[k]);
+  return `<div class="admbar ${ADMEDIT?'editing':''}">${groups}
+    ${ADMEDIT?`<div class="admgrp admhid"><span class="admglab">Hidden</span><div class="admchips" data-admdrop="hidden">${hid.map(k=>chip(k,'off')).join('')||'<span class="dimtx tiny">Drag a tab here, or click its &times;, to hide it</span>'}</div></div>`:''}
+    <div class="admtools">${ADMEDIT?`<span class="dimtx tiny" id="admhelp">Drag tabs to reorder them or move them to another group. With the keyboard: focus a tab, then arrow keys move it.</span><span><button class="mini" id="admaddg">Add group</button> <button class="mini" id="admreset">Reset to default</button> <button class="mini go" id="admdone">Done</button></span>`
+      :`${hid.length?`<span class="dimtx tiny">${hid.length} hidden</span>`:''}<button class="mini" id="admedit">Arrange tabs</button>`}</div></div>`;
+}
+function admTabEvents(){
+  const L=ADMLAY; if(!L) return;
+  const on=(id,f)=>{ const e=document.getElementById(id); if(e) e.onclick=f; };
+  const redraw=(focusKey)=>{ LS.set('nw_admlayout',L); openView('admin',false); if(focusKey){ const f=document.querySelector(`[data-admtab="${focusKey}"]`); if(f) f.focus(); } };
+  const rm=k=>{ L.groups.forEach(g=>g.tabs=g.tabs.filter(x=>x!==k)); L.hidden=L.hidden.filter(x=>x!==k); };
+  const place=(k,dest,before)=>{ rm(k); const arr=dest==='hidden'?L.hidden:L.groups[+dest].tabs; const i=before?arr.indexOf(before):-1; i<0?arr.push(k):arr.splice(i,0,k); };
+  on('admedit',()=>{ ADMEDIT=true; openView('admin',false); });
+  on('admdone',()=>{ ADMEDIT=false; L.groups=L.groups.filter(g=>g.tabs.length||g.name.trim()); redraw(); });
+  on('admreset',()=>{ LS.del('nw_admlayout'); ADMLAY=null; openView('admin',false); });
+  on('admaddg',()=>{ L.groups.push({name:'New group',tabs:[]}); redraw(); });
+  document.querySelectorAll('[data-admgname]').forEach(el=>el.onchange=()=>{ L.groups[+el.dataset.admgname].name=el.value.trim()||'Group'; LS.set('nw_admlayout',L); });
+  document.querySelectorAll('[data-admgmove]').forEach(el=>el.onclick=()=>{ const [i,d]=el.dataset.admgmove.split(':').map(Number); const j=i+d; if(j<0||j>=L.groups.length) return; [L.groups[i],L.groups[j]]=[L.groups[j],L.groups[i]]; redraw(); });
+  document.querySelectorAll('[data-admgdel]').forEach(el=>el.onclick=()=>{ const i=+el.dataset.admgdel, g=L.groups[i]; L.groups.splice(i,1);
+    if(g.tabs.length){ if(!L.groups.length) L.groups.push({name:'Tabs',tabs:[]}); L.groups[Math.max(0,i-1)].tabs.push(...g.tabs); } redraw(); });
+  document.querySelectorAll('[data-admhide]').forEach(el=>el.onclick=e=>{ e.stopPropagation(); const k=el.dataset.admhide; if(L.hidden.includes(k)){ place(k,'0'); } else { rm(k); L.hidden.push(k); } redraw(); });
+  if(!ADMEDIT) return;
+  let drag=null;
+  document.querySelectorAll('.admbar [draggable="true"]').forEach(el=>{
+    el.ondragstart=e=>{ drag=el.dataset.admtab; el.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',drag); }catch(_){} };
+    el.ondragend=()=>{ el.classList.remove('dragging'); document.querySelectorAll('.admchips.over').forEach(x=>x.classList.remove('over')); };
+    el.onkeydown=e=>{ const k=el.dataset.admtab; if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return; e.preventDefault();
+      let gi=L.groups.findIndex(g=>g.tabs.includes(k));
+      if(gi<0){ if(e.key==='ArrowUp'){ place(k,String(L.groups.length-1)); redraw(k); } return; }   // from Hidden, Up brings it back
+      const arr=L.groups[gi].tabs, i=arr.indexOf(k);
+      if(e.key==='ArrowLeft'&&i>0){ arr.splice(i,1); arr.splice(i-1,0,k); }
+      else if(e.key==='ArrowRight'&&i<arr.length-1){ arr.splice(i,1); arr.splice(i+1,0,k); }
+      else if(e.key==='ArrowUp'&&gi>0) place(k,String(gi-1));
+      else if(e.key==='ArrowDown') { if(gi<L.groups.length-1) place(k,String(gi+1)); else { rm(k); L.hidden.push(k); } }
+      else return;
+      redraw(k); };
+  });
+  document.querySelectorAll('.admbar [data-admdrop]').forEach(z=>{
+    z.ondragover=e=>{ if(!drag) return; e.preventDefault(); z.classList.add('over'); };
+    z.ondragleave=e=>{ if(!z.contains(e.relatedTarget)) z.classList.remove('over'); };
+    z.ondrop=e=>{ e.preventDefault(); if(!drag) return;
+      const t=e.target.closest('[data-admtab]'); let before=null;
+      if(t&&t.dataset.admtab!==drag){ const r=t.getBoundingClientRect(); before=e.clientX<r.left+r.width/2?t.dataset.admtab:(t.nextElementSibling&&t.nextElementSibling.dataset.admtab)||null; }
+      place(drag,z.dataset.admdrop,before); const k=drag; drag=null; redraw(k); };
+  });
+}
 function viewReview(){
   const t=ghToken(), u=CFG.worker?dUser():null, helper=viaHelper();
   const tokenBox=`<div class="slot wide losave"><input id="ghtok" type="password" placeholder="Paste your GitHub token here" value=""><button class="mini go" id="ghtoksave">Save token</button>${t?'<button class="mini" id="ghtokdel">Forget token</button>':''}</div>`;
@@ -2223,7 +2297,7 @@ function viewReview(){
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
   <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
-  <div class="admtabs">${tabs.map(([k,l])=>`<button class="chip ${ADMTAB===k?'on':''}" data-admtab="${k}">${l}</button>`).join('')}</div>`;
+  ${admTabsHTML(tabs)}`;
   let body='';
   if(ADMTAB==='subs') body=`<p class="dimtx">Loadouts people have submitted. <b>Preview</b> opens one in the builder, <b>Publish</b> puts it in Community loadouts for everyone, <b>Reject</b> closes it with a polite note.</p>
   <div class="presetbar"><button class="mini" id="subrefresh">&#8635; Refresh</button>${helper?(OWNER.discord?`<label class="dimtx"><input type="checkbox" id="dpost" ${LS.get('nw_dpost',true)?'checked':''}> Also post to Discord when I publish</label>`:`<span class="dimtx tiny">Add DISCORD_WEBHOOK_URL or the bot settings to the helper to post published loadouts to Discord.</span>`):''}</div>
@@ -2276,7 +2350,8 @@ function reviewEvents(){
   if(ADMTAB==='comments' && typeof talkModEvents==='function') talkModEvents();
   if((ADMTAB==='updates'||ADMTAB==='editors') && typeof edAdminEvents==='function') edAdminEvents();
   if(ADMTAB==='suggest' && typeof editorEvents==='function') editorEvents();
-  document.querySelectorAll('[data-admtab]').forEach(el=>el.onclick=()=>{ ADMTAB=el.dataset.admtab; LS.set('nw_admtab',ADMTAB); openView('admin',false); });
+  document.querySelectorAll('[data-admtab]').forEach(el=>el.onclick=e=>{ if(e.target.closest('[data-admhide]')) return; ADMTAB=el.dataset.admtab; LS.set('nw_admtab',ADMTAB); openView('admin',false); });
+  admTabEvents();
   const hs=document.getElementById('helperst');
   const chk=async()=>{ if(!hs||!CFG.worker) return; hs.textContent='Checking…'; try{ const r=await fetch(CFG.worker+'/',{cache:'no-store'}); hs.textContent=(await r.text()).trim(); }catch(e){ hs.textContent='Could not reach the helper: '+e.message; } };
   if(hs) chk(); on('helperchk',chk);
@@ -2864,7 +2939,7 @@ async function loadCrafting(){
   CRLOAD=(async()=>{
     try{
       const d=await (await fetch('crafting.json')).json();
-      for(let k=0;k<d.sheets;k++) CRSHEETS.push('craft_'+k+'.webp?v='+d.tile);
+      for(let k=0;k<d.sheets;k++) CRSHEETS.push('craft_'+k+'.webp?v='+(d.ver||d.tile));
       d.byOut={}; d.byId={}; d.usedIn={};
       d.recipes.forEach((r,i)=>{ r.ix=i; d.byId[r.id]=r; (d.byOut[r.o]=d.byOut[r.o]||[]).push(r);
         r.ev=!r.ts || EVENT_RX.test(r.cat+' '+r.grp+' '+r.id) || /Seasons|SeasonalServers/.test(r.src) || r.cat==='Furniture' || /Dye|Pattern|Faction/.test(r.cat);
@@ -4347,7 +4422,7 @@ function talkModEvents(){
   try { PERKS = await (await fetch('gear_perks.json')).json(); } catch(e){ PERKS = null; }
   try { ICO = await (await fetch('icons.json')).json(); ICO.img = await sliceSprite('icons_0.webp', ICO); } catch(e){ ICO = null; }
   try { ITEMDB = await (await fetch('items.json')).json();
-        for(let k=0;k<ITEMDB.sheets;k++) SPRITES.push('items_'+k+'.webp?v='+ITEMDB.tile); } catch(e){ ITEMDB = null; }
+        for(let k=0;k<ITEMDB.sheets;k++) SPRITES.push('items_'+k+'.webp?v='+(ITEMDB.ver||ITEMDB.tile)); } catch(e){ ITEMDB = null; }
   try { PRESETS = await (await fetch('gear_presets.json')).json(); } catch(e){ PRESETS = null; }
   try { NOTEICO = await (await fetch('noteicons.json')).json(); NOTEICO.urls=[]; for(let k=0;k<NOTEICO.sheets;k++) NOTEICO.urls.push('noteicons_'+k+'.webp?v='+NOTEICO.tile); } catch(e){ NOTEICO = null; }
   try{ if(typeof loadTS==='function') await loadTS(); }catch(e){}
