@@ -840,7 +840,7 @@ body:not(.nofx) .tw tbody tr{transition:background-color .15s}
 body:not(.nofx) .tw tbody tr:hover{background-color:color-mix(in srgb,var(--gold) 7%,transparent)}
 body:not(.nofx) .mi{transition:background-color .15s,padding-left .15s}
 body:not(.nofx) .mi:hover{padding-left:20px}
-@media (prefers-reduced-motion:reduce){#bgfx :is(.g1,.dots){display:none} body .mi:hover{padding-left:revert}}
+@media (prefers-reduced-motion:reduce){body:not(.fxforce) #bgfx :is(.g1,.dots){display:none} body:not(.fxforce) .mi:hover{padding-left:revert}}
 @media (hover:none){#bgfx .dots,#bgfx .g2{display:none}}
 .fxtog{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg);padding:2px 12px 8px;cursor:pointer}
 
@@ -866,4 +866,4 @@ header>.bar1,header>#topnav{position:relative;z-index:1}
 /* lift the content off the background a little */
 body:not(.nofx) :is(.slot,.card,.callout,.tw,.lcard,.panel){box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 14px 34px -18px rgba(0,0,0,.75)}
 body:not(.nofx) .menu{box-shadow:0 24px 60px -10px rgba(0,0,0,.8)}
-@media (prefers-reduced-motion:reduce){#bgfx .aur{animation:none}}
+@media (prefers-reduced-motion:reduce){body:not(.fxforce) #bgfx .aur{animation:none}}

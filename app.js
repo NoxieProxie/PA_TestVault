@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 01:01';
+const BUILD_AT = '2026-11-28 01:08';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -291,7 +291,8 @@ function seasonPickHTML(){
   const b=(k,n,c)=>`<button type="button" data-season="${k}" aria-pressed="${cur===k}"><i style="background:${c}"></i>${esc(n)}</button>`;
   return `<div class="mn tiny">Automatic changes the look for each in-game event${now?` (now: <b>${esc(now.n)}</b>)`:' (no event on right now)'}. Your pick is saved in this browser.</div>
     <div class="sspick">${b('auto','Automatic','conic-gradient(#9fd0e6,#e8b04a,#e7a3be,#f2a65a,#f0913c,#9fd0e6)')}${b('off','Normal look','#cfa557')}${NWSEASONS.map(x=>b(x.k,x.n,x.c)).join('')}</div>
-    <label class="fxtog"><input type="checkbox" id="fxtog" ${document.body.classList.contains('nofx')?'':'checked'}> Moving light and glow effects</label>`;
+    <label class="fxtog"><input type="checkbox" id="fxtog" ${window.nwFxOn&&nwFxOn()?'checked':''}> Moving light, glow and seasonal effects</label>
+    ${window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches&&!document.body.classList.contains('fxforce')?'<div class="mn tiny">Your device asks websites to reduce motion (on Windows: Settings → Accessibility → Visual effects → Animation effects), so these start switched off. Tick the box to turn them on anyway.</div>':''}`;
 }
 document.addEventListener('change',e=>{ if(e.target&&e.target.id==='fxtog'&&window.nwFx) nwFx(e.target.checked); });
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-season]'); if(!b) return; e.preventDefault(); e.stopPropagation();
@@ -654,6 +655,7 @@ document.addEventListener('drop', async e=>{
   const off=()=>{ try{ return localStorage.getItem('nw_fx')==='off'; }catch(e){ return false; } };
   const fx=document.createElement('div'); fx.id='bgfx'; fx.innerHTML='<div class="aur a1"></div><div class="aur a2"></div><div class="aur a3"></div><div class="g2"></div><div class="g1"></div><div class="dots"></div><div class="grain"></div><div class="vig"></div>'; document.body.prepend(fx);
   document.body.classList.toggle('nofx', off());
+  try{ document.body.classList.toggle('fxforce', localStorage.getItem('nw_fx')==='on'); }catch(e){}
   let x=-999,y=-999,raf=0,card=null,cx=0,cy=0;
   const paint=()=>{ raf=0; fx.style.setProperty('--mx',x+'px'); fx.style.setProperty('--my',y+'px');
     if(x>-999){ fx.style.setProperty('--px',(x/innerWidth-.5).toFixed(3)); fx.style.setProperty('--py',(y/innerHeight-.5).toFixed(3)); }
@@ -664,7 +666,8 @@ document.addEventListener('drop', async e=>{
     card=c; if(c){ const r=c.getBoundingClientRect(); cx=e.clientX-r.left; cy=e.clientY-r.top; }
     if(!raf) raf=requestAnimationFrame(paint); },{passive:true});
   document.addEventListener('pointerleave',()=>{ x=y=-999; if(!raf) raf=requestAnimationFrame(paint); });
-  window.nwFx=on=>{ try{ localStorage.setItem('nw_fx',on?'on':'off'); }catch(e){} document.body.classList.toggle('nofx',!on); };
+  window.nwFx=on=>{ try{ localStorage.setItem('nw_fx',on?'on':'off'); }catch(e){} document.body.classList.toggle('nofx',!on); document.body.classList.toggle('fxforce',!!on); };
+  window.nwFxOn=()=>!document.body.classList.contains('nofx') && (document.body.classList.contains('fxforce') || !(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches));
 })();
 /* ---------- falling things in the top bar: snow in winter, leaves in autumn, petals in spring, fireflies in summer, embers at Lunar New Year ---------- */
 (function(){
@@ -692,7 +695,7 @@ document.addEventListener('drop', async e=>{
     cx.globalAlpha=1; cx.restore(); }
   function size(){ const r=hdr.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px'; cx.setTransform(dpr,0,0,dpr,0,0); }
   function reset(){ const k=KINDS[kind]; const n=Math.round(Math.min(90,W*k.n)); P=[]; for(let i=0;i<n;i++){ const p={x:Math.random()*W,y:Math.random()*H}; k.make(p); P.push(p);} }
-  function off(){ return document.body.classList.contains('nofx')||(reduce&&reduce.matches); }
+  function off(){ return document.body.classList.contains('nofx')||(reduce&&reduce.matches&&!document.body.classList.contains('fxforce')); }
   function tick(t){
     if(!run) return; requestAnimationFrame(tick);
     const want=(window.NWSEASON&&KINDS[window.NWSEASON.k])?window.NWSEASON.k:'none';
