@@ -2,7 +2,7 @@
    Azoth Vault (https://azothvault.com) · © 2026 NoxieProxie. All rights reserved.
    Copying or re-hosting this code, design or the written guides is not allowed without permission. azv-2ue53jgfm6
    ================================================== */
-const BUILD_AT = '2026-11-28 16:13';
+const BUILD_AT = '2026-11-28 16:49';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1196,18 +1196,21 @@ function viewItems(){
 }
 function equipItem(it, quiet){
   if(!it) return false;
-  const perks=cleanPerks(it);
-  if(['Helmet','Chest','Gloves','Pants','Boots'].includes(it.s)){
-    const a=G.armor[it.s]; a.item=it.n; if(it.w) a.wt=it.w; a.p1=perks[0]||''; a.p2=perks[1]||''; a.p3=perks[2]||'';
-  } else if(['Amulet','Ring','Earring'].includes(it.s)){
-    const j=G.jew[it.s]; j.item=it.n; j.p1=perks[0]||''; j.p2=perks[1]||'';
-  } else if(it.s==='Shield'){
-    G.w1='Sword and Shield'; G.shield=it.n;
+  let kind, id;
+  if(['Helmet','Chest','Gloves','Pants','Boots'].includes(it.s)){ kind='a'; id=it.s; if(it.w) G.armor[it.s].wt=it.w; }
+  else if(['Amulet','Ring','Earring'].includes(it.s)){ kind='j'; id=it.s; }
+  else if(it.s==='Shield'){ G.w1='Sword and Shield'; G.shield=it.n; saveG(); if(!quiet) toast('Equipped '+it.n); return true; }
+  else { const wt=WT2LOAD[it.t]||it.t; id=G.w1===wt?1:G.w2===wt?2:1; kind='w'; G['w'+id]=wt; }
+  const S=slotRef(kind,id), o=S.o, L=itemLayout(it);
+  o[S.item]=it.n;
+  if(L.known){
+    // charms: what the item comes with, otherwise keep yours where the socket type still fits
+    S.charms.forEach((k,i)=>{ const t=L.k[i]; if(!t){ o[k]=''; return; } if(L.kp[i]){ o[k]=L.kp[i]; return; }
+      const ct=o[k]?charmType(o[k]):''; if(o[k]&&!(t==='A'||ct===t)) o[k]=''; });
+    S.perks.forEach((k,i)=>{ if(i>=L.r) o[k]=''; else if(o[k]&&charmType(o[k])) o[k]=''; });
+    if(L.ng) o[S.gem]=''; else if(L.gp) o[S.gem]=L.gp;
   } else {
-    const wt=WT2LOAD[it.t]||it.t;
-    const slot = G.w1===wt ? 1 : G.w2===wt ? 2 : 1;
-    G['w'+slot]=wt; G['w'+slot+'item']=it.n;
-    G['w'+slot+'p1']=perks[0]||''; G['w'+slot+'p2']=perks[1]||''; G['w'+slot+'p3']=perks[2]||'';
+    const perks=cleanPerks(it); S.perks.forEach((k,i)=>o[k]=perks[i]||'');
   }
   saveG(); if(!quiet) toast('Equipped '+it.n);
   return true;
@@ -1418,15 +1421,57 @@ function pin2(path, val, listId, ph){
   const ic=icoFor(val);
   return `<div class="pkrow">${ic?`<img class="ico" src="${ic}" alt="">`:'<span class="ico none"></span>'}<input class="pk" list="${listId}" data-g="${path}" value="${esc(val||'')}" placeholder="${ph}"></div>`;
 }
+/* ===== Season 10 sockets: every item has its own layout of charm sockets (offense / defense / skill / any), rolled perks,
+   fixed perks, an infix and a gem slot. Items without known data (or no item picked) get the general crafted layout. ===== */
+const SOCK_MAX=4, ROLL_MAX=4;
+const SOCKNAME={O:'Offense',D:'Defense',S:'Skill',A:'Any type'};
+const CHARMT={OffensiveCharm:'O',DefensiveCharm:'D',SkillCharm:'S'};
+function slotRef(kind,id,g=G){
+  if(kind==='w') return {o:g, item:'w'+id+'item', gem:'w'+id+'gem', perks:['p1','p2','p3','p4'].map(k=>'w'+id+k), charms:['perk','off','c3','c4'].map(k=>'w'+id+k), path:k=>k, label:'Weapon '+id};
+  const o=(kind==='a'?g.armor:g.jew)[id]||{}, base=(kind==='a'?'armor.':'jew.')+id+'.';
+  return {o, item:'item', gem:'gem', perks:['p1','p2','p3','p4'], charms:['ch','ch2','ch3','ch4'], path:k=>base+k, label:id};
+}
+function allSlots(g=G){ return [['w',1],['w',2]].concat(ARMOR_SLOTS.map(s=>['a',s]),JEW_SLOTS.map(s=>['j',s])).map(([k,i])=>Object.assign(slotRef(k,i,g),{kind:k,id:i})); }
+function itemLayout(it){
+  if(it && it.r!==undefined) return {k:it.k||'', kp:it.kp||[], fx:it.fx||[], inf:it.inf||'', ng:!!it.ng, gp:it.gp||'', r:it.r, known:true};
+  return {k:'AAAA', kp:[], fx:[], inf:'', ng:false, gp:'', r:3, known:false};
+}
+function charmType(name){ const p=perkByName(name); return p?(CHARMT[p.t]||''):''; }
+function rollField(path,val,listId,ph){
+  const t=val?charmType(val):'';
+  const warn=t?`${SOCKNAME[t]} charm: put it in a charm socket, not a rolled perk`:'';
+  return pin2(path,val,listId,ph).replace('<div class="pkrow">',`<div class="pkrow${warn?' misfit':''}">`)+(warn?`<div class="misfitmsg">${esc(warn)}</div>`:'');
+}
+function charmField(path,val,t,listId,pre){
+  const ct=val?charmType(val):'', p=val?perkByName(val):null;
+  const warn=!val?'':!p?'':!ct?'Not a charm: rolled perks go in the perk fields':(t!=='A'&&ct!==t)?`${SOCKNAME[ct]} charm, but this is ${t==='O'?'an':'a'} ${SOCKNAME[t].toLowerCase()} socket`:'';
+  const ic=icoFor(val);
+  return `<div class="pkrow sock${warn?' misfit':''}"><span class="skt skt-${t}" title="${SOCKNAME[t]} socket">${t==='A'?'Any':SOCKNAME[t]}</span>${ic?`<img class="ico" src="${ic}" alt="">`:''}<input class="pk" list="${listId}" data-g="${path}" value="${esc(val||'')}" placeholder="${t==='A'?'Charm (any type)':SOCKNAME[t]+' charm'}${pre?' · comes with '+esc(pre):''}"></div>${warn?`<div class="misfitmsg">${esc(warn)}</div>`:''}`;
+}
+function overField(path,val,listId,why){
+  return pin2(path,val,listId,'').replace('<div class="pkrow">','<div class="pkrow misfit">')+`<div class="misfitmsg">${esc(why)} &middot; clear it to remove</div>`;
+}
+function sockHTML(kind,id,lists){
+  const S=slotRef(kind,id), o=S.o, it=itemByName(o[S.item]), L=itemLayout(it);
+  let h='';
+  if(L.known&&(L.fx.length||L.inf)) h+=`<div class="fixedp">${L.inf?`<span class="fx inf" title="Infix: comes with the item">&#10022; ${esc(L.inf)}</span>`:''}${L.fx.map(f=>`<span class="fx" title="Fixed perk: comes with the item and can't be changed">&#128274; ${esc(f)}</span>`).join('')}</div>`;
+  if(L.ng){ h+=`<div class="pkrow nosock"><span class="ico none"></span><span class="dimtx tiny">No gem slot on this item</span></div>`; if(o[S.gem]) h+=overField(S.path(S.gem),o[S.gem],lists.gem,'This item has no gem slot'); }
+  else h+=pin2(S.path(S.gem),o[S.gem],lists.gem,L.gp?'Gem · comes with '+L.gp:'Gem');
+  S.perks.forEach((k,i)=>{ if(i<L.r) h+=rollField(S.path(k),o[k],lists.roll,'Rolled perk '+(i+1)); else if(o[k]) h+=overField(S.path(k),o[k],lists.roll,L.known?`${it.n} rolls ${L.r||'no'} random perk${L.r===1?'':'s'}`:'Gear rolls at most 3 random perks'); });
+  let show=L.k.length;
+  if(!L.known){ let last=-1; S.charms.forEach((k,i)=>{ if(o[k]) last=i; }); show=Math.min(SOCK_MAX,last+2); }
+  S.charms.forEach((k,i)=>{ const t=L.k[i];
+    if(t&&i<show) h+=charmField(S.path(k),o[k],t,lists['c'+t],L.kp[i]);
+    else if(o[k]) h+=overField(S.path(k),o[k],lists.cA,L.known?`${it.n} has ${L.k.length||'no'} charm socket${L.k.length===1?'':'s'}`:'Gear holds at most 4 charms'); });
+  if(L.known&&!L.k.length&&!L.r&&!L.fx.length&&!L.inf) h+=`<div class="dimtx tiny">This item takes no charms or extra perks.</div>`;
+  if(L.known&&L.k.length) h+=`<div class="dimtx tiny socknote">${L.k.length} charm socket${L.k.length===1?'':'s'}${L.r?` &middot; ${L.r} rolled perk${L.r===1?'':'s'}`:''}</div>`;
+  else if(!L.known) h+=`<div class="dimtx tiny socknote">No item picked: up to 4 charms of any type, 1 gem.</div>`;
+  return h;
+}
 function allChosen(g=G){
   const out=[];
   const add=(name, where)=>{ if(!name) return; const p=perkByName(name); out.push({name, where, p}); };
-  add(g.w1gem,'Weapon 1 gem'); add(g.w2gem,'Weapon 2 gem');
-  add(g.w1perk,'Weapon 1 charm'); add(g.w2perk,'Weapon 2 charm');
-  add(g.w1off,'Weapon 1 charm 2'); add(g.w2off,'Weapon 2 charm 2');
-  ['w1p1','w1p2','w1p3'].forEach(k=>add(g[k],'Weapon 1')); ['w2p1','w2p2','w2p3'].forEach(k=>add(g[k],'Weapon 2'));
-  ARMOR_SLOTS.forEach(s=>{ const a=g.armor[s]; add(a.gem,s+' gem'); add(a.p1,s); add(a.p2,s); add(a.p3,s); add(a.ch,s+' charm'); });
-  JEW_SLOTS.forEach(s=>{ const j=g.jew[s]; add(j.gem,s+' gem'); add(j.p1,s); add(j.p2,s); add(j.ch,s+' charm'); });
+  allSlots(g).forEach(S=>{ const o=S.o; add(o[S.gem],S.label+' gem'); S.perks.forEach(k=>add(o[k],S.label)); S.charms.forEach((k,i)=>add(o[k],S.label+' charm'+(i?' '+(i+1):''))); });
   return out;
 }
 function totals(g=G){
@@ -1492,16 +1537,17 @@ function applyLoadout(name, L){
     if(wlist.includes(r.type)) G['w'+n]=r.type;
     G['w'+n+'item']=real(r.item); G['w'+n+'gem']=r.gem;
     G['w'+n+'p1']=r.p[0]; G['w'+n+'p2']=r.p[1]; G['w'+n+'p3']=r.p[2];
-    const ch=r.ch.split(/\s*\+\s*/); G['w'+n+'perk']=ch[0]||''; G['w'+n+'off']=ch[1]||'';
+    const ch=r.ch.split(/\s*\+\s*/); ['perk','off','c3','c4'].forEach((k,i)=>G['w'+n+k]=ch[i]||''); G['w'+n+'p4']='';
   });
   G.shield=L.slots.Shield?real(L.slots.Shield.item):'';
   ARMOR_SLOTS.forEach(s=>{ const r=L.slots[s]; const a=G.armor[s];
-    Object.assign(a,{item:'',gem:'',p1:'',p2:'',p3:'',ch:''});
+    Object.assign(a,{item:'',gem:'',p1:'',p2:'',p3:'',p4:'',ch:'',ch2:'',ch3:'',ch4:''});
     if(!r) return; if(['Light','Medium','Heavy'].includes(r.type)) a.wt=r.type;
-    Object.assign(a,{item:real(r.item),gem:r.gem,p1:r.p[0],p2:r.p[1],p3:r.p[2],ch:r.ch}); });
+    const ch=r.ch.split(/\s*\+\s*/);
+    Object.assign(a,{item:real(r.item),gem:r.gem,p1:r.p[0],p2:r.p[1],p3:r.p[2],ch:ch[0]||'',ch2:ch[1]||'',ch3:ch[2]||'',ch4:ch[3]||''}); });
   JEW_SLOTS.forEach(s=>{ const r=L.slots[s]; const j=G.jew[s];
-    Object.assign(j,{item:'',gem:'',p1:'',p2:'',ch:''});
-    if(r) Object.assign(j,{item:real(r.item),gem:r.gem,p1:r.p[0],p2:r.p[1],ch:r.ch}); });
+    Object.assign(j,{item:'',gem:'',p1:'',p2:'',p3:'',p4:'',ch:'',ch2:'',ch3:'',ch4:''});
+    if(r){ const ch=r.ch.split(/\s*\+\s*/); Object.assign(j,{item:real(r.item),gem:r.gem,p1:r.p[0],p2:r.p[1],p3:r.p[2],ch:ch[0]||'',ch2:ch[1]||'',ch3:ch[2]||'',ch4:ch[3]||''}); } });
   const hr=L.slots.Heartrune; if(hr&&hr.item){ const b=hr.item.split(' '); if(RVARIANTS.includes(b[0])){ G.runev=b.shift(); } const rn=b.join(' '); G.rune=RUNES.find(x=>x.toLowerCase()===rn.toLowerCase()||x==='The '+rn)||G.rune; }
   G.abil={1:[],2:[]};
   L.abil.forEach(x=>{ const w=WT2LOAD[x.w]||x.w; if(w===G.w1) G.abil[1]=x.a.slice(0,3); else if(w===G.w2) G.abil[2]=x.a.slice(0,3); });
@@ -1529,6 +1575,13 @@ function viewGear(){
   const armd=dl('armd', perksFor({slot:'Armor'}));
   const jewd=dl('jewd', perksFor({slot:'Jewelry'}));
   const chA=dl('chA', perksFor({off:true}).concat(perksFor({charmW:G.w1}),perksFor({charmW:G.w2})));
+  const byT=t=>PERKS.filter(p=>p.t===t), skillFor=ws=>PERKS.filter(p=>p.t==='SkillCharm'&&ws.some(w=>p.w.includes(w)));
+  const gen=f=>PERKS.filter(p=>p.t==='Generated'&&f(p.s));
+  const sockDL=dl('cO',byT('OffensiveCharm'))+dl('cD',byT('DefensiveCharm'))+dl('cS1',skillFor([G.w1]))+dl('cS2',skillFor([G.w2]))+dl('cSx',skillFor([G.w1,G.w2]))
+    +dl('cA1',byT('OffensiveCharm').concat(byT('DefensiveCharm'),skillFor([G.w1])))+dl('cA2',byT('OffensiveCharm').concat(byT('DefensiveCharm'),skillFor([G.w2])))
+    +dl('cAx',byT('OffensiveCharm').concat(byT('DefensiveCharm'),skillFor([G.w1,G.w2])))
+    +dl('rW',gen(s=>s.includes('Weapon')))+dl('rA',gen(s=>s.some(x=>['Armor',...ARMOR_SLOTS].includes(x))))+dl('rJ',gen(s=>s.some(x=>['Jewelry',...JEW_SLOTS].includes(x))));
+  const LW=n=>({gem:'gem_w',roll:'rW',cO:'cO',cD:'cD',cS:'cS'+n,cA:'cA'+n}), LA={gem:'gem_a',roll:'rA',cO:'cO',cD:'cD',cS:'cSx',cA:'cAx'}, LJ={gem:'gem_j',roll:'rJ',cO:'cO',cD:'cD',cS:'cSx',cA:'cAx'};
   const wType=w=>Object.keys(WT2LOAD).filter(k=>WT2LOAD[k]===w).concat([w]);
   const itDL=itemDL('it_w1',i=>i.s==='Weapon'&&wType(G.w1).includes(i.t))+itemDL('it_w2',i=>i.s==='Weapon'&&wType(G.w2).includes(i.t))
     +itemDL('it_sh',i=>i.s==='Shield')+ARMOR_SLOTS.map(s=>itemDL('it_'+s,i=>i.s===s)).join('')+JEW_SLOTS.map(s=>itemDL('it_'+s,i=>i.s===s)).join('');
@@ -1536,26 +1589,14 @@ function viewGear(){
     <select data-g="w${n}">${wlist.map(w=>`<option ${G['w'+n]===w?'selected':''}>${esc(w)}</option>`).join('')}</select>
     ${itemField('w'+n+'item',G['w'+n+'item'],'it_w'+n)}
     ${(n===1&&G.w1==='Sword and Shield')?itemField('shield',G.shield,'it_sh'):''}
-    ${pin2('w'+n+'gem',G['w'+n+'gem'],'gem_w','Gem / runeglass')}
-    ${pin2('w'+n+'p1',G['w'+n+'p1'],'armd','Weapon perk 1')}
-    ${pin2('w'+n+'p2',G['w'+n+'p2'],'armd','Weapon perk 2')}
-    ${pin2('w'+n+'p3',G['w'+n+'p3'],'armd','Weapon perk 3')}
-    ${pin2('w'+n+'perk',G['w'+n+'perk'],'ch'+n,'Ability perk (skill charm)')}
-    ${pin2('w'+n+'off',G['w'+n+'off'],'offd','Offence / defence charm')}</div>`;
+    ${sockHTML('w',n,LW(n))}</div>`;
   const arow=(s)=>`<div class="slot"><div class="sh">${s}</div>
     ${itemField('armor.'+s+'.item',G.armor[s].item,'it_'+s)}
     <select data-g="armor.${s}.wt">${['Light','Medium','Heavy'].map(w=>`<option ${G.armor[s].wt===w?'selected':''}>${w}</option>`).join('')}</select>
-    ${pin2(`armor.${s}.gem`,G.armor[s].gem,'gem_a','Gem')}
-    ${pin2(`armor.${s}.p1`,G.armor[s].p1,'armd','Perk 1')}
-    ${pin2(`armor.${s}.p2`,G.armor[s].p2,'armd','Perk 2')}
-    ${pin2(`armor.${s}.p3`,G.armor[s].p3,'armd','Perk 3')}
-    ${pin2(`armor.${s}.ch`,G.armor[s].ch,'chA','Charm')}</div>`;
+    ${sockHTML('a',s,LA)}</div>`;
   const jrow=(s)=>`<div class="slot"><div class="sh">${s}<i class="warnlite">no attributes in S10</i></div>
     ${itemField('jew.'+s+'.item',G.jew[s].item,'it_'+s)}
-    ${pin2(`jew.${s}.gem`,G.jew[s].gem,'gem_j','Gem')}
-    ${pin2(`jew.${s}.p1`,G.jew[s].p1,'jewd','Perk 1')}
-    ${pin2(`jew.${s}.p2`,G.jew[s].p2,'jewd','Perk 2')}
-    ${pin2(`jew.${s}.ch`,G.jew[s].ch,'chA','Charm')}</div>`;
+    ${sockHTML('j',s,LJ)}</div>`;
   const chosen=allChosen().filter(c=>c.p);
   const byGroup={}; const allP=notePresets(); const com=communityLos();
   const modeList=MODES.map(x=>x[0]).filter(m=>allP.some(p=>(p.modes||[]).includes(m)));
@@ -1564,7 +1605,7 @@ function viewGear(){
   if(G.mode&&!isCom&&!modeList.includes(G.mode)) G.mode='';
   if(isCom){ com.filter(x=>!comTag||loTags(x.mode).includes(comTag)).forEach(x=>{ const k=comTag||'Community'; (byGroup[k]=byGroup[k]||[]).push({name:x.name+(x.by?' · '+x.by:''), value:'c:'+x.code, fromNote:true}); }); }
   else allP.filter(p=>!G.mode||(p.modes||[]).includes(G.mode)).forEach(p=>{ const k=G.mode||p.folder; (byGroup[k]=byGroup[k]||[]).push(p); });
-  return gemW+gemA+gemJ+charm1+charm2+offd+armd+jewd+chA+itDL+`<h1>Loadout builder</h1>
+  return gemW+gemA+gemJ+charm1+charm2+offd+armd+jewd+chA+sockDL+itDL+`<h1>Loadout builder</h1>
   <p class="lede">Equip the slots, or load one of your own builds and tweak it. Perk, gem and charm lists are the real Season 10 ones from your game-data export &mdash; start typing in any field to filter.</p>
   <div class="slots lobar">
    <div class="slot lcard"><div class="sh">Start from a build</div>
@@ -1701,9 +1742,9 @@ function gearEvents(){
   };
   const cl=document.getElementById('clearload');
   if(cl) cl.onclick=()=>{
-    ARMOR_SLOTS.forEach(s=>Object.assign(G.armor[s],{item:'',gem:'',p1:'',p2:'',p3:'',ch:''}));
-    JEW_SLOTS.forEach(s=>Object.assign(G.jew[s],{item:'',gem:'',p1:'',p2:'',ch:''}));
-    Object.assign(G,{w1gem:'',w2gem:'',w1perk:'',w2perk:'',w1off:'',w2off:'',w1item:'',w2item:'',shield:'',w1p1:'',w1p2:'',w1p3:'',w2p1:'',w2p2:'',w2p3:'',note:'',abil:{1:[],2:[]},attrs:{STR:0,DEX:0,INT:0,FOC:0,CON:0},trees:{1:[],2:[]}});
+    ARMOR_SLOTS.forEach(s=>Object.assign(G.armor[s],{item:'',gem:'',p1:'',p2:'',p3:'',p4:'',ch:'',ch2:'',ch3:'',ch4:''}));
+    JEW_SLOTS.forEach(s=>Object.assign(G.jew[s],{item:'',gem:'',p1:'',p2:'',p3:'',p4:'',ch:'',ch2:'',ch3:'',ch4:''}));
+    Object.assign(G,{w1gem:'',w2gem:'',w1perk:'',w2perk:'',w1off:'',w2off:'',w1item:'',w2item:'',shield:'',w1p1:'',w1p2:'',w1p3:'',w1p4:'',w2p1:'',w2p2:'',w2p3:'',w2p4:'',w1c3:'',w1c4:'',w2c3:'',w2c4:'',note:'',abil:{1:[],2:[]},attrs:{STR:0,DEX:0,INT:0,FOC:0,CON:0},trees:{1:[],2:[]}});
     saveG(); openView('gear',false);
   };
   const tc=document.getElementById('tocalc');
@@ -1776,9 +1817,9 @@ function cleanLo(g){
   const str=v=>typeof v==='string'?v.slice(0,120):'';
   const out={}; const wl=CALC?Object.keys(CALC.abilities):[];
   ['w1','w2'].forEach(k=>out[k]=(!wl.length||wl.includes(g[k]))?str(g[k]):wl[0]);
-  ['w1gem','w2gem','w1perk','w2perk','w1off','w2off','w1item','w2item','shield','w1p1','w1p2','w1p3','w2p1','w2p2','w2p3','rune','runev'].forEach(k=>out[k]=str(g[k]));
-  out.armor={}; ARMOR_SLOTS.forEach(s=>{ const a=(g.armor||{})[s]||{}; out.armor[s]={wt:['Light','Medium','Heavy'].includes(a.wt)?a.wt:'Heavy',item:str(a.item),gem:str(a.gem),p1:str(a.p1),p2:str(a.p2),p3:str(a.p3),ch:str(a.ch)}; });
-  out.jew={}; JEW_SLOTS.forEach(s=>{ const a=(g.jew||{})[s]||{}; out.jew[s]={item:str(a.item),gem:str(a.gem),p1:str(a.p1),p2:str(a.p2),ch:str(a.ch)}; });
+  ['w1gem','w2gem','w1perk','w2perk','w1off','w2off','w1c3','w1c4','w2c3','w2c4','w1item','w2item','shield','w1p1','w1p2','w1p3','w1p4','w2p1','w2p2','w2p3','w2p4','rune','runev'].forEach(k=>out[k]=str(g[k]));
+  out.armor={}; ARMOR_SLOTS.forEach(s=>{ const a=(g.armor||{})[s]||{}; out.armor[s]={wt:['Light','Medium','Heavy'].includes(a.wt)?a.wt:'Heavy',item:str(a.item),gem:str(a.gem),p1:str(a.p1),p2:str(a.p2),p3:str(a.p3),p4:str(a.p4),ch:str(a.ch),ch2:str(a.ch2),ch3:str(a.ch3),ch4:str(a.ch4)}; });
+  out.jew={}; JEW_SLOTS.forEach(s=>{ const a=(g.jew||{})[s]||{}; out.jew[s]={item:str(a.item),gem:str(a.gem),p1:str(a.p1),p2:str(a.p2),p3:str(a.p3),p4:str(a.p4),ch:str(a.ch),ch2:str(a.ch2),ch3:str(a.ch3),ch4:str(a.ch4)}; });
   const arr=v=>Array.isArray(v)?v.filter(x=>typeof x==='string').map(x=>x.slice(0,80)).slice(0,40):[];
   out.abil={1:arr((g.abil||{})[1]).slice(0,3),2:arr((g.abil||{})[2]).slice(0,3)};
   out.trees={1:arr((g.trees||{})[1]),2:arr((g.trees||{})[2])};
@@ -1857,13 +1898,13 @@ async function gearCard(rec){
   const g=rec.g, rows=[];
   const perks=(...l)=>l.filter(Boolean);
   rows.push({h:'Weapons'});
-  rows.push({slot:'Weapon 1 · '+g.w1, item:g.w1item, gem:g.w1gem, perks:perks(g.w1p1,g.w1p2,g.w1p3), ch:perks(g.w1perk,g.w1off).join(', ')});
+  rows.push({slot:'Weapon 1 · '+g.w1, item:g.w1item, gem:g.w1gem, perks:perks(g.w1p1,g.w1p2,g.w1p3,g.w1p4), ch:perks(g.w1perk,g.w1off,g.w1c3,g.w1c4).join(', ')});
   if(g.w1==='Sword and Shield') rows.push({slot:'Shield', item:g.shield});
-  rows.push({slot:'Weapon 2 · '+g.w2, item:g.w2item, gem:g.w2gem, perks:perks(g.w2p1,g.w2p2,g.w2p3), ch:perks(g.w2perk,g.w2off).join(', ')});
+  rows.push({slot:'Weapon 2 · '+g.w2, item:g.w2item, gem:g.w2gem, perks:perks(g.w2p1,g.w2p2,g.w2p3,g.w2p4), ch:perks(g.w2perk,g.w2off,g.w2c3,g.w2c4).join(', ')});
   rows.push({h:'Armour'});
-  ARMOR_SLOTS.forEach(sl=>{ const a=g.armor[sl]||{}; rows.push({slot:sl+(a.wt?' · '+a.wt:''), item:a.item, gem:a.gem, perks:perks(a.p1,a.p2,a.p3), ch:a.ch}); });
+  ARMOR_SLOTS.forEach(sl=>{ const a=g.armor[sl]||{}; rows.push({slot:sl+(a.wt?' · '+a.wt:''), item:a.item, gem:a.gem, perks:perks(a.p1,a.p2,a.p3,a.p4), ch:perks(a.ch,a.ch2,a.ch3,a.ch4).join(', ')}); });
   rows.push({h:'Jewelry'});
-  JEW_SLOTS.forEach(sl=>{ const a=g.jew[sl]||{}; rows.push({slot:sl, item:a.item, gem:a.gem, perks:perks(a.p1,a.p2), ch:a.ch}); });
+  JEW_SLOTS.forEach(sl=>{ const a=g.jew[sl]||{}; rows.push({slot:sl, item:a.item, gem:a.gem, perks:perks(a.p1,a.p2,a.p3,a.p4), ch:perks(a.ch,a.ch2,a.ch3,a.ch4).join(', ')}); });
   const W=1000, RH=58, HH=34;
   const H=96+rows.reduce((t,r)=>t+(r.h?HH:RH),0)+120;
   const {cv,cx}=cardBase(W,H,rec.name,[rec.mode,rec.by?'by '+rec.by:''].filter(Boolean).join('  ·  '));
