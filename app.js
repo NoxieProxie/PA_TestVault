@@ -1,5 +1,8 @@
-/* ============ Azoth Vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 15:23';
+/* ============ Azoth Vault browser v2 ============
+   Azoth Vault (https://azothvault.com) · © 2026 NoxieProxie. All rights reserved.
+   Copying or re-hosting this code, design or the written guides is not allowed without permission. azv-2ue53jgfm6
+   ================================================== */
+const BUILD_AT = '2026-11-28 15:31';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -582,6 +585,19 @@ function openView(v,push=true){
   const c=document.getElementById('clearf');
   if(c) c.onclick=()=>{ filt={role:new Set(),mode:new Set(),weapon:new Set()}; openView('builds',false); };
 }
+
+/* ---------- copies: a site running from another address says where the original is, and tells the helper ---------- */
+const AZV_MARK='azv-2ue53jgfm6';
+(function(){ const h=location.hostname.toLowerCase();
+  const ok=h==='azothvault.com'||h==='www.azothvault.com'||h==='project-azoth-vault.pages.dev'||h.endsWith('.project-azoth-vault.pages.dev')||h==='localhost'||h==='127.0.0.1'||h==='[::1]'||h==='noxieproxie.github.io';
+  if(ok) return;
+  try{ if(location.protocol.startsWith('http')) new Image().src='https://nw-vault-helper.volatilenox64.workers.dev/seen?m='+AZV_MARK+'&t='+Date.now(); }catch(e){}
+  const show=()=>{ if(document.getElementById('azvcopy')) return; const d=document.createElement('div'); d.id='azvcopy';
+    d.innerHTML='This is a copy of <b>Azoth Vault</b>. The original, kept up to date, is at <a href="https://azothvault.com/" rel="noopener">azothvault.com</a>';
+    d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:300;background:#d9a84e;color:#111;font:600 15px/1.4 system-ui,sans-serif;padding:10px 16px;text-align:center';
+    d.querySelector('a').style.cssText='color:#111;text-decoration:underline'; document.body.appendChild(d); };
+  document.body?show():addEventListener('DOMContentLoaded',show);
+})();
 
 /* ---------- phones: the Menu button ---------- */
 function setNav(open){ document.body.classList.toggle('navopen',open); const b=document.getElementById('navbtn'); if(b) b.setAttribute('aria-expanded',open);
@@ -4333,7 +4349,7 @@ const SECWHAT={login:'Logged in','owner: roles_set':"Changed an editor's roles",
   'owner: prop_reject':'Turned down a suggested change','owner: prop_delete':'Deleted a suggested change','owner: publish':'Published a loadout','owner: reject':'Turned down a loadout','owner: remove':'Removed a community loadout',
   'owner: setdocs':'Edited site pages','owner: setbotconfig':'Changed bot settings','owner: botsetup':'Set up the Discord bot','owner: automodset':'Changed AutoMod','owner: advset':'Changed advanced rules','owner: liveset':'Changed live bot settings',
   'owner: rmpost':'Posted a role menu','owner: rmdelete':'Deleted a role menu','owner: announce':'Sent an announcement','owner: sec_block':'Blocked an account','owner: sec_unblock':'Unblocked an account','owner: sec_revoke':"Removed someone's access",
-  'owner: sec_signout':'Signed everyone out','owner: sec_clearlog':'Cleared the activity log','editor: suggested a change':'Suggested a change','editor: withdrew a suggestion':'Withdrew a suggestion'};
+  'owner: sec_signout':'Signed everyone out','owner: sec_clearlog':'Cleared the activity log','owner: sec_clearcopies':'Cleared the list of copies','editor: suggested a change':'Suggested a change','editor: withdrew a suggestion':'Withdrew a suggestion'};
 const secWhat=w=>SECWHAT[w]||w.replace(/^owner: /,'');
 const SECBADGE={ok:['&#10003;','ok','Good'],warn:['!','warn','Check this'],missing:['&#10007;','bad','Missing'],optional:['&ndash;','opt','Optional']};
 function secHTML(){
@@ -4370,6 +4386,12 @@ function secHTML(){
     <div class="tw"><table><tbody>${Object.entries(SECD.limits||{}).map(([k,[n,s]])=>`<tr><td>${({favs:'Saving favourites',feedback:'Ideas and problems',editor:'Suggested changes',submit:'Loadout submissions'})[k]||k}</td><td>${n} every ${s>=3600?(s/3600)+' hour'+(s>3600?'s':''):(s/60)+' minutes'}</td></tr>`).join('')}</tbody></table></div></section>
   </div>
 
+  <section class="slot secbox"><h3>&#128269; Copies of your site <span class="secsum ${Object.keys(SECD.copies||{}).length?'warn':'ok'}">${Object.keys(SECD.copies||{}).length?Object.keys(SECD.copies).length+' found':'None found'}</span></h3>
+    <p class="dimtx small">The site's code checks which address it's running on. If someone copies it and puts it up somewhere else, visitors there see a note pointing to azothvault.com, and that address is listed here (at most once an hour). Every copy also carries your marker <code>azv-2ue53jgfm6</code>: search for it on GitHub or Google to find copies that turned the check off.</p>
+    <div class="tw"><table><thead><tr><th>Address</th><th>First seen</th><th>Last seen</th><th>Hours seen</th></tr></thead><tbody>
+    ${Object.entries(SECD.copies||{}).map(([h,v])=>`<tr><td><b>${esc(h)}</b>${v.page?`<div class="dimtx tiny">${esc(v.page)}</div>`:''}</td><td class="nowrap">${secWhen(v.first)}</td><td class="nowrap">${secWhen(v.last)}</td><td>${v.hours||1}</td></tr>`).join('')||'<tr><td colspan="4" class="dimtx">No copies seen.</td></tr>'}
+    </tbody></table></div>${Object.keys(SECD.copies||{}).length?'<button class="mini" data-sec="clearcopies">Clear this list</button>':''}</section>
+
   <section class="slot secbox"><h3>&#128220; Activity log <span class="dimtx small">(latest ${(SECD.audit||[]).length} of up to 500)</span></h3>
     <p class="dimtx small">Logins, everything you change on the Admin page, and editors' suggestions. ${Object.keys(people).length} different accounts have logged in since the log started.</p>
     <div class="secform"><input id="seclogq" placeholder="Filter by name, Discord ID or action" value="${esc(SECQ.log)}"><button class="mini" data-sec="clearlog">Clear the log</button></div>
@@ -4388,6 +4410,7 @@ function secEvents(){
     if(a==='signout'){ if(!confirmInline(b,'Really sign everyone out, you included?')) return;
       ownerApi('sec_signout').then(()=>{ toast('Everyone has been signed out. Log in again with Discord.'); LS.del('nw_discord'); setTimeout(()=>location.reload(),1500); }).catch(e=>toast(e.message)); }
     if(a==='clearlog'){ if(!confirmInline(b,'Clear the whole activity log?')) return; busy(()=>ownerApi('sec_clearlog'),'Log cleared'); }
+    if(a==='clearcopies'){ if(!confirmInline(b,'Clear the list of copies?')) return; busy(()=>ownerApi('sec_clearcopies'),'List cleared'); }
     if(a==='logall'){ SECQ.all=true; openView('admin',false); }
   });
   const q=document.getElementById('seclogq'); if(q) q.oninput=()=>{ SECQ.log=q.value; const pos=q.selectionStart; openView('admin',false); const n=document.getElementById('seclogq'); if(n){ n.focus(); n.setSelectionRange(pos,pos); } };

@@ -1,5 +1,6 @@
+/* Azoth Vault (https://azothvault.com) · © 2026 NoxieProxie. All rights reserved. azv-2ue53jgfm6 */
 *{box-sizing:border-box}
-:root{--bg:#0f1115;--bg2:#161a21;--bg3:#1d222b;--line:#2a313d;--fg:#e6e9ef;--dim:#99a2b2;
+:root{--azv:"azv-2ue53jgfm6";--bg:#0f1115;--bg2:#161a21;--bg3:#1d222b;--line:#2a313d;--fg:#e6e9ef;--dim:#99a2b2;
 --gold:#d9a84e;--gold2:#f0c878;--blue:#6fa8dc;--red:#d9705e;--green:#7fbf7f}
 html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif}
 a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
