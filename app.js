@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 00:54';
+const BUILD_AT = '2026-11-28 01:01';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -652,10 +652,11 @@ document.addEventListener('drop', async e=>{
 /* ---------- interactive background (see style.css: #bgfx) ---------- */
 (function(){
   const off=()=>{ try{ return localStorage.getItem('nw_fx')==='off'; }catch(e){ return false; } };
-  const fx=document.createElement('div'); fx.id='bgfx'; fx.innerHTML='<div class="g2"></div><div class="g1"></div><div class="dots"></div>'; document.body.prepend(fx);
+  const fx=document.createElement('div'); fx.id='bgfx'; fx.innerHTML='<div class="aur a1"></div><div class="aur a2"></div><div class="aur a3"></div><div class="g2"></div><div class="g1"></div><div class="dots"></div><div class="grain"></div><div class="vig"></div>'; document.body.prepend(fx);
   document.body.classList.toggle('nofx', off());
   let x=-999,y=-999,raf=0,card=null,cx=0,cy=0;
   const paint=()=>{ raf=0; fx.style.setProperty('--mx',x+'px'); fx.style.setProperty('--my',y+'px');
+    if(x>-999){ fx.style.setProperty('--px',(x/innerWidth-.5).toFixed(3)); fx.style.setProperty('--py',(y/innerHeight-.5).toFixed(3)); }
     if(card){ card.style.setProperty('--cx',cx+'px'); card.style.setProperty('--cy',cy+'px'); } };
   document.addEventListener('pointermove',e=>{ if(e.pointerType!=='mouse'||document.body.classList.contains('nofx')) return;
     x=e.clientX; y=e.clientY;
@@ -664,6 +665,52 @@ document.addEventListener('drop', async e=>{
     if(!raf) raf=requestAnimationFrame(paint); },{passive:true});
   document.addEventListener('pointerleave',()=>{ x=y=-999; if(!raf) raf=requestAnimationFrame(paint); });
   window.nwFx=on=>{ try{ localStorage.setItem('nw_fx',on?'on':'off'); }catch(e){} document.body.classList.toggle('nofx',!on); };
+})();
+/* ---------- falling things in the top bar: snow in winter, leaves in autumn, petals in spring, fireflies in summer, embers at Lunar New Year ---------- */
+(function(){
+  const hdr=document.querySelector('header'); if(!hdr) return;
+  const cv=document.createElement('canvas'); cv.id='hdrfx'; cv.setAttribute('aria-hidden','true'); hdr.prepend(cv);
+  const cx=cv.getContext('2d'); let W=0,H=0,dpr=1,P=[],kind='',last=0,run=true;
+  const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)');
+  const KINDS={
+    winter:{n:1/14, make:p=>Object.assign(p,{r:.8+Math.random()*1.9, vy:.25+Math.random()*.55, vx:0, sw:Math.random()*6.28, col:'rgba(235,246,255,'+(.45+Math.random()*.45)+')'}), draw:p=>{cx.beginPath();cx.arc(p.x,p.y,p.r,0,6.283);cx.fillStyle=p.col;cx.fill();}},
+    harvest:{n:1/38, make:p=>leaf(p,['#c9682b','#e0a446','#9a4a1f','#d98a3a']), draw:drawLeaf},
+    hallow:{n:1/40, make:p=>leaf(p,['#e2762a','#b34a1c','#7c3fb0','#f0a040']), draw:drawLeaf},
+    spring:{n:1/34, make:p=>Object.assign(leaf(p,['#f3b8cf','#f7d3e2','#e79ab9','#fff0f5']),{s:2.2+Math.random()*2}), draw:drawLeaf},
+    summer:{n:1/40, up:true, make:p=>Object.assign(p,{r:1+Math.random()*1.6, vy:-(.08+Math.random()*.2), vx:(Math.random()-.5)*.15, tw:Math.random()*6.28, col:Math.random()<.6?'255,213,120':'120,230,220'}),
+      draw:p=>{ const a=.35+.45*Math.sin(p.tw+=.05); const g=cx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4); g.addColorStop(0,'rgba('+p.col+','+a+')'); g.addColorStop(1,'rgba('+p.col+',0)'); cx.fillStyle=g; cx.fillRect(p.x-p.r*4,p.y-p.r*4,p.r*8,p.r*8);} },
+    lunar:{n:1/36, up:true, make:p=>Object.assign(p,{r:.8+Math.random()*1.5, vy:-(.15+Math.random()*.35), vx:(Math.random()-.5)*.25, tw:Math.random()*6.28, col:Math.random()<.5?'240,120,70':'246,200,110'}),
+      draw:p=>{ const a=.4+.4*Math.sin(p.tw+=.08); cx.beginPath(); cx.arc(p.x,p.y,p.r,0,6.283); cx.fillStyle='rgba('+p.col+','+a+')'; cx.shadowColor='rgba('+p.col+',.8)'; cx.shadowBlur=6; cx.fill(); cx.shadowBlur=0; } },
+    none:{n:1/70, up:true, make:p=>Object.assign(p,{r:.7+Math.random()*1.1, vy:-(.05+Math.random()*.12), vx:(Math.random()-.5)*.1, tw:Math.random()*6.28, col:'108,199,183'}),
+      draw:p=>{ const a=.15+.25*Math.sin(p.tw+=.03); cx.beginPath(); cx.arc(p.x,p.y,p.r,0,6.283); cx.fillStyle='rgba('+p.col+','+a+')'; cx.fill(); } }
+  };
+  function leaf(p,cols){ return Object.assign(p,{s:3+Math.random()*3, vy:.35+Math.random()*.5, vx:.15+Math.random()*.35, rot:Math.random()*6.28, vr:(Math.random()-.5)*.05, sw:Math.random()*6.28, col:cols[Math.random()*cols.length|0]}); }
+  function drawLeaf(p){ cx.save(); cx.translate(p.x,p.y); cx.rotate(p.rot); cx.scale(1,Math.abs(Math.cos(p.sw*.7))*.6+.4);
+    const s=p.s; cx.beginPath(); cx.moveTo(-s,0); cx.quadraticCurveTo(0,-s*.75,s,0); cx.quadraticCurveTo(0,s*.75,-s,0);
+    cx.fillStyle=p.col; cx.globalAlpha=.85; cx.fill();
+    if(s>3){ cx.beginPath(); cx.moveTo(-s*1.25,0); cx.lineTo(s*.8,0); cx.strokeStyle='rgba(0,0,0,.25)'; cx.lineWidth=.6; cx.stroke(); }
+    cx.globalAlpha=1; cx.restore(); }
+  function size(){ const r=hdr.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1); W=r.width; H=r.height; cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px'; cx.setTransform(dpr,0,0,dpr,0,0); }
+  function reset(){ const k=KINDS[kind]; const n=Math.round(Math.min(90,W*k.n)); P=[]; for(let i=0;i<n;i++){ const p={x:Math.random()*W,y:Math.random()*H}; k.make(p); P.push(p);} }
+  function off(){ return document.body.classList.contains('nofx')||(reduce&&reduce.matches); }
+  function tick(t){
+    if(!run) return; requestAnimationFrame(tick);
+    const want=(window.NWSEASON&&KINDS[window.NWSEASON.k])?window.NWSEASON.k:'none';
+    if(off()){ if(kind!=='off'){ cx.clearRect(0,0,W,H); kind='off'; } return; }
+    if(want!==kind){ kind=want; reset(); }
+    const dt=Math.min(3,(t-last)/16.7||1); last=t; const k=KINDS[kind];
+    cx.clearRect(0,0,W,H);
+    for(const p of P){
+      if(p.sw!==undefined){ p.sw+=.02*dt; p.x+=(p.vx+Math.sin(p.sw)*.35)*dt; } else p.x+=p.vx*dt;
+      p.y+=p.vy*dt; if(p.vr) p.rot+=p.vr*dt;
+      if(k.up?p.y<-6:p.y>H+6){ p.y=k.up?H+4:-4; p.x=Math.random()*W; }
+      if(p.x>W+8) p.x=-8; if(p.x<-8) p.x=W+8;
+      k.draw(p);
+    }
+  }
+  size(); new ResizeObserver(size).observe(hdr);
+  document.addEventListener('visibilitychange',()=>{ run=!document.hidden; if(run){ last=performance.now(); requestAnimationFrame(tick); } });
+  requestAnimationFrame(tick);
 })();
 /* ================= build calculator ================= */
 let CALC = null;

@@ -830,7 +830,7 @@ html[class*="ss-"] ::selection{background:var(--line)}
 #bgfx .g2{position:absolute;inset:0;background:radial-gradient(900px circle at calc(100% - var(--mx,70%)) calc(100% - var(--my,20%)),color-mix(in srgb,var(--azoth) 7%,transparent),transparent 65%)}
 #bgfx .dots{position:absolute;inset:0;background-image:radial-gradient(color-mix(in srgb,var(--gold2) 55%,transparent) 1px,transparent 1.4px);background-size:28px 28px;
   -webkit-mask-image:radial-gradient(240px circle at var(--mx,-999px) var(--my,-999px),#000 0,transparent 80%);mask-image:radial-gradient(240px circle at var(--mx,-999px) var(--my,-999px),#000 0,transparent 80%);opacity:.55}
-body.nofx #bgfx{display:none}
+body.nofx #bgfx :is(.g1,.g2,.dots){display:none} body.nofx #bgfx .aur{animation:none}   /* effects off: keep the still depth, drop the motion */
 main,footer{position:relative;z-index:1}
 /* cards and panels: a light that follows the pointer inside them */
 body:not(.nofx) :is(.slot,.card,.callout,.tw,.lcard,.panel,.toc){transition:border-color .2s}
@@ -840,6 +840,30 @@ body:not(.nofx) .tw tbody tr{transition:background-color .15s}
 body:not(.nofx) .tw tbody tr:hover{background-color:color-mix(in srgb,var(--gold) 7%,transparent)}
 body:not(.nofx) .mi{transition:background-color .15s,padding-left .15s}
 body:not(.nofx) .mi:hover{padding-left:20px}
-@media (prefers-reduced-motion:reduce){#bgfx{display:none} body .mi:hover{padding-left:revert}}
+@media (prefers-reduced-motion:reduce){#bgfx :is(.g1,.dots){display:none} body .mi:hover{padding-left:revert}}
 @media (hover:none){#bgfx .dots,#bgfx .g2{display:none}}
 .fxtog{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg);padding:2px 12px 8px;cursor:pointer}
+
+/* top-bar particles */
+header{overflow:visible}
+#hdrfx{position:absolute;inset:0;pointer-events:none;z-index:0}
+header>.bar1,header>#topnav{position:relative;z-index:1}
+
+/* page depth: slow drifting colour clouds that shift with the mouse (parallax), fine grain and a vignette */
+#bgfx .aur{position:absolute;width:70vmax;height:70vmax;border-radius:50%;will-change:transform;opacity:.9}
+#bgfx .a1{left:-20vmax;top:-25vmax;background:radial-gradient(closest-side,color-mix(in srgb,var(--gold) 16%,transparent),transparent);
+  transform:translate(calc(var(--px,0)*-60px),calc(var(--py,0)*-60px));animation:aur1 38s ease-in-out infinite alternate}
+#bgfx .a2{right:-25vmax;top:10vh;background:radial-gradient(closest-side,color-mix(in srgb,var(--azoth) 13%,transparent),transparent);
+  transform:translate(calc(var(--px,0)*-35px),calc(var(--py,0)*-35px));animation:aur2 46s ease-in-out infinite alternate}
+#bgfx .a3{left:20vw;bottom:-45vmax;background:radial-gradient(closest-side,color-mix(in srgb,var(--gold2) 9%,transparent),transparent);
+  transform:translate(calc(var(--px,0)*-20px),calc(var(--py,0)*-20px));animation:aur3 54s ease-in-out infinite alternate}
+@keyframes aur1{to{translate:12vw 10vh}}
+@keyframes aur2{to{translate:-14vw 18vh}}
+@keyframes aur3{to{translate:10vw -12vh}}
+#bgfx .grain{position:absolute;inset:0;opacity:.07;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+#bgfx .vig{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 35%,transparent 45%,rgba(0,0,0,.55) 100%)}
+/* lift the content off the background a little */
+body:not(.nofx) :is(.slot,.card,.callout,.tw,.lcard,.panel){box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 14px 34px -18px rgba(0,0,0,.75)}
+body:not(.nofx) .menu{box-shadow:0 24px 60px -10px rgba(0,0,0,.8)}
+@media (prefers-reduced-motion:reduce){#bgfx .aur{animation:none}}
