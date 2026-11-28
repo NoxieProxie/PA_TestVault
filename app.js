@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 00:28';
+const BUILD_AT = '2026-11-28 00:36';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -449,8 +449,40 @@ function homeHero(){
     ${again.length?`<p class="again">Carry on reading: ${again.map(n=>`<a href="#" data-note="${esc(n)}">${esc(n)}</a>`).join('')}</p>`:''}
   </section>`;
 }
+/* ---------- browser history: every page you open is a step, so the browser's Back and Forward buttons move through the site ---------- */
+let NAVD=0;   // how many site pages deep this tab's history is
+function navWrite(url, st, push){
+  try{
+    if(push && current){ NAVD=(history.state&&history.state.nwd||0)+1; history.pushState({nw:1,nwd:NAVD,...st}, '', url); }
+    else history.replaceState({nw:1,nwd:(history.state&&history.state.nwd)||0,...st}, '', url);
+  }catch(e){}
+  backState();
+}
+function goBack(){
+  if(history.state&&history.state.nwd>0) history.back();
+  else { const p=hist.pop(); if(p) p.kind==='note'?openNote(p.name,false):openView(p.v,false); }
+}
+function backState(){
+  const b=document.getElementById('back'); if(!b) return;
+  const can=(history.state&&history.state.nwd>0)||hist.length>0;
+  b.disabled=!can; b.title=can?'Back to the previous page (or use your browser\'s Back button)':'Nothing to go back to yet';
+}
+function routeHash(h){
+  if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); return true; }
+  if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback','editor','changelog'].includes(h)){ openView(h,false); return true; }
+  const hit=Object.keys(NAMES).find(n=>slug(n)===h); if(hit){ openNote(hit,false); return true; }
+  return false;
+}
+window.addEventListener('popstate',e=>{
+  if(typeof NAMES==='undefined'||!Object.keys(NAMES).length) return;
+  const st=e.state;
+  if(st&&st.nw){ if(hist.length) hist.pop(); st.kind==='note'?openNote(st.name,false):openView(st.v,false); }
+  else routeHash((location.hash||'').replace('#',''));
+  backState();
+});
 function openNote(name, push=true){
   const p=NAMES[name]; if(!p) return;
+  if(push && current && current.kind==='note' && current.name===name) push=false;   // clicking the page you're on isn't a new step
   if(push && current) hist.push(current);
   current={kind:'note',name};
   recent=[name,...recent.filter(n=>n!==name)].slice(0,12); LS.set('nw_recent',recent);
@@ -477,7 +509,7 @@ function openNote(name, push=true){
        ${m.source?`<div class="srcline">Source: ${esc(m.source)}</div>`:''}
        ${typeof openFeedback==='function'&&!isHome?`<div class="fbline">Spotted something wrong or out of date on this page? <a href="#" data-fbopen="problem">Report it</a> &middot; <a href="#" data-fbopen="idea">Suggest an idea</a></div>`:''}</article></div>`;
   window.scrollTo(0,0);
-  try { history.replaceState(null,'','#'+slug(name)); } catch(e){}
+  navWrite('#'+slug(name), {kind:'note',name}, push);
   const pb0=document.querySelector('.crumb .pin'); if(pb0) pb0.style.marginLeft='auto';
   if(!isHome && heads.length>2) foldSections(document.querySelector('#main article'));
 }
@@ -515,6 +547,7 @@ function openView(v,push=true){
   // editors (not the owner) get an Admin page with one section: suggesting changes in their area
   if(v==='admin' && typeof ED!=='undefined' && !(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner) && (ED.roles.length||ED.loading)) v='editor';
   const same = current && current.kind==='view' && current.v===v;   // a re-render of the page you're on keeps your scroll position
+  if(push && same) push=false;
   if(push && current) hist.push(current);
   current={kind:'view',v};
   document.getElementById('main').classList.remove('home');
@@ -531,7 +564,7 @@ function openView(v,push=true){
   if(v==='feedback') feedbackEvents();
   if(v==='editor') editorEvents();
   if(!same) window.scrollTo(0,0);
-  try { history.replaceState(null,'','#'+v); } catch(e){}
+  navWrite('#'+v, {kind:'view',v}, push);
   const c=document.getElementById('clearf');
   if(c) c.onclick=()=>{ filt={role:new Set(),mode:new Set(),weapon:new Set()}; openView('builds',false); };
 }
@@ -579,7 +612,7 @@ document.addEventListener('click', e=>{
   const so=e.target.closest('[data-showorig]'); if(so){ const m=META[NAMES[so.dataset.showorig]];
     if(m&&m.orig!=null){ const art=document.querySelector('article'); if(art) art.innerHTML=md(m.orig)+`<div class="addbar"><button class="mini" data-note="${esc(m.name)}">&larr; Back to my version</button></div>`; } return; }
   if(e.target.closest('#gearbtn')){ openPanel(); return; }
-  if(e.target.closest('#back')){ const p=hist.pop(); if(p) p.kind==='note'?openNote(p.name,false):openView(p.v,false); }
+  if(e.target.closest('#back')){ goBack(); }
 });
 const qEl=document.getElementById('q');
 qEl.addEventListener('input',()=>{
