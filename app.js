@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 01:08';
+const BUILD_AT = '2026-11-28 01:14';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -542,6 +542,7 @@ function foldSections(art){
   art.querySelector('section.sec').before(bar);
 }
 function openSec(sec,o){ if(!sec) return; const h=sec.firstElementChild, b=sec.querySelector('.secb');
+  if(sec.dataset&&sec.dataset.gf){ try{ const st=JSON.parse(localStorage.getItem('nw_gearfold')||'{}'); st[sec.dataset.gf]=!!o; localStorage.setItem('nw_gearfold',JSON.stringify(st)); }catch(e){} }
   if(o) b.removeAttribute('hidden'); else b.setAttribute('hidden','until-found');
   sec.classList.toggle('open',o); h.setAttribute('aria-expanded',o);
   const all=document.querySelector('[data-secall]'); if(all){ const any=[...document.querySelectorAll('section.sec')].some(s=>!s.classList.contains('open')); all.textContent=any?'Open all sections':'Close all sections'; } }
@@ -1309,6 +1310,31 @@ function attrEvents(){
     el.onchange=()=>{ saveG(); openView('gear',false); };   // totals and the summary card refresh when you let go
   });
 }
+/* ---- loadout builder: every heading folds. Open/closed is remembered (all open the first time) ---- */
+function gearFold(){
+  const col=document.querySelector('.gearwrap > div'); if(!col) return;
+  let st={}; try{ st=JSON.parse(localStorage.getItem('nw_gearfold')||'{}'); }catch(e){}
+  let body=null;
+  for(const el of [...col.children]){
+    if(el.tagName==='H2'){
+      const key=el.textContent.replace(/[^A-Za-z ]/g,'').trim().split(' ')[0].toLowerCase();
+      const sec=document.createElement('section'); sec.className='sec gsec'; sec.dataset.gf=key;
+      body=document.createElement('div'); body.className='secb';
+      el.before(sec); sec.append(el,body);
+      el.classList.add('sech'); el.tabIndex=0; el.setAttribute('role','button');
+      const open=st[key]!==false; if(open){ sec.classList.add('open'); el.setAttribute('aria-expanded','true'); } else { body.setAttribute('hidden','until-found'); el.setAttribute('aria-expanded','false'); }
+      body.addEventListener('beforematch',()=>openSec(sec,true));
+      continue;
+    }
+    if(body) body.append(el);
+  }
+  if(col.querySelector('section.gsec') && !col.querySelector('.secbar')){
+    const bar=document.createElement('div'); bar.className='secbar';
+    const any=[...col.querySelectorAll('section.gsec')].some(s=>!s.classList.contains('open'));
+    bar.innerHTML=`<button class="mini" data-secall="1">${any?'Open all sections':'Close all sections'}</button>`;
+    col.prepend(bar);
+  }
+}
 function perksFor(opt){
   if(!PERKS) return [];
   return PERKS.filter(p=>{
@@ -1576,7 +1602,7 @@ function gearEvents(){
     }
     saveG(); openView('gear',false); });
   document.querySelectorAll('[data-gt]').forEach(el=>el.onchange=()=>{ G.attrs[el.dataset.gt]=Math.max(0,parseInt(el.value)||0); saveG(); openView('gear',false); });
-  attrEvents();
+  attrEvents(); gearFold();
   const lsv=document.getElementById('losave'); if(lsv) lsv.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname').value, document.getElementById('lomode').value); };
   const ms=document.getElementById('modesel'); if(ms) ms.onchange=()=>{ G.mode=ms.value; saveG(); openView('gear',false); };
   const lp=document.getElementById('loadpreset');
