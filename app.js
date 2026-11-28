@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 13:28';
+const BUILD_AT = '2026-11-28 13:42';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1775,7 +1775,7 @@ function communityLos(){
   return out;
 }
 /* ---------- GitHub: submissions are issues, the community list is community.json ---------- */
-const GH={owner:'NoxieProxie', repo:'PA_TestVault'};
+const GH={owner:'NoxieProxie', repo:'azothvault'};
 const ghToken=()=>LS.get('nw_gh_token','');
 async function gh(path, opts={}){
   const h={'Accept':'application/vnd.github+json'}; const t=ghToken(); if(t) h.Authorization='Bearer '+t;
