@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 00:36';
+const BUILD_AT = '2026-11-28 00:54';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -290,8 +290,10 @@ function seasonPickHTML(){
   const now=window.nwSeasonNow&&nwSeasonNow();
   const b=(k,n,c)=>`<button type="button" data-season="${k}" aria-pressed="${cur===k}"><i style="background:${c}"></i>${esc(n)}</button>`;
   return `<div class="mn tiny">Automatic changes the look for each in-game event${now?` (now: <b>${esc(now.n)}</b>)`:' (no event on right now)'}. Your pick is saved in this browser.</div>
-    <div class="sspick">${b('auto','Automatic','conic-gradient(#9fd0e6,#e8b04a,#e7a3be,#f2a65a,#f0913c,#9fd0e6)')}${b('off','Normal look','#cfa557')}${NWSEASONS.map(x=>b(x.k,x.n,x.c)).join('')}</div>`;
+    <div class="sspick">${b('auto','Automatic','conic-gradient(#9fd0e6,#e8b04a,#e7a3be,#f2a65a,#f0913c,#9fd0e6)')}${b('off','Normal look','#cfa557')}${NWSEASONS.map(x=>b(x.k,x.n,x.c)).join('')}</div>
+    <label class="fxtog"><input type="checkbox" id="fxtog" ${document.body.classList.contains('nofx')?'':'checked'}> Moving light and glow effects</label>`;
 }
+document.addEventListener('change',e=>{ if(e.target&&e.target.id==='fxtog'&&window.nwFx) nwFx(e.target.checked); });
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-season]'); if(!b) return; e.preventDefault(); e.stopPropagation();
   try{ localStorage.setItem('nw_season',b.dataset.season); }catch(_){} if(window.nwApplySeason) nwApplySeason();
   b.parentElement.querySelectorAll('[data-season]').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
@@ -647,6 +649,22 @@ document.addEventListener('drop', async e=>{
   persistVault(clean, ok);
 });
 
+/* ---------- interactive background (see style.css: #bgfx) ---------- */
+(function(){
+  const off=()=>{ try{ return localStorage.getItem('nw_fx')==='off'; }catch(e){ return false; } };
+  const fx=document.createElement('div'); fx.id='bgfx'; fx.innerHTML='<div class="g2"></div><div class="g1"></div><div class="dots"></div>'; document.body.prepend(fx);
+  document.body.classList.toggle('nofx', off());
+  let x=-999,y=-999,raf=0,card=null,cx=0,cy=0;
+  const paint=()=>{ raf=0; fx.style.setProperty('--mx',x+'px'); fx.style.setProperty('--my',y+'px');
+    if(card){ card.style.setProperty('--cx',cx+'px'); card.style.setProperty('--cy',cy+'px'); } };
+  document.addEventListener('pointermove',e=>{ if(e.pointerType!=='mouse'||document.body.classList.contains('nofx')) return;
+    x=e.clientX; y=e.clientY;
+    const c=e.target.closest&&e.target.closest('.slot,.card,.callout,.tw,.lcard,.panel');
+    card=c; if(c){ const r=c.getBoundingClientRect(); cx=e.clientX-r.left; cy=e.clientY-r.top; }
+    if(!raf) raf=requestAnimationFrame(paint); },{passive:true});
+  document.addEventListener('pointerleave',()=>{ x=y=-999; if(!raf) raf=requestAnimationFrame(paint); });
+  window.nwFx=on=>{ try{ localStorage.setItem('nw_fx',on?'on':'off'); }catch(e){} document.body.classList.toggle('nofx',!on); };
+})();
 /* ================= build calculator ================= */
 let CALC = null;
 const C = Object.assign({
@@ -1213,6 +1231,34 @@ const STACKRULES=[
   [/Punishing/,'Punishing runeglass',3,'1-3 only — it has an internal cooldown, so 5 is wasted'],
   [/Shirking Heals/,'Shirking Heals',5,'Each piece adds a stack'],
 ];
+/* ---- attributes: a slider for each, with the breakpoints you've reached listed beside it ---- */
+const ATTR_LIST=[['STR','Strength','Str'],['DEX','Dexterity','Dex'],['INT','Intelligence','Int'],['FOC','Focus','Foc'],['CON','Constitution','Con']];
+const attrTotal=()=>Object.values(G.attrs).reduce((a,b)=>a+(+b||0),0);
+function attrBps(c){ const t=(CALC&&CALC.attrs&&CALC.attrs[c])||{}; return Object.keys(t).map(Number).sort((a,b)=>a-b).map(n=>{
+  const parts=String(t[n]).split('•').map(x=>x.trim()).filter(Boolean); return {n, fight:parts[0]||'', gather:parts.slice(1).join(' · ')}; }); }
+function attrListHTML(c,v){
+  const bps=attrBps(c); if(!bps.length) return '';
+  const got=bps.filter(b=>v>=b.n), next=bps.find(b=>v<b.n);
+  return (got.length?got.map(b=>`<li class="got"><b>${b.n}</b><span>${esc(b.fight)}${b.gather?`<i>${esc(b.gather)}</i>`:''}</span></li>`).join(''):'<li class="none">No breakpoints reached yet</li>')
+    +(next?`<li class="next"><b>${next.n}</b><span>Next: ${esc(next.fight)} <i>(${next.n-v} more)</i></span></li>`:'');
+}
+function attrRowsHTML(){
+  return ATTR_LIST.map(([k,l,c])=>{ const v=+G.attrs[k]||0; const marks=attrBps(c).map(b=>`<span style="left:${b.n/5}%" class="${v>=b.n?'on':''}" title="${b.n}"></span>`).join('');
+    return `<div class="attrrow">
+      <div class="attrctl"><div class="attrhd"><span>${l}</span><output id="av-${k}">${v}</output></div>
+        <div class="attrtrack"><input type="range" min="0" max="500" step="5" value="${v}" data-gr="${k}" aria-label="${l}"><div class="attrmarks">${marks}</div></div></div>
+      <ul class="attrbp" id="ab-${k}">${attrListHTML(c,v)}</ul></div>`; }).join('');
+}
+function attrEvents(){
+  document.querySelectorAll('[data-gr]').forEach(el=>{
+    const k=el.dataset.gr, c=ATTR_LIST.find(a=>a[0]===k)[2];
+    el.oninput=()=>{ const others=attrTotal()-(+G.attrs[k]||0); let v=Math.min(+el.value, Math.max(0,500-others)); v=Math.floor(v/5)*5; if(+el.value!==v) el.value=v;
+      G.attrs[k]=v; document.getElementById('av-'+k).textContent=v; document.getElementById('ab-'+k).innerHTML=attrListHTML(c,v);
+      el.parentElement.querySelectorAll('.attrmarks span').forEach(s=>s.classList.toggle('on', v>=+s.title));
+      const t=document.getElementById('attrtot'); if(t){ const tot=attrTotal(); t.textContent=tot+' / 500 points'; t.classList.toggle('bad',tot>500); } };
+    el.onchange=()=>{ saveG(); openView('gear',false); };   // totals and the summary card refresh when you let go
+  });
+}
 function perksFor(opt){
   if(!PERKS) return [];
   return PERKS.filter(p=>{
@@ -1422,10 +1468,9 @@ function viewGear(){
       <h2>&#127795; Skill trees</h2>
       ${[1,2].map(n=>skillTreeHTML(G['w'+n],G.trees[n],n)).join('')}
       <h2>&#128202; Attributes</h2>
-      <div class="slot wide attrs">${[['STR','Strength'],['DEX','Dexterity'],['INT','Intelligence'],['FOC','Focus'],['CON','Constitution']].map(([k,l])=>
-        `<label class="attr"><span>${l}</span><input type="number" min="0" max="500" step="5" data-gt="${k}" value="${G.attrs[k]||0}"></label>`).join('')}
-        <span class="attrtot ${Object.values(G.attrs).reduce((a,b)=>a+(+b||0),0)>500?'bad':''}">${Object.values(G.attrs).reduce((a,b)=>a+(+b||0),0)} / 500 points</span>
-        <a class="wl" data-note="Attribute Breakpoints">Breakpoints &rarr;</a>
+      <div class="slot wide attrs">${attrRowsHTML()}
+        <div class="attrfoot"><span class="attrtot ${attrTotal()>500?'bad':''}" id="attrtot">${attrTotal()} / 500 points</span>
+        <a class="wl" data-note="Attribute Breakpoints">All breakpoints &rarr;</a></div>
       </div>
     </div>
     <aside class="sum">
@@ -1481,6 +1526,7 @@ function gearEvents(){
     }
     saveG(); openView('gear',false); });
   document.querySelectorAll('[data-gt]').forEach(el=>el.onchange=()=>{ G.attrs[el.dataset.gt]=Math.max(0,parseInt(el.value)||0); saveG(); openView('gear',false); });
+  attrEvents();
   const lsv=document.getElementById('losave'); if(lsv) lsv.onclick=()=>{ saveCurrentLoadout(document.getElementById('loname').value, document.getElementById('lomode').value); };
   const ms=document.getElementById('modesel'); if(ms) ms.onchange=()=>{ G.mode=ms.value; saveG(); openView('gear',false); };
   const lp=document.getElementById('loadpreset');

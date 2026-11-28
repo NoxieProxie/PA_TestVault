@@ -250,7 +250,7 @@ body.light .edbanner{background:#fbf6ea}
 .tord .mini:disabled{opacity:.3}
 .tord.dragging{opacity:.4}
 @media(max-width:900px){.dragtip{display:none}}
-.slot.attrs{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.slot.attrs{display:flex;flex-direction:column;gap:12px;align-items:stretch}
 .attr{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--dim,#9aa)}
 .attr input{width:86px}
 .attrtot{font-weight:600;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.05)}
@@ -802,3 +802,44 @@ html[class*="ss-"] ::selection{background:var(--line)}
 #back{background:var(--bg3)!important;border:1px solid var(--gold)!important;color:var(--gold2)!important;font-weight:600;font-size:14px;padding:6px 14px;border-radius:8px}
 #back:hover:not(:disabled){background:var(--gold)!important;color:#111!important}
 #back:disabled{border-color:var(--line)!important;color:var(--mute,#76847f)!important;cursor:default;opacity:.7}
+
+/* attribute sliders + reached breakpoints */
+.attrrow{width:100%;display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:start;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.attrrow:last-of-type{border-bottom:0}
+@media(max-width:760px){.attrrow{grid-template-columns:1fr}}
+.attrhd{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:600}
+.attrhd output{font:700 18px var(--sans);color:var(--gold2);min-width:3ch;text-align:right}
+.attrtrack{position:relative;padding:4px 0 10px}
+.attrtrack input[type=range]{width:100%;accent-color:var(--gold);margin:0;cursor:pointer}
+.attrmarks{position:absolute;left:8px;right:8px;bottom:2px;height:6px;pointer-events:none}
+.attrmarks span{position:absolute;top:0;width:2px;height:6px;background:var(--line);transform:translateX(-1px)}
+.attrmarks span.on{background:var(--gold)}
+.attrbp{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.attrbp li{display:flex;gap:8px;line-height:1.35}
+.attrbp b{flex:none;min-width:2.6em;color:var(--gold);font-variant-numeric:tabular-nums}
+.attrbp i{display:block;font-style:normal;font-size:11.5px;color:var(--dim)}
+.attrbp li.next{opacity:.6}
+.attrbp li.next i{display:inline;font-size:12px}
+.attrbp li.none{color:var(--dim)}
+.attrfoot{display:flex;gap:14px;align-items:center}
+
+/* ===== interactive background: a soft light follows the mouse and lights up a faint dot grid; cards glow where you point.
+   Colours come from the current look (seasonal or normal). Off for touch screens, reduced motion, or when turned off in Data -> Site look. ===== */
+#bgfx{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+#bgfx .g1{position:absolute;inset:0;background:radial-gradient(700px circle at var(--mx,70%) var(--my,20%),color-mix(in srgb,var(--gold) 13%,transparent),transparent 62%);transition:opacity .4s}
+#bgfx .g2{position:absolute;inset:0;background:radial-gradient(900px circle at calc(100% - var(--mx,70%)) calc(100% - var(--my,20%)),color-mix(in srgb,var(--azoth) 7%,transparent),transparent 65%)}
+#bgfx .dots{position:absolute;inset:0;background-image:radial-gradient(color-mix(in srgb,var(--gold2) 55%,transparent) 1px,transparent 1.4px);background-size:28px 28px;
+  -webkit-mask-image:radial-gradient(240px circle at var(--mx,-999px) var(--my,-999px),#000 0,transparent 80%);mask-image:radial-gradient(240px circle at var(--mx,-999px) var(--my,-999px),#000 0,transparent 80%);opacity:.55}
+body.nofx #bgfx{display:none}
+main,footer{position:relative;z-index:1}
+/* cards and panels: a light that follows the pointer inside them */
+body:not(.nofx) :is(.slot,.card,.callout,.tw,.lcard,.panel,.toc){transition:border-color .2s}
+body:not(.nofx) :is(.slot,.card,.callout,.tw,.lcard,.panel):hover{border-color:color-mix(in srgb,var(--gold) 55%,var(--line));
+  background-image:radial-gradient(260px circle at var(--cx,50%) var(--cy,50%),color-mix(in srgb,var(--gold) 9%,transparent),transparent 70%)}
+body:not(.nofx) .tw tbody tr{transition:background-color .15s}
+body:not(.nofx) .tw tbody tr:hover{background-color:color-mix(in srgb,var(--gold) 7%,transparent)}
+body:not(.nofx) .mi{transition:background-color .15s,padding-left .15s}
+body:not(.nofx) .mi:hover{padding-left:20px}
+@media (prefers-reduced-motion:reduce){#bgfx{display:none} body .mi:hover{padding-left:revert}}
+@media (hover:none){#bgfx .dots,#bgfx .g2{display:none}}
+.fxtog{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg);padding:2px 12px 8px;cursor:pointer}
