@@ -1032,3 +1032,11 @@ tr.talkreported td{background:color-mix(in srgb,var(--red) 8%,transparent)}
 @media (pointer:coarse){
   input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:16px!important}
 }
+
+/* Your loadouts -> Post to your own Discord */
+.hookcard .small{margin:4px 0 8px}
+.hookon{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0}
+.hookdot{width:9px;height:9px;border-radius:50%;background:#5fbf6a;box-shadow:0 0 0 3px rgba(95,191,106,.2)}
+.hookhow{margin:4px 0 10px;font-size:13.5px}
+.hookhow summary{cursor:pointer;color:var(--gold2)}
+.hookhow ol{margin:8px 0 4px 18px;padding:0;line-height:1.5}

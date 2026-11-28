@@ -20,6 +20,7 @@
 <tr><td>Your Discord ID, username, display name and avatar</td><td>Only if you press “Log in with Discord”. The vault asks Discord for the <b>identify</b> permission only, which does not include your email address, servers, friends or messages. These details are put into a signed login pass that stays in your own browser for 30 days. Apart from the activity log below, they are not kept on the server.</td></tr>
 <tr><td>Your favourites</td><td>Only if you use Favourites, which needs a Discord login. The folders, the things in them, their names, descriptions, icons and your notes are stored in Cloudflare's key-value storage under your Discord ID, so they show on any device you log in from. Only you can read or change them.</td></tr>
 <tr><td>Your saved loadouts</td><td>If you're logged in with Discord, the loadouts you save under “Your loadouts” are stored in Cloudflare's key-value storage under your Discord ID, so they show on any device you log in from. Only you can read or change them. Without logging in they stay in your browser only.</td></tr>
+<tr><td>Your Discord webhook (optional)</td><td>Only if you connect one under “Your loadouts → Post to your own Discord”. The webhook address is stored <b>encrypted</b> in Cloudflare's key-value storage under your Discord ID, with the webhook's name, server ID and channel ID. It's never shown back to anyone, including you, and is only used to post a loadout to that channel when you press “Post to my Discord”. Those posts show your Discord mention as the person who shared it. Connecting and disconnecting are noted in the activity log.</td></tr>
 <tr><td>Comments and ratings</td><td>Only if you post a comment or rate a build or community loadout, which needs a Discord login. Comments are <b>public</b>: they show your Discord display name and profile picture, the text you wrote and when. Ratings are shown only as an average; the site stores your Discord ID with your star rating so you can change it. Both are kept in Cloudflare's D1 database. If you report a comment, your Discord ID is stored with the report for the site owner.</td></tr>
 <tr><td>Loadouts you submit</td><td>Only if you press Submit on a loadout. It goes to the site owner for review as a GitHub issue that includes the loadout, its name and mode, and your Discord username and ID. The site's GitHub repository is public, so treat a submission as public. If the owner publishes it, it appears on the site under your Discord display name.</td></tr>
 <tr><td>Ideas and problem reports</td><td>Only if you send one from “Ideas and problems”, which needs a Discord login. What you write, the page you were on (if you leave that ticked) and your Discord ID, username and display name are stored in Cloudflare's key-value storage for the site owner. They're also posted to a private channel in the owner's Discord server. They're kept until the owner deletes them.</td></tr>
@@ -57,6 +58,7 @@
 <li>Submitted loadouts stay in the GitHub repository until the owner removes them.</li>
 <li>Ideas and problem reports are kept until the owner deletes them; you can ask for yours to be removed.</li>
 <li>Saved loadouts in your account are kept until you delete them.</li>
+<li>A connected webhook is kept until you press Disconnect, or until Discord reports it no longer exists (then it's removed automatically).</li>
 <li>Comments stay until you delete them (there's a Delete button on your own comments) or the site owner removes them. You can remove your rating at any time by clicking the same star again.</li>
 <li>The activity log keeps the latest 500 entries; older ones are removed automatically, and the owner can clear it at any time. A block stays until the owner removes it.</li>
 <li>The bot's message memory only lasts until it restarts.</li>
@@ -66,6 +68,7 @@
 <ul>
 <li>You can use the whole site without logging in.</li>
 <li>You can delete your favourites at any time from the Favourites page.</li>
+<li>You can disconnect your Discord webhook at any time under “Your loadouts”. Deleting the webhook in Discord also stops it working straight away.</li>
 <li>You can ask the site owner to remove a loadout you submitted, or anything else held about you, by contacting them as described below.</li>
 <li>You can remove the vault's access to your Discord account at any time in Discord: User Settings → Authorized Apps.</li>
 </ul>

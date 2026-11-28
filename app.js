@@ -1,5 +1,5 @@
 /* ============ Azoth Vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 15:06';
+const BUILD_AT = '2026-11-28 15:23';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -2473,30 +2473,81 @@ function myLoMenu(){
     (MYLO.length?`<div class="mh">${LOSTATE==='synced'?'Saved to your account':'Saved on this device'}</div>`+MYLO.slice(0,15).map(x=>`<a class="mi" data-lo="${esc(x.id)}">${esc(x.name)}</a>`).join(''):`<div class="mn">Nothing saved yet. Build one in Loadout, then Save.</div>`)+
     (com.length?`<div class="mh">Community</div>`+com.slice(0,15).map((x,i)=>`<a class="mi" data-colo="${i}">${esc(x.name)}${x.mode?` <i class="dimtx">${esc(x.mode)}</i>`:''}</a>`).join(''):'');
 }
+/* ---- "Post to my Discord": a webhook of your own, tied to your Discord login (kept by the helper, never shown again) ---- */
+let MYHOOK;   // undefined = not checked yet, 'loading', null = none, or {name, channel, guild, at}
+async function hookApi(op,data={}){
+  const r=await fetch(CFG.worker+'/myhook',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:dPass(),op,...data})});
+  const d=await r.json().catch(()=>({})); if(!r.ok){ const e=new Error(d.error||('The helper said '+r.status)); e.gone=!!d.gone; throw e; } return d; }
+function loadMyHook(){
+  if(!CFG.worker||!dUser()||MYHOOK!==undefined) return; MYHOOK='loading';
+  hookApi('get').then(d=>{ MYHOOK=d.hook||null; }).catch(()=>{ MYHOOK=null; })
+    .finally(()=>{ if(current&&current.kind==='view'&&current.v==='myloadouts') openView('myloadouts',false); }); }
+async function postToMyDiscord({code,name,mode}){
+  const rec=await decodeLo(code); rec.name=name||rec.n; rec.mode=mode||rec.m||'';
+  const images=await loPictures(rec);
+  return hookApi('post',{entry:{name:rec.name,mode:rec.mode,code,weapons:rec.g.w1+' + '+rec.g.w2,rune:[rec.g.runev,rec.g.rune].filter(Boolean).join(' ')},images}); }
+const hookOn=()=>MYHOOK&&MYHOOK!=='loading';
+function myHookHTML(){
+  if(!CFG.worker||!dUser()) return '';
+  const head='<div class="sh">Post to your own Discord</div>';
+  if(MYHOOK===undefined||MYHOOK==='loading') return `<div class="slot lcard hookcard">${head}<p class="dimtx small">Checking&hellip;</p></div>`;
+  if(MYHOOK) return `<div class="slot lcard hookcard">${head}
+    <p class="hookon"><span class="hookdot" aria-hidden="true"></span>Connected to <b>${esc(MYHOOK.name)}</b><span class="dimtx"> &middot; since ${new Date(MYHOOK.at).toLocaleDateString()}</span></p>
+    <p class="dimtx small">Use <b>&#128227; Post to my Discord</b> on any loadout below. Posts appear in the channel that webhook belongs to. The address is kept private and tied to your login.</p>
+    <div class="lbtns"><button class="mini" id="hookdel">Disconnect</button></div></div>`;
+  return `<div class="slot lcard hookcard">${head}
+    <p class="dimtx small">Connect a webhook from your own server, then post any loadout there with one click. It's tied to your Discord login, and the site never shows the address again.</p>
+    <details class="hookhow"><summary>How do I get a webhook?</summary><ol>
+      <li>In Discord, open your server's <b>Server Settings &rarr; Integrations &rarr; Webhooks</b>. You need the <b>Manage Webhooks</b> permission.</li>
+      <li>Click <b>New Webhook</b>, pick the channel it should post in, then <b>Copy Webhook URL</b>.</li>
+      <li>Paste it below and click <b>Connect</b>.</li></ol>
+      <p class="dimtx tiny">Treat the address like a password: anyone who has it can post in that channel.</p></details>
+    <label class="lof"><span>Webhook address</span><input id="hookurl" type="password" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/&hellip;"></label>
+    <div class="lbtns"><button class="mini go" id="hookset">Connect</button></div></div>`;
+}
+function hookEvents(){
+  const st=document.getElementById('hookset');
+  if(st) st.onclick=async()=>{ const u=document.getElementById('hookurl').value.trim(); if(!u){ toast('Paste your webhook address first'); return; }
+    st.disabled=true; st.textContent='Checking with Discord…';
+    try{ const d=await hookApi('set',{url:u}); MYHOOK=d.hook; toast('Connected to '+d.hook.name); openView('myloadouts',false); }
+    catch(e){ toast(e.message); st.disabled=false; st.textContent='Connect'; } };
+  const dl=document.getElementById('hookdel');
+  if(dl) dl.onclick=async()=>{ if(dl.dataset.sure!=='1'){ dl.dataset.sure='1'; dl.textContent='Click again to disconnect'; return; }
+    try{ await hookApi('del'); MYHOOK=null; toast('Disconnected'); openView('myloadouts',false); }catch(e){ toast(e.message); } };
+  const run=async(el,item)=>{ el.disabled=true; const t=el.textContent; el.textContent='Posting…';
+    try{ await postToMyDiscord(item); el.textContent='Posted ✓'; toast('Posted “'+item.name+'” to '+MYHOOK.name); }
+    catch(e){ toast(e.message); el.disabled=false; el.textContent=t; if(e.gone){ MYHOOK=null; openView('myloadouts',false); } } };
+  document.querySelectorAll('[data-lohook]').forEach(el=>el.onclick=async()=>{ const x=MYLO.find(y=>y.id===el.dataset.lohook); if(!x) return;
+    run(el,{code:await encodeLo(x),name:x.name,mode:x.mode}); });
+  document.querySelectorAll('[data-cohook]').forEach(el=>el.onclick=()=>{ const x=communityLos()[+el.dataset.cohook]; if(x) run(el,{code:x.code,name:x.name,mode:x.mode}); });
+}
 function viewMyLo(){
+  loadMyHook();
   const com=communityLos();
   const card=x=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${x.mode?`<span class="tag">${esc(x.mode)}</span> `:''}${esc(x.g.w1)} + ${esc(x.g.w2)} &middot; saved ${new Date(x.saved).toLocaleDateString()}</div></div>
-    <div class="lobtns"><button class="mini go" data-lo="${esc(x.id)}">Load</button><button class="mini" data-loshare="${esc(x.id)}">&#128279; Share link</button><button class="mini" data-losub="${esc(x.id)}">&#127760; Submit to Community</button><button class="mini" data-lodel="${esc(x.id)}">Delete</button></div>
+    <div class="lobtns"><button class="mini go" data-lo="${esc(x.id)}">Load</button><button class="mini" data-loshare="${esc(x.id)}">&#128279; Share link</button><button class="mini" data-losub="${esc(x.id)}">&#127760; Submit to Community</button>${hookOn()?`<button class="mini" data-lohook="${esc(x.id)}">&#128227; Post to my Discord</button>`:''}<button class="mini" data-lodel="${esc(x.id)}">Delete</button></div>
     <input class="lolink" id="ll_${esc(x.id)}" readonly hidden></div>`;
   return `<h1>Your loadouts</h1>
   <p class="lede">Save what's in the loadout builder, come back to it later, or share it.</p>
   <div class="slots lobar"><div class="slot lcard"><div class="sh">Save what's in the builder</div>
     <label class="lof"><span>Name</span><input id="loname2" class="pk loname" placeholder="e.g. OPR point tank" value=""></label>
     <label class="lof"><span>Made for</span>${loTagSelect('lomode2')}</label>
-    <div class="lbtns"><button class="mini go" id="losave2">&#128190; Save current loadout</button></div></div></div>
+    <div class="lbtns"><button class="mini go" id="losave2">&#128190; Save current loadout</button></div></div>${myHookHTML()}</div>
   <div class="tw"><table><thead><tr><th>You want to&hellip;</th><th>Do this</th><th>Who sees it</th></tr></thead><tbody>
     <tr><td>Keep it for yourself</td><td><b>Save</b></td><td>Only you. ${LOSTATE==='synced'?'Saved to your Discord account, so it shows on every device you log in on':CFG.worker?'In this browser, or on every device once you log in with Discord':'In this browser'}</td></tr>
     <tr><td>Send it to a friend</td><td><b>Share link</b>, then paste it to them</td><td>Whoever has the link</td></tr>
+    ${CFG.worker?`<tr><td>Post it in your own Discord server</td><td><b>Post to my Discord</b> (connect your webhook first)</td><td>Everyone in that channel</td></tr>`:''}
     <tr><td>Put it on the site for everyone</td><td><b>Submit to Community</b> ${CFG.worker?'(log in with Discord first)':'(needs a free GitHub account)'}</td><td>Everyone, once the site owner approves it</td></tr>
   </tbody></table></div>
   ${CFG.worker&&!dUser()?`<div class="callout note mini-co"><span class="ci">&#128273;</span><div><p><b>Log in</b> with Discord (top right) to share your builds with everyone in Community loadouts. Logging in also saves your loadouts to your account, so they show on any device. Saving in this browser works without logging in.</p></div></div>`:''}
   <h2>${LOSTATE==='synced'?'Saved to your Discord account':'Saved on this device'} (${MYLO.length})</h2>${LOSTATE==='synced'?'<p class="dimtx small">These follow your Discord login to any device. Changes save automatically.</p>':LOSTATE==='error'?'<p class="bad small">Couldn\'t reach your account just now, so these are only in this browser for the moment.</p>':''}
   ${MYLO.length?MYLO.map(card).join(''):'<p class="dimtx">Nothing saved yet.</p>'}
   <h2>Community loadouts (${com.length})</h2>
-  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''} ${typeof talkBadge==='function'?talkBadge('lo:'+h32(x.code)):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button>${typeof talkSlot==='function'&&CFG.worker?`<button class="mini" data-cotalk="${i}">&#128172; Ratings and comments</button>`:''}</div></div><div class="cotalk" id="cotalk_${i}" hidden></div>`).join(''):'<p class="dimtx">None yet.</p>'}
+  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''} ${typeof talkBadge==='function'?talkBadge('lo:'+h32(x.code)):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button>${hookOn()?`<button class="mini" data-cohook="${i}">&#128227; Post to my Discord</button>`:''}${typeof talkSlot==='function'&&CFG.worker?`<button class="mini" data-cotalk="${i}">&#128172; Ratings and comments</button>`:''}</div></div><div class="cotalk" id="cotalk_${i}" hidden></div>`).join(''):'<p class="dimtx">None yet.</p>'}
   ${(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner)?`<p class="dimtx tiny" style="margin-top:24px"><a class="wl" data-view="admin">&#128736; Admin &rarr;</a></p>`:''}`;
 }
 function myLoEvents(){
+  hookEvents();
   if(typeof talkSummary==='function') talkSummary();
   document.querySelectorAll('[data-cotalk]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.cotalk, x=communityLos()[i], box=document.getElementById('cotalk_'+i); if(!x||!box) return;
     if(!box.hidden){ box.hidden=true; return; } box.hidden=false; if(!box.innerHTML) box.innerHTML=talkSlot('lo:'+h32(x.code),x.name); talkMount(box); });
