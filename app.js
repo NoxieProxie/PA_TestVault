@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 12:55';
+const BUILD_AT = '2026-11-28 13:10';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -2186,6 +2186,7 @@ function viewReview(){
   const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['advanced','&#129513; Advanced rules'],['live','&#128994; Live bot'],['roles','&#127917; Role menus'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
   if(helper && typeof fbAdminHTML==='function') tabs.splice(1,0,['feedback','&#128172; Ideas and problems'+(fbNewCount()?` <span class="admn">${fbNewCount()}</span>`:'')]);
   if(helper && typeof edAdminHTML==='function') tabs.splice(2,0,['updates','&#128221; Waiting updates'+(edWaiting()?` <span class="admn">${edWaiting()}</span>`:'')],['editors','&#128101; Editors'],['suggest','&#9998; Suggest a change']);
+  if(helper && typeof secHTML==='function') tabs.push(['security','&#128274; Security'+(SECD&&SECD.health&&SECD.health.some(h=>h.state==='missing'||h.state==='warn')?' <span class="admn">!</span>':'')]);
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
   <p class="lede">Only you can see this page. ${helper?`Signed in as <b>${esc(OWNER.name||u.name)}</b> with Discord.`:'Using a GitHub token in this browser.'}</p>
@@ -2208,6 +2209,7 @@ function viewReview(){
   ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}${x.added?' &middot; added '+esc(x.added):''}${x.img?' &middot; has pictures':''}</div></div><div class="lobtns"><button class="mini" data-colo2="${esc(x.code)}">Open</button>${helper&&OWNER.discord?`<button class="mini" data-dpost="${esc(x.code)}">&#128227; Post to Discord</button>`:''}<button class="mini" data-comdel="${esc(x.code)}">Remove</button></div></div>`).join(''):'<p class="dimtx">Nothing published yet.</p>'}`;
   if(ADMTAB==='bot') body=helper&&OWNER.bot?botCard(OWNER.bot).replace('<h2>Discord bot</h2>',''):`<p class="dimtx">The Discord bot settings need the Discord login (helper Version 5 or newer).</p>`;
   if(ADMTAB==='status') body=statusView();
+  if(ADMTAB==='security') body=secHTML();
   if(ADMTAB==='automod') body=automodView();
   if(ADMTAB==='advanced') body=advView();
   if(ADMTAB==='live') body=liveView();
@@ -2236,6 +2238,7 @@ function reviewEvents(){
   on('ghtokdel',()=>{ LS.del('nw_gh_token'); SUBS=null; openView('admin',false); });
   on('subrefresh',refreshSubs);
   if(ADMTAB==='feedback' && typeof fbAdminEvents==='function') fbAdminEvents();
+  if(ADMTAB==='security' && typeof secEvents==='function') secEvents();
   if((ADMTAB==='updates'||ADMTAB==='editors') && typeof edAdminEvents==='function') edAdminEvents();
   if(ADMTAB==='suggest' && typeof editorEvents==='function') editorEvents();
   document.querySelectorAll('[data-admtab]').forEach(el=>el.onclick=()=>{ ADMTAB=el.dataset.admtab; LS.set('nw_admtab',ADMTAB); openView('admin',false); });
@@ -4127,6 +4130,85 @@ function tsEvents(){
   document.querySelectorAll('[data-tsres]').forEach(c=>c.onchange=()=>{ TQ.research=c.checked; LS.set('nw_ts_res',TQ.research); re(); });
   document.querySelectorAll('[data-tsall]').forEach(b=>b.onclick=()=>{ TQ.all=true; re(); });
   document.querySelectorAll('[data-crgo]').forEach(a=>a.onclick=e=>{ e.preventDefault(); CQ.sel=a.dataset.crgo; CQ.all=true; LS.set('nw_craft_sel',CQ.sel); openView('craft'); });
+}
+
+/* ================= Admin → Security (owner only): settings check, activity log, access list, block list, sign everyone out ================= */
+let SECD=null, SECERR='', SECLOAD=false, SECQ={log:'', all:false};
+async function secLoad(force){
+  if(SECLOAD||(SECD&&!force)) return; SECLOAD=true; SECERR='';
+  try{ SECD=await ownerApi('sec_get'); }catch(e){ SECERR=e.message; }
+  SECLOAD=false; if(current?.kind==='view'&&current.v==='admin'&&ADMTAB==='security') openView('admin',false);
+}
+const secWhen=t=>{ const d=new Date(t); return d.toLocaleDateString(undefined,{day:'numeric',month:'short'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}); };
+const SECWHAT={login:'Logged in','owner: roles_set':"Changed an editor's roles",'owner: roledefs_set':'Changed what editor roles can edit','owner: prop_approve':'Approved a suggested change',
+  'owner: prop_reject':'Turned down a suggested change','owner: prop_delete':'Deleted a suggested change','owner: publish':'Published a loadout','owner: reject':'Turned down a loadout','owner: remove':'Removed a community loadout',
+  'owner: setdocs':'Edited site pages','owner: setbotconfig':'Changed bot settings','owner: botsetup':'Set up the Discord bot','owner: automodset':'Changed AutoMod','owner: advset':'Changed advanced rules','owner: liveset':'Changed live bot settings',
+  'owner: rmpost':'Posted a role menu','owner: rmdelete':'Deleted a role menu','owner: announce':'Sent an announcement','owner: sec_block':'Blocked an account','owner: sec_unblock':'Unblocked an account','owner: sec_revoke':"Removed someone's access",
+  'owner: sec_signout':'Signed everyone out','owner: sec_clearlog':'Cleared the activity log','editor: suggested a change':'Suggested a change','editor: withdrew a suggestion':'Withdrew a suggestion'};
+const secWhat=w=>SECWHAT[w]||w.replace(/^owner: /,'');
+const SECBADGE={ok:['&#10003;','ok','Good'],warn:['!','warn','Check this'],missing:['&#10007;','bad','Missing'],optional:['&ndash;','opt','Optional']};
+function secHTML(){
+  if(!SECD){ secLoad(); return SECERR?`<p class="bad">${esc(SECERR)}${/Unknown request|helper said 400/.test(SECERR)?' Paste the Version 13 helper (worker.js) into Cloudflare and deploy it to turn this tab on.':''}</p>`:'<p class="dimtx">Checking your settings&hellip;</p>'; }
+  const H=SECD.health||[], bad=H.filter(h=>h.state==='missing').length, warn=H.filter(h=>h.state==='warn').length;
+  const ed=Object.entries(SECD.editors||{}), bl=Object.entries(SECD.blocked||{});
+  const q=SECQ.log.trim().toLowerCase();
+  const log=(SECD.audit||[]).filter(a=>!q||(a.name+' '+a.id+' '+a.what+' '+secWhat(a.what)+' '+a.detail).toLowerCase().includes(q));
+  const logins=(SECD.audit||[]).filter(a=>a.what==='login');
+  const people={}; logins.forEach(a=>{ if(!people[a.id]) people[a.id]={name:a.name,last:a.at,n:0}; people[a.id].n++; });
+  return `<div class="secgrid">
+  <section class="slot secbox"><h3>&#129658; Settings check <span class="secsum ${bad?'bad':warn?'warn':'ok'}">${bad?bad+' missing':warn?warn+' to check':'All good'}</span></h3>
+    <p class="dimtx small">What the helper (Version ${SECD.version}) can see in its Cloudflare settings. It shows set or missing only, never the secret values themselves.</p>
+    <div class="tw"><table><tbody>${H.map(h=>{ const [ic,cl,tx]=SECBADGE[h.state]||SECBADGE.optional; return `<tr><td><span class="secst ${cl}" title="${tx}">${ic}</span></td><td><b>${esc(h.label)}</b><div class="dimtx tiny">${esc(h.note||'')}</div></td></tr>`; }).join('')}</tbody></table></div>
+    <button class="mini" data-sec="refresh">&#8635; Check again</button></section>
+
+  <section class="slot secbox"><h3>&#128101; Who has access</h3>
+    <div class="tw"><table><thead><tr><th>Account</th><th>Access</th><th></th></tr></thead><tbody>
+      ${(SECD.owners||[]).map(id=>`<tr><td>${esc((people[id]||{}).name||'Site owner')}<div class="dimtx tiny">${esc(id)}</div></td><td><span class="role-o">Owner</span></td><td class="dimtx tiny">Set in Cloudflare (OWNER_DISCORD_ID)</td></tr>`).join('')}
+      ${ed.map(([id,v])=>`<tr><td>${esc(v.name||id)}<div class="dimtx tiny">${esc(id)}</div></td><td>Editor: ${esc((v.roles||[]).join(', '))}</td><td><button class="mini danger" data-sec="revoke" data-id="${esc(id)}" data-name="${esc(v.name||id)}">Remove access</button></td></tr>`).join('')}
+      ${ed.length?'':'<tr><td colspan="3" class="dimtx">No editors yet. Add them on the Editors tab.</td></tr>'}
+    </tbody></table></div></section>
+
+  <section class="slot secbox"><h3>&#128683; Blocked accounts</h3>
+    <p class="dimtx small">A blocked Discord account can still read the site, but can't send ideas or problems, suggest changes, submit loadouts or save favourites.</p>
+    <div class="secform"><input id="secbid" placeholder="Discord ID (17–20 digits)" inputmode="numeric"><input id="secbname" placeholder="Name (for your reference)"><input id="secbwhy" placeholder="Reason (optional)"><button class="mini go" data-sec="block">Block</button></div>
+    <div class="tw"><table><tbody>${bl.length?bl.map(([id,v])=>`<tr><td><b>${esc(v.name||id)}</b><div class="dimtx tiny">${esc(id)} &middot; blocked ${secWhen(v.at)}${v.why?' &middot; '+esc(v.why):''}</div></td><td><button class="mini" data-sec="unblock" data-id="${esc(id)}">Unblock</button></td></tr>`).join(''):'<tr><td class="dimtx">Nobody is blocked.</td></tr>'}</tbody></table></div></section>
+
+  <section class="slot secbox"><h3>&#128682; Sign everyone out</h3>
+    <p class="small">Use this if you think someone's login was misused or a secret leaked. Every account, yours too, is logged out at once and has to log in with Discord again. Nothing else is lost: favourites, roles and suggestions stay.</p>
+    ${SECD.epoch?`<p class="dimtx tiny">Last used ${secWhen(SECD.epoch)}.</p>`:''}
+    <button class="mini danger" data-sec="signout">Sign everyone out</button>
+    <h3 style="margin-top:16px">&#9201; Limits on each account</h3>
+    <div class="tw"><table><tbody>${Object.entries(SECD.limits||{}).map(([k,[n,s]])=>`<tr><td>${({favs:'Saving favourites',feedback:'Ideas and problems',editor:'Suggested changes',submit:'Loadout submissions'})[k]||k}</td><td>${n} every ${s>=3600?(s/3600)+' hour'+(s>3600?'s':''):(s/60)+' minutes'}</td></tr>`).join('')}</tbody></table></div></section>
+  </div>
+
+  <section class="slot secbox"><h3>&#128220; Activity log <span class="dimtx small">(latest ${(SECD.audit||[]).length} of up to 500)</span></h3>
+    <p class="dimtx small">Logins, everything you change on the Admin page, and editors' suggestions. ${Object.keys(people).length} different accounts have logged in since the log started.</p>
+    <div class="secform"><input id="seclogq" placeholder="Filter by name, Discord ID or action" value="${esc(SECQ.log)}"><button class="mini" data-sec="clearlog">Clear the log</button></div>
+    <div class="tw"><table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead><tbody>
+    ${log.slice(0,SECQ.all?log.length:60).map(a=>`<tr><td class="nowrap">${secWhen(a.at)}</td><td>${esc(a.name)}<div class="dimtx tiny">${esc(a.id)}</div></td><td>${esc(secWhat(a.what))}</td><td class="small">${esc(a.detail||'')}</td></tr>`).join('')||'<tr><td colspan="4" class="dimtx">Nothing logged yet.</td></tr>'}
+    </tbody></table></div>${log.length>60&&!SECQ.all?`<button class="mini" data-sec="logall">Show all ${log.length}</button>`:''}</section>`;
+}
+function secEvents(){
+  const busy=async(fn,okMsg)=>{ try{ await fn(); if(okMsg) toast(okMsg); await secLoad(true); }catch(e){ toast(e.message); } };
+  document.querySelectorAll('[data-sec]').forEach(b=>b.onclick=()=>{ const a=b.dataset.sec;
+    if(a==='refresh') busy(async()=>{},'Checked');
+    if(a==='block'){ const id=document.getElementById('secbid').value.trim(); if(!/^\d{15,22}$/.test(id)){ toast('Enter their Discord ID (17 to 20 digits)'); return; }
+      busy(()=>ownerApi('sec_block',{id,name:document.getElementById('secbname').value,why:document.getElementById('secbwhy').value}),'Blocked'); }
+    if(a==='unblock') busy(()=>ownerApi('sec_unblock',{id:b.dataset.id}),'Unblocked');
+    if(a==='revoke'){ if(!confirmInline(b,`Remove ${b.dataset.name}'s editor access?`)) return; busy(()=>ownerApi('sec_revoke',{id:b.dataset.id}),'Access removed'); }
+    if(a==='signout'){ if(!confirmInline(b,'Really sign everyone out, you included?')) return;
+      ownerApi('sec_signout').then(()=>{ toast('Everyone has been signed out. Log in again with Discord.'); LS.del('nw_discord'); setTimeout(()=>location.reload(),1500); }).catch(e=>toast(e.message)); }
+    if(a==='clearlog'){ if(!confirmInline(b,'Clear the whole activity log?')) return; busy(()=>ownerApi('sec_clearlog'),'Log cleared'); }
+    if(a==='logall'){ SECQ.all=true; openView('admin',false); }
+  });
+  const q=document.getElementById('seclogq'); if(q) q.oninput=()=>{ SECQ.log=q.value; const pos=q.selectionStart; openView('admin',false); const n=document.getElementById('seclogq'); if(n){ n.focus(); n.setSelectionRange(pos,pos); } };
+}
+/* two-click confirm on the button itself (no pop-up dialogs) */
+function confirmInline(btn,msg){
+  if(btn.dataset.armed==='1') return true;
+  btn.dataset.armed='1'; const old=btn.textContent; btn.textContent=msg+' Click again'; btn.classList.add('armed');
+  setTimeout(()=>{ if(btn.isConnected){ btn.dataset.armed=''; btn.textContent=old; btn.classList.remove('armed'); } },5000);
+  return false;
 }
 
 /* ---------- boot ---------- */

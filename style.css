@@ -900,3 +900,20 @@ body:not(.nofx) .menu{box-shadow:0 24px 60px -10px rgba(0,0,0,.8)}
 .tssum>div:first-child{min-width:160px}
 .tsres{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--fg);margin-left:8px;cursor:pointer}
 .tsshop .fl{white-space:nowrap}
+
+/* Admin -> Security */
+.secgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;margin-bottom:14px}
+.secbox h3{display:flex;align-items:center;gap:10px;margin:0 0 6px}
+.secsum{font-size:12px;font-weight:600;border-radius:999px;padding:1px 9px;border:1px solid}
+.secsum.ok{color:var(--green);border-color:var(--green)}.secsum.warn{color:var(--gold);border-color:var(--gold)}.secsum.bad{color:var(--red);border-color:var(--red)}
+.secst{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-weight:700;font-size:13px}
+.secst.ok{background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green)}
+.secst.warn{background:color-mix(in srgb,var(--gold) 22%,transparent);color:var(--gold)}
+.secst.bad{background:color-mix(in srgb,var(--red) 22%,transparent);color:var(--red)}
+.secst.opt{background:var(--bg3);color:var(--dim)}
+.secform{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+.secform input{flex:1;min-width:150px}
+.mini.danger{border-color:var(--red);color:var(--red)}
+.mini.danger:hover,.mini.armed{background:var(--red);color:#111}
+.role-o{color:var(--gold2);font-weight:600}
+.nowrap{white-space:nowrap}
