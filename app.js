@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-27 23:48';
+const BUILD_AT = '2026-11-28 00:18';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -283,6 +283,18 @@ async function moveTab(from, to, before){
   keys.splice(i,0,from);
   await saveSite(Object.assign({},SITE,{order:keys})); topnav();
 }
+/* seasonal look picker: Automatic follows the in-game event calendar (dates live in index.html) */
+function seasonPickHTML(){
+  if(!window.NWSEASONS) return '';
+  let cur='auto'; try{ cur=localStorage.getItem('nw_season')||'auto'; }catch(e){}
+  const now=window.nwSeasonNow&&nwSeasonNow();
+  const b=(k,n,c)=>`<button type="button" data-season="${k}" aria-pressed="${cur===k}"><i style="background:${c}"></i>${esc(n)}</button>`;
+  return `<div class="mn tiny">Automatic changes the look for each in-game event${now?` (now: <b>${esc(now.n)}</b>)`:' (no event on right now)'}. Your pick is saved in this browser.</div>
+    <div class="sspick">${b('auto','Automatic','conic-gradient(#9fd0e6,#e8b04a,#e7a3be,#f2a65a,#f0913c,#9fd0e6)')}${b('off','Normal look','#cfa557')}${NWSEASONS.map(x=>b(x.k,x.n,x.c)).join('')}</div>`;
+}
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-season]'); if(!b) return; e.preventDefault(); e.stopPropagation();
+  try{ localStorage.setItem('nw_season',b.dataset.season); }catch(_){} if(window.nwApplySeason) nwApplySeason();
+  b.parentElement.querySelectorAll('[data-season]').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
 function renderDataMenu(){
   const n = Object.keys(META).length;
   document.getElementById('datamenu').innerHTML =
@@ -292,7 +304,7 @@ function renderDataMenu(){
      ${(typeof canWrite==='function'&&canWrite()&&!GHMODE)?`<div class="mn tiny">Pick the <b>New World</b> folder in your vault. ${(typeof CMODE!=='undefined'&&CMODE==='db'&&IS_OWNER)?'The pages are saved into this page\'s own storage, so they stay put between sessions and show on every device. Only you can change them.':'The page reads the .md files in your browser and remembers them in this browser.'}</div>`:''}
      ${SRC!=='snapshot'&&typeof canWrite==='function'&&canWrite()&&!GHMODE?`<a class="mi" id="resetdata">&#8634; Back to the built-in snapshot</a>`:''}
      ${(typeof canWrite==='function'&&canWrite())?`<div class="mh">Adding or changing things</div>
-     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}<div class="mh">About</div><a class="mi" data-view="changelog">Changelog</a><a class="mi" data-fbopen="idea">Send an idea or report a problem</a><a class="mi" href="terms.html">Terms of Service</a><a class="mi" href="privacy.html">Privacy Policy</a>`;
+     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}<div class="mh">Site look</div>${typeof seasonPickHTML==='function'?seasonPickHTML():''}<div class="mh">About</div><a class="mi" data-view="changelog">Changelog</a><a class="mi" data-fbopen="idea">Send an idea or report a problem</a><a class="mi" href="terms.html">Terms of Service</a><a class="mi" href="privacy.html">Privacy Policy</a>`;
   const pf=document.getElementById('pickfolder'); if (pf) pf.onclick=pickFolder;
   const rd=document.getElementById('resetdata');
   if (rd) rd.onclick=async ()=>{ LS.del('nw_vault'); LS.del('nw_vault_at'); if(typeof clearVaultDb==='function') await clearVaultDb(); location.reload(); };
@@ -2310,13 +2322,14 @@ function hex2rgb(h){ const m=h.replace('#','').match(/.{2}/g)||['d9','a8','4e'];
 function lighten(h,f){ const [r,g,b]=hex2rgb(h); const L=v=>Math.round(v+(255-v)*f); return '#'+[L(r),L(g),L(b)].map(v=>v.toString(16).padStart(2,'0')).join(''); }
 function applySite(){
   const R=document.documentElement.style;
-  R.setProperty('--gold', SITE.accent); R.setProperty('--gold2', lighten(SITE.accent,.35));
+  if(window.NWSEASON){ R.removeProperty('--gold'); R.removeProperty('--gold2'); }   // a seasonal look brings its own colours
+  else { R.setProperty('--gold', SITE.accent); R.setProperty('--gold2', lighten(SITE.accent,.35)); }
   document.body.classList.remove('light','midnight'); if(SITE.theme!=='dark') document.body.classList.add(SITE.theme);
   document.body.classList.remove('fs-s','fs-l'); if(SITE.font!=='m') document.body.classList.add('fs-'+SITE.font);
   document.body.classList.remove('w-wide','w-full'); if(SITE.width!=='normal') document.body.classList.add('w-'+SITE.width);
   document.body.classList.toggle('noicons', !SITE.icons);
   const b=document.querySelector('.brand'); if(b){ const t=(SITE.brand==='New World · S10 Nighthaven'||SITE.brand==='New World vault'?'':SITE.brand)||DEFAULT_SITE.brand;
-    b.innerHTML=esc(t)+(t===DEFAULT_SITE.brand?' <small>Season 10 Nighthaven</small>':''); }
+    b.innerHTML=esc(t)+(t===DEFAULT_SITE.brand?' <small>Season 10 Nighthaven</small>':'')+`<span class="sstag" id="sstag">${esc(window.NWSEASON?NWSEASON.n:'')}</span>`; }
 }
 async function saveSite(next){
   SITE=Object.assign({}, DEFAULT_SITE, next);

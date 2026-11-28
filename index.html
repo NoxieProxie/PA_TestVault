@@ -5,11 +5,28 @@
 <meta name="nw-site" content="https://project-azoth-vault.pages.dev/">
 <script>(function(){var m=document.querySelector('meta[name="nw-site"]'),s=m&&m.content;if(s&&/github\.io$/.test(location.hostname))location.replace(s+location.hash);})();</script>
 <title>New World: Aeternum &mdash; Season 10 vault</title>
-<link rel="stylesheet" href="style.css?v=202611280012">
+<link rel="stylesheet" href="style.css?v=202611280021">
+<script>
+/* seasonal looks: change the dates here when the in-game events move (month-day, both days included) */
+window.NWSEASONS=[
+  {k:'winter', n:'Winter Convergence', from:'12-01', to:'01-08', c:'#9fd0e6'},
+  {k:'lunar',  n:'Lunar New Year',     from:'01-20', to:'02-20', c:'#e8b04a'},
+  {k:'spring', n:'Springtide Bloom',   from:'04-01', to:'05-20', c:'#e7a3be'},
+  {k:'summer', n:'Summer Medleyfaire', from:'07-01', to:'08-31', c:'#f2a65a'},
+  {k:'hallow', n:'Nightveil Hallow',   from:'10-01', to:'11-10', c:'#f0913c'},
+  {k:'harvest',n:'Turkey Terror',      from:'11-15', to:'11-30', c:'#e0a446'}];
+window.nwSeasonNow=function(d){d=d||new Date();var md=('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  for(var i=0;i<NWSEASONS.length;i++){var s=NWSEASONS[i];if(s.from<=s.to?(md>=s.from&&md<=s.to):(md>=s.from||md<=s.to))return s;}return null;};
+window.nwApplySeason=function(){var pick='auto';try{pick=localStorage.getItem('nw_season')||'auto';}catch(e){}
+  var s=pick==='off'?null:pick==='auto'?nwSeasonNow():NWSEASONS.filter(function(x){return x.k===pick;})[0]||null,el=document.documentElement;
+  el.className=el.className.replace(/\bss-\w+/g,'').trim();if(s)el.classList.add('ss-'+s.k);
+  window.NWSEASON=s;var t=document.getElementById('sstag');if(t)t.textContent=s?s.n:'';if(typeof applySite==='function'&&typeof SITE!=='undefined'){try{applySite();}catch(e){}}};
+nwApplySeason();
+</script>
 </head><body>
 <header>
   <div class="bar1">
-    <span class="brand" data-note="New World Home" role="link" tabindex="0" style="cursor:pointer">New World Vault <small>Season 10 Nighthaven</small></span>
+    <span class="brand" data-note="New World Home" role="link" tabindex="0" style="cursor:pointer">New World Vault <small>Season 10 Nighthaven</small><span class="sstag" id="sstag"></span></span>
     <button id="back" title="Back">&larr; Back</button>
     <input id="q" placeholder="Search everything&hellip;   (press / )" autocomplete="off">
     <span id="acct"></span>
@@ -17,5 +34,6 @@
   <div id="topnav"></div>
 </header>
 <main id="main"><p class="lede">Loading&hellip;</p></main>
-<script src="app.js?v=202611280012"></script>
+<script>nwApplySeason()</script>
+<script src="app.js?v=202611280021"></script>
 </body></html>
