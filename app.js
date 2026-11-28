@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 01:14';
+const BUILD_AT = '2026-11-28 12:55';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -59,11 +59,15 @@ let GCRX=null;
 function gcIcon(k){ const g=NOTEICO.gc[k]; if(!g) return '';
   const T=NOTEICO.tile,C=NOTEICO.cols,sheet=Math.floor(g[0]/NOTEICO.per),j=g[0]%NOTEICO.per,size=22,sc=size/T;
   return `<span class="iic gci" style="width:${size}px;height:${size}px;background-image:url(${NOTEICO.urls[sheet]});background-size:${C*T*sc}px auto;background-position:-${(j%C)*T*sc}px -${Math.floor(j/C)*T*sc}px" title="${esc(g[1])}" aria-label="${esc(g[1].split('\n')[0])}"></span>`; }
+function tsNameIcon(k){ const g=TSD.names[k]; if(!g) return '';
+  const T=TSD.tile,C=TSD.cols,size=22,sc=size/T;
+  return `<span class="iic gci" style="width:${size}px;height:${size}px;background-image:url(${TSD.sheet});background-size:${C*T*sc}px auto;background-position:-${(g[0]%C)*T*sc}px -${Math.floor(g[0]/C)*T*sc}px" title="${esc(g[1])}" aria-label="${esc(g[1].split(':')[0])}"></span>`; }
 function gcDeco(html){
-  if(!NOTEICO||!NOTEICO.gc) return html;
+  if(!NOTEICO||!NOTEICO.gc) return html;   // (gem/charm data and the tradeskill names both arrive at start-up)
   if(!GCRX){ const q=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); const ks=Object.keys(NOTEICO.gc).sort((a,b)=>b.length-a.length);
     GCRX={gem:new RegExp('\\b('+ks.filter(k=>NOTEICO.gc[k][2]==='gem').map(q).join('|')+')\\b','gi'),
           charm:new RegExp('\\b('+ks.filter(k=>NOTEICO.gc[k][2]==='charm').map(q).join('|')+')\\b','gi')}; }
+  if(typeof TSD!=='undefined'&&TSD&&TSD.names&&!GCRX.ts){ const q=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); GCRX.ts=new RegExp('\\b('+Object.keys(TSD.names).sort((a,b)=>b.length-a.length).map(q).join('|')+')\\b','gi'); }
   const charm=/charm/i.test(stripTags(html));
   const parts=html.split(/(<[^>]+>)/); let inTag=0, prevIco=false;
   return parts.map(p=>{
@@ -74,6 +78,7 @@ function gcDeco(html){
       out=out.replace(/\b(\w+)(?= or \w+ Harnessing\b)/g,(m)=>NOTEICO.gc[(m+' harnessing').toLowerCase()]?gcIcon((m+' harnessing').toLowerCase())+m:m);
       out=out.split(/(<[^>]+>)/).map(q=>q.startsWith('<')?q:q.replace(GCRX.charm,(m,_,off)=>(off===0&&prevIco)?m:gcIcon(m.toLowerCase())+m)).join('');
     }
+    if(GCRX.ts){ const seen=new Set(); out=out.split(/(<[^>]+>)/).map(q=>q.startsWith('<')?q:q.replace(GCRX.ts,(m,_,off)=>{ const k=m.toLowerCase(); if(seen.has(k)||(off===0&&prevIco)) return m; seen.add(k); return tsNameIcon(k)+m; })).join(''); }
     prevIco=false; return out; }).join('');
 }
 /* table columns that label or describe a row never get icons: the icon belongs next to the thing itself */
@@ -220,6 +225,7 @@ function navTabs(){
     ${tool('calc','Calculator','Real damage and health, against raid bosses too','calc')}
     ${tool('craft','Recipe finder','Every recipe, with a shopping list','recipe')}
     ${tool('weight','Weight calculator','Equip load, and what light, medium and heavy give and cost','weight')}
+    ${tool('tslevel','Tradeskill levelling','Cheapest and fastest way to level any crafting or gathering skill','recipe')}
     ${tool('trophyplanner','Trophy planner','Plan trophies for your houses, see the totals and what to craft','trophy')}
     ${tool('builds','Build browser','Filter every build by role, mode and weapon','buildbrowser')}
     ${tool('bosses','Boss browser','Filter bosses by expedition and weakness','bosses')}</div></div>`});
@@ -236,7 +242,7 @@ function navTabs(){
     paths.forEach(p=>{ const rel=p.slice(t.length+1); const sub=rel.includes('/')?rel.split('/')[0]:''; (groups[sub]=groups[sub]||[]).push(p); });
     const extra = /build/i.test(t) ? `<a class="mi hi" data-view="builds">${ui('buildbrowser')}Build browser (filterable)</a>`
                : /boss/i.test(t) ? `<a class="mi hi" data-view="bosses">${ui('bosses')}Boss browser (filterable)</a>`
-               : /craft/i.test(t) ? `<a class="mi hi" data-view="craft">${ui('recipe')}Recipe finder (every recipe, with shopping lists)</a>`
+               : /craft/i.test(t) ? `<a class="mi hi" data-view="craft">${ui('recipe')}Recipe finder (every recipe, with shopping lists)</a><a class="mi hi" data-view="tslevel">${ui('recipe')}Tradeskill levelling planner</a>`
                : (/my pages/i.test(t) && typeof canWrite==='function' && canWrite()) ? `<a class="mi hi" data-newpage="1">&#65291; New page</a>` : '';
     let menu = extra;
     const fold = paths.length>12 && Object.keys(groups).some(g=>g);   // long menus: sub-folders start folded, click a heading to open it
@@ -472,7 +478,7 @@ function backState(){
 }
 function routeHash(h){
   if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); return true; }
-  if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback','editor','changelog'].includes(h)){ openView(h,false); return true; }
+  if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback','editor','changelog','tslevel'].includes(h)){ openView(h,false); return true; }
   const hit=Object.keys(NAMES).find(n=>slug(n)===h); if(hit){ openNote(hit,false); return true; }
   return false;
 }
@@ -555,7 +561,7 @@ function openView(v,push=true){
   if(push && current) hist.push(current);
   current={kind:'view',v};
   document.getElementById('main').classList.remove('home');
-  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():v==='favs'?viewFavs():v==='feedback'?viewFeedback():v==='editor'?viewEditor():v==='changelog'?viewChangelog():viewBosses();
+  document.getElementById('main').innerHTML = v==='builds'?viewBuilds():v==='calc'?viewCalc():v==='gear'?viewGear():v==='items'?viewItems():v==='myloadouts'?viewMyLo():v==='admin'?viewReview():v==='craft'?viewCraft():v==='weight'?viewWeight():v==='trophyplanner'?viewTrophies():v==='favs'?viewFavs():v==='feedback'?viewFeedback():v==='editor'?viewEditor():v==='changelog'?viewChangelog():v==='tslevel'?viewTS():viewBosses();
   if(v==='items') itemsEvents();
   if(v==='calc') calcEvents();
   if(v==='gear') gearEvents();
@@ -567,6 +573,7 @@ function openView(v,push=true){
   if(v==='favs') favsEvents();
   if(v==='feedback') feedbackEvents();
   if(v==='editor') editorEvents();
+  if(v==='tslevel') tsEvents();
   if(!same) window.scrollTo(0,0);
   navWrite('#'+v, {kind:'view',v}, push);
   const c=document.getElementById('clearf');
@@ -2824,7 +2831,7 @@ async function loadCrafting(){
       const tsn={}; d.recipes.forEach(r=>{ if(r.ts) tsn[r.ts]=(tsn[r.ts]||0)+1; }); d.tradeskills=Object.keys(tsn).filter(t=>tsn[t]>=10).sort();
       CR=d;
     }catch(e){ CRERR=String(e.message||e); }
-    if(current?.kind==='view'&&current.v==='craft') openView('craft',false);
+    if(current?.kind==='view'&&(current.v==='craft'||current.v==='tslevel')) openView(current.v,false);
   })();
   return CRLOAD;
 }
@@ -3967,6 +3974,161 @@ function edAdminEvents(){
     try{ await setRoles(id,name,roles); toast('Added '+(name||id)); }catch(e){ toast(e.message); } };
 }
 
+/* ================= Tradeskill levelling: cheapest and fastest ways to level every crafting, refining and gathering skill ================= */
+let TSD=null, TSERR='', TSLOAD=null;
+let TQ={sk:LS.get('nw_ts_sk','Weaponsmithing'), from:LS.get('nw_ts_from',0), to:LS.get('nw_ts_to',250), mode:LS.get('nw_ts_mode','cheap'), research:LS.get('nw_ts_res',true), all:false};
+const TS_GROUPS=[['Crafting','craft'],['Refining','refine'],['Gathering','gather']];
+async function loadTS(){
+  if(TSD||TSLOAD) return TSLOAD;
+  TSLOAD=(async()=>{ try{ TSD=await (await fetch('tradeskills.json')).json(); TSD.sheet='ts_0.webp?v='+TSD.tile; }catch(e){ TSERR=String(e.message||e); }
+    if(current?.kind==='view'&&current.v==='tslevel') openView('tslevel',false); })();
+  return TSLOAD;
+}
+function tsPic(i,size=32,title=''){
+  if(!TSD||i==null) return `<span class="iic none" style="width:${size}px;height:${size}px"></span>`;
+  const T=TSD.tile,C=TSD.cols,sc=size/T;
+  return `<span class="iic" style="width:${size}px;height:${size}px;background-image:url(${TSD.sheet});background-size:${C*T*sc}px auto;background-position:-${(i%C)*T*sc}px -${Math.floor(i/C)*T*sc}px" title="${esc(title)}"></span>`;
+}
+const tsFmt=n=>Math.round(n).toLocaleString();
+function tsXp(sk,from,to){ const c=TSD.skills[sk].curve; let s=0; for(let l=from+1;l<=to;l++) s+=c[l]||0; return s; }
+/* raw materials for one craft of a recipe (refined materials broken down to what you gather) */
+const TSRAW={};
+/* "Any Tier 2 Metals" and the like: count it as its plainest member (something you can gather, or the basic refined version) */
+const TSREP={};
+function tsRep(cat){
+  if(cat in TSREP) return TSREP[cat];
+  const c=CR.cats[cat]; const m=(c&&c[1])||[]; const W=CR.where||{};
+  const ok=m.filter(id=>!/coin|converter|token/i.test(crName(id)));
+  const refined=id=>{ const r=crRecipeFor(id); return r&&REFINE_TS.includes(r.ts)&&!r.ev&&!r.proc; };
+  const pick=ok.find(refined)||ok.find(id=>W[id])||ok[0]||m[0]||null;
+  return TSREP[cat]=pick;
+}
+function tsRawOf(id,q,depth,path,acc){
+  if(id.startsWith('c:')){ const rep=tsRep(id.slice(2)); if(rep&&depth<8){ tsRawOf(rep,q,depth+1,path,acc); return; } }
+  const r=(depth<8&&id[0]!=='$'&&!id.startsWith('c:')&&!path.includes(id))?crRecipeFor(id):null;
+  if(r&&REFINE_TS.includes(r.ts)){ const k=q/(r.q||1); r.i.forEach(([iid,qq])=>tsRawOf(iid,qq*k,depth+1,path.concat(id),acc)); return; }
+  acc[id]=(acc[id]||0)+q;
+}
+function tsRaw(r){
+  if(TSRAW[r.id]) return TSRAW[r.id];
+  const acc={}; r.i.forEach(([iid,q])=>tsRawOf(iid,q,0,[r.o],acc));
+  Object.keys(acc).forEach(k=>acc[k]=Math.round(acc[k]*100)/100);
+  const n=Object.entries(acc).filter(([id])=>!id.startsWith('$')).reduce((a,[,q])=>a+q,0);
+  return TSRAW[r.id]={acc,n:Math.max(1,n)};
+}
+/* research projects turn salvage scraps (and spare schematics) into tradeskill XP */
+const tsIsResearch=r=>/Research/i.test(r.n)||r.i.some(([id])=>/Scrap|Pattern|Schematic/i.test(id+' '+crName(id)));
+function tsRecipes(sk){
+  return CR.recipes.filter(r=>r.ts===sk&&r.xp>1&&r.known&&!r.ev&&r.lv!=null&&(TQ.research||!tsIsResearch(r))&&!r.i.some(([id])=>/coin|token/i.test(crName(id))));
+}
+/* best option at each level, grouped into stretches where the best choice doesn't change */
+function tsPlan(opts,from,to,score){
+  const out=[]; let cur=null;
+  for(let l=from;l<to;l++){
+    const ok=opts.filter(o=>(o.lv||0)<=l); if(!ok.length){ if(cur&&cur.o===null){ cur.to=l+1; } else { cur={o:null,from:l,to:l+1}; out.push(cur); } continue; }
+    let best=ok[0], bs=score(best); for(const o of ok){ const s=score(o); if(s>bs){ best=o; bs=s; } }
+    if(cur&&cur.o===best) cur.to=l+1; else { cur={o:best,from:l,to:l+1}; out.push(cur); }
+  }
+  return out;
+}
+function viewTS(){
+  if(!TSD){ loadTS(); return `<h1>Tradeskill levelling</h1>${TSERR?`<p class="bad">Couldn't load the tradeskill data: ${esc(TSERR)}</p>`:'<p class="dimtx">Loading&hellip;</p>'}`; }
+  const sk=TSD.skills[TQ.sk]?TQ.sk:'Weaponsmithing', S=TSD.skills[sk], cap=TSD.cap;
+  if(S.kind!=='gather' && !CR){ loadCrafting(); }
+  const from=Math.max(0,Math.min(cap-1,+TQ.from||0)), to=Math.max(from+1,Math.min(cap,+TQ.to||cap));
+  const need=tsXp(sk,from,to), total=tsXp(sk,0,cap);
+  const pick=TS_GROUPS.map(([g,k])=>`<div class="tsgrp"><span class="fl">${g}</span><div class="tspick">${Object.entries(TSD.skills).filter(([,v])=>v.kind===k).map(([n,v])=>
+    `<button type="button" class="tsbtn" data-tssk="${esc(n)}" aria-pressed="${n===sk}">${tsPic(v.icon,30,n)}<span>${esc(n)}</span></button>`).join('')}</div></div>`).join('');
+  let body='';
+  if(S.kind==='gather') body=tsGatherHTML(sk,from,to);
+  else body=CR?tsCraftHTML(sk,from,to):(CRERR?`<p class="bad">Couldn't load the recipes: ${esc(CRERR)}</p>`:'<p class="dimtx">Loading recipes&hellip;</p>');
+  return `<h1>Tradeskill levelling</h1>
+  <p class="lede">Pick a tradeskill and the levels you're going between. The planner finds the cheapest or fastest thing to do at every level and how many you'll need. <span class="credit">XP values from the game data via <a href="https://nw-buddy.de" target="_blank" rel="noopener">NW Buddy</a>.</span></p>
+  <div class="filters tsfilters">${pick}</div>
+  <div class="tshead slot">
+    <div class="tsname">${tsPic(S.icon,56,sk)}<div><h2>${esc(sk)}</h2><div class="tstool">${tsPic(S.toolIcon,26,S.tool)} ${S.kind==='gather'?'Tool':'Station'}: <b>${esc(S.tool)}</b></div></div></div>
+    <div class="tslv">
+      <label><span>Current level</span><input type="number" min="0" max="${cap-1}" value="${from}" data-tsl="from"></label>
+      <span class="tsarrow">&rarr;</span>
+      <label><span>Target level</span><input type="number" min="1" max="${cap}" value="${to}" data-tsl="to"></label>
+      <div class="tsquick">${[[0,50],[50,100],[100,150],[150,200],[200,250],[0,250]].map(([a,b])=>`<button class="chip" data-tsq="${a}-${b}">${a}&ndash;${b}</button>`).join('')}</div>
+    </div>
+    <div class="tsxp"><b>${tsFmt(need)}</b> XP needed<span>${(need/total*100).toFixed(1)}% of the whole 0&ndash;${cap} journey (${tsFmt(total)} XP)</span></div>
+  </div>
+  ${body}`;
+}
+function tsCraftHTML(sk,from,to){
+  const all=tsRecipes(sk).map(r=>{ const raw=tsRaw(r); return {r, lv:r.lv||0, xp:r.xp, raw:raw.n, per:r.xp/raw.n}; });
+  if(!all.length) return '<p class="dimtx">No recipes found for this tradeskill.</p>';
+  const score=TQ.mode==='fast'?(o=>o.xp+o.per*1e-6):(o=>o.per+o.xp*1e-9);
+  const plan=tsPlan(all,from,to,score);
+  let crafts=0, mats={};
+  const rows=plan.map(p=>{ const xp=tsXp(sk,p.from,p.to);
+    if(!p.o) return `<tr><td>${p.from}&ndash;${p.to}</td><td colspan="5" class="dimtx">Nothing to craft yet at this level</td></tr>`;
+    const n=Math.ceil(xp/p.o.xp); crafts+=n; const raw=tsRaw(p.o.r); Object.entries(raw.acc).forEach(([id,q])=>mats[id]=(mats[id]||0)+q*n);
+    const top=Object.entries(raw.acc).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id,q])=>`${+q.toFixed(1)}&times; ${esc(crName(id))}`).join(', ');
+    return `<tr><td class="tsband">${p.from}&ndash;${p.to}</td><td><a href="#" class="tsrec" data-crgo="${esc(p.o.r.id)}">${crIcon(p.o.r.o,26)}${esc(p.o.r.n)}</a><div class="dimtx tiny">Needs level ${p.o.lv}${p.o.r.st?' &middot; '+esc(p.o.r.st):''}</div></td>
+      <td>${tsFmt(p.o.xp)}</td><td><b>${tsFmt(n)}</b></td><td>${tsFmt(p.o.raw)}</td><td class="small">${top}</td></tr>`; }).join('');
+  const shop=Object.entries(mats).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const elig=all.filter(o=>o.lv<=to).sort((a,b)=>TQ.mode==='fast'?b.xp-a.xp:b.per-a.per);
+  return `<div class="tsmode"><span class="fl">Plan for</span>
+      <button class="chip ${TQ.mode==='cheap'?'on':''}" data-tsm="cheap">&#128176; Cheapest: fewest materials per XP</button>
+      <button class="chip ${TQ.mode==='fast'?'on':''}" data-tsm="fast">&#9889; Fastest: most XP per craft</button>
+      <label class="tsres"><input type="checkbox" data-tsres ${TQ.research?'checked':''}> Use research projects (they turn salvage scraps into XP)</label></div>
+    ${TQ.research&&all.some(o=>tsIsResearch(o.r))?'<div class="callout tip"><span class="ci">&#128161;</span><div><p>Research projects are usually the cheapest way up: salvage gear of that type for its <b>scraps</b> and turn them in at the station. Untick the box above to plan with normal crafts instead.</p></div></div>':''}
+    <h2>Your plan</h2>
+    <div class="tw"><table><thead><tr><th>Levels</th><th>Craft</th><th>XP each</th><th>How many</th><th>Raw materials each</th><th>Main materials (each)</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tssum slot"><div><b>${tsFmt(crafts)}</b> crafts in total</div>
+      <div class="tsshop"><span class="fl">Everything to gather (or buy)</span>${shop.map(([id,q])=>`<div class="crrow">${crIcon(id,22)}<span class="crq">${tsFmt(q)}&times;</span><span class="crn">${esc(crName(id))}</span></div>`).join('')}</div></div>
+    <p class="dimtx small">Cheapest counts every raw material each craft needs, with refined materials broken down to what you gather. It doesn't know Trading Post prices, so check those for anything you'd buy. Fastest picks the most XP per craft, which means fewer crafts but usually pricier materials. Only recipes you know without a schematic are used.</p>
+    <h2>Every recipe up to level ${to}</h2>
+    <div class="tw"><table><thead><tr><th>Recipe</th><th>Level</th><th>XP each</th><th>Raw materials</th><th>XP per material</th></tr></thead><tbody>
+    ${elig.slice(0,TQ.all?elig.length:40).map(o=>`<tr><td><a href="#" class="tsrec" data-crgo="${esc(o.r.id)}">${crIcon(o.r.o,22)}${esc(o.r.n)}</a></td><td>${o.lv}</td><td>${tsFmt(o.xp)}</td><td>${tsFmt(o.raw)}</td><td>${o.per.toFixed(1)}</td></tr>`).join('')}
+    </tbody></table></div>${elig.length>40&&!TQ.all?`<button class="mini" data-tsall="1">Show all ${elig.length}</button>`:''}`;
+}
+function tsGatherHTML(sk,from,to){
+  if(sk==='Fishing'){
+    const xp=tsXp(sk,from,to), f=TSD.fish;
+    const best=f.reduce((a,b)=>b.xp>a.xp?b:a,f[0]), low=f.reduce((a,b)=>b.xp<a.xp?b:a,f[0]);
+    return `<h2>Your plan</h2>
+    <div class="tssum slot"><div>Catching small tier 1 fish (${low.xp} XP): about <b>${tsFmt(xp/low.xp)}</b> catches</div><div>Catching large tier ${best.tier} fish (${best.xp} XP): about <b>${tsFmt(xp/best.xp)}</b> catches</div></div>
+    <p class="dimtx small">Hooking a fish also gives a little XP of its own. Fishing hotspots (the bubbling water) roll bigger, higher-tier fish, which is the quickest way up.</p>
+    <h2>XP per catch</h2><div class="tw"><table><thead><tr><th>Fish size</th><th>Tier</th><th>XP per catch</th></tr></thead><tbody>
+    ${f.map(x=>`<tr><td>${x.size}</td><td>${x.tier}</td><td>${x.xp}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  const all=TSD.nodes.filter(n=>n.ts===sk).map(n=>Object.assign({},n));
+  const score=TQ.mode==='fast'?(o=>o.xp+Math.min(o.spots,5e4)*1e-6):(o=>Math.log10(1+o.spots)*1000+o.xp*1e-3);
+  const plan=tsPlan(all.filter(n=>TQ.mode==='fast'||n.spots>0),from,to,score);
+  let total=0;
+  const rows=plan.map(p=>{ const xp=tsXp(sk,p.from,p.to);
+    if(!p.o) return `<tr><td>${p.from}&ndash;${p.to}</td><td colspan="4" class="dimtx">Nothing to gather yet at this level</td></tr>`;
+    const n=Math.ceil(xp/p.o.xp); total+=n;
+    return `<tr><td class="tsband">${p.from}&ndash;${p.to}</td><td><span class="tsnode">${tsPic(p.o.icon??TSD.skills[sk].toolIcon,26,p.o.n)}${esc(p.o.n)}</span><div class="dimtx tiny">Needs level ${p.o.lv}</div></td><td>${tsFmt(p.o.xp)}</td><td><b>${tsFmt(n)}</b></td><td>${p.o.spots?tsFmt(p.o.spots):'&ndash;'}</td></tr>`; }).join('');
+  const elig=all.filter(n=>n.lv<=to).sort((a,b)=>b.xp-a.xp||b.spots-a.spots);
+  return `<div class="tsmode"><span class="fl">Plan for</span>
+      <button class="chip ${TQ.mode==='cheap'?'on':''}" data-tsm="cheap">&#127795; Easiest: the most common nodes</button>
+      <button class="chip ${TQ.mode==='fast'?'on':''}" data-tsm="fast">&#9889; Fastest: most XP per node</button></div>
+    <h2>Your plan</h2>
+    <div class="tw"><table><thead><tr><th>Levels</th><th>Gather</th><th>XP each</th><th>How many</th><th>Spots in the world</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tssum slot"><div><b>${tsFmt(total)}</b> gathers in total</div><div class="dimtx small">Where each one is: the <a class="wl" data-note="Where to gather">Where to gather</a> page.</div></div>
+    <p class="dimtx small">Easiest sticks to nodes with lots of spots around the map, so you spend less time looking. Fastest picks the most XP per node, which are usually rarer. Gathering gear, food and the trophies in your house add more XP on top.</p>
+    <h2>Everything you can gather up to level ${to}</h2>
+    <div class="tw"><table><thead><tr><th>Node</th><th>Level</th><th>XP each</th><th>Spots in the world</th><th>Respawn (about)</th></tr></thead><tbody>
+    ${elig.slice(0,TQ.all?elig.length:40).map(o=>`<tr><td><span class="tsnode">${tsPic(o.icon??TSD.skills[sk].toolIcon,22,o.n)}${esc(o.n)}</span></td><td>${o.lv}</td><td>${tsFmt(o.xp)}</td><td>${o.spots?tsFmt(o.spots):'&ndash;'}</td><td>${o.respawn?o.respawn+' min':'&ndash;'}</td></tr>`).join('')}
+    </tbody></table></div>${elig.length>40&&!TQ.all?`<button class="mini" data-tsall="1">Show all ${elig.length}</button>`:''}`;
+}
+function tsEvents(){
+  const re=()=>openView('tslevel',false);
+  document.querySelectorAll('[data-tssk]').forEach(b=>b.onclick=()=>{ TQ.sk=b.dataset.tssk; TQ.all=false; LS.set('nw_ts_sk',TQ.sk); re(); });
+  document.querySelectorAll('[data-tsm]').forEach(b=>b.onclick=()=>{ TQ.mode=b.dataset.tsm; LS.set('nw_ts_mode',TQ.mode); re(); });
+  document.querySelectorAll('[data-tsl]').forEach(i=>i.onchange=()=>{ const v=Math.max(0,Math.min(250,parseInt(i.value)||0)); TQ[i.dataset.tsl]=v;
+    if(TQ.to<=TQ.from) TQ.to=Math.min(250,TQ.from+1); LS.set('nw_ts_from',TQ.from); LS.set('nw_ts_to',TQ.to); re(); });
+  document.querySelectorAll('[data-tsq]').forEach(b=>b.onclick=()=>{ const [a,c]=b.dataset.tsq.split('-').map(Number); TQ.from=a; TQ.to=c; LS.set('nw_ts_from',a); LS.set('nw_ts_to',c); re(); });
+  document.querySelectorAll('[data-tsres]').forEach(c=>c.onchange=()=>{ TQ.research=c.checked; LS.set('nw_ts_res',TQ.research); re(); });
+  document.querySelectorAll('[data-tsall]').forEach(b=>b.onclick=()=>{ TQ.all=true; re(); });
+  document.querySelectorAll('[data-crgo]').forEach(a=>a.onclick=e=>{ e.preventDefault(); CQ.sel=a.dataset.crgo; CQ.all=true; LS.set('nw_craft_sel',CQ.sel); openView('craft'); });
+}
+
 /* ---------- boot ---------- */
 (async function(){
   const saved=LS.get('nw_vault',null), savedAt=LS.get('nw_vault_at','');
@@ -3982,6 +4144,7 @@ function edAdminEvents(){
         for(let k=0;k<ITEMDB.sheets;k++) SPRITES.push('items_'+k+'.webp?v='+ITEMDB.tile); } catch(e){ ITEMDB = null; }
   try { PRESETS = await (await fetch('gear_presets.json')).json(); } catch(e){ PRESETS = null; }
   try { NOTEICO = await (await fetch('noteicons.json')).json(); NOTEICO.urls=[]; for(let k=0;k<NOTEICO.sheets;k++) NOTEICO.urls.push('noteicons_'+k+'.webp?v='+NOTEICO.tile); } catch(e){ NOTEICO = null; }
+  try{ if(typeof loadTS==='function') await loadTS(); }catch(e){}
   if(typeof loadCommunity==='function') await loadCommunity();
   try { TREES = await (await fetch('trees.json')).json(); } catch(e){ TREES = null; }
   reindex(); topnav(); if(typeof renderAcct==='function') renderAcct();
@@ -3991,7 +4154,7 @@ function edAdminEvents(){
   else if(h.startsWith('c=') && typeof openSharedLo==='function'){ const x=(typeof COMMUNITY!=='undefined'?COMMUNITY:[]).find(c=>h32(c.code)===h.slice(2)); openView('gear',false);
     if(x) openSharedLo(x.code); else toast('That loadout was only just published. Give it a minute and reload.'); }
   else if(h.startsWith('craft=')){ CQ.sel=decodeURIComponent(h.slice(6)); CQ.all=true; openView('craft',false); }
-  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback','editor','changelog'].includes(h)) openView(h,false);
+  else if(['builds','bosses','calc','gear','items','myloadouts','review','admin','craft','weight','trophyplanner','favs','feedback','editor','changelog','tslevel'].includes(h)) openView(h,false);
   else {
     const hit=Object.keys(NAMES).find(n=>slug(n)===h);
     openNote(hit||((typeof SITE!=='undefined'&&NAMES[SITE.start])?SITE.start:'New World Home'),false);
