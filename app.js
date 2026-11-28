@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 00:18';
+const BUILD_AT = '2026-11-28 00:28';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -304,7 +304,7 @@ function renderDataMenu(){
      ${(typeof canWrite==='function'&&canWrite()&&!GHMODE)?`<div class="mn tiny">Pick the <b>New World</b> folder in your vault. ${(typeof CMODE!=='undefined'&&CMODE==='db'&&IS_OWNER)?'The pages are saved into this page\'s own storage, so they stay put between sessions and show on every device. Only you can change them.':'The page reads the .md files in your browser and remembers them in this browser.'}</div>`:''}
      ${SRC!=='snapshot'&&typeof canWrite==='function'&&canWrite()&&!GHMODE?`<a class="mi" id="resetdata">&#8634; Back to the built-in snapshot</a>`:''}
      ${(typeof canWrite==='function'&&canWrite())?`<div class="mh">Adding or changing things</div>
-     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}<div class="mh">Site look</div>${typeof seasonPickHTML==='function'?seasonPickHTML():''}<div class="mh">About</div><a class="mi" data-view="changelog">Changelog</a><a class="mi" data-fbopen="idea">Send an idea or report a problem</a><a class="mi" href="terms.html">Terms of Service</a><a class="mi" href="privacy.html">Privacy Policy</a>`;
+     <div class="mn tiny">${GHMODE?'The pages come from your Obsidian vault (Publish public site.bat). ':''}<b>&#9998; Edit</b> (top right of any page) changes that page. <b>Add your own notes</b> sits at the bottom of every page. <b>My Pages &rarr; New page</b> makes a page of your own. <b>&#9881;</b> changes the look.</div>`:''}<div class="mh">Site look</div>${typeof seasonPickHTML==='function'?seasonPickHTML():''}<div class="mh">About</div>${typeof clAdmin==='function'&&clAdmin()?'<a class="mi" data-view="changelog">Changelog</a>':''}<a class="mi" data-fbopen="idea">Send an idea or report a problem</a><a class="mi" href="terms.html">Terms of Service</a><a class="mi" href="privacy.html">Privacy Policy</a>`;
   const pf=document.getElementById('pickfolder'); if (pf) pf.onclick=pickFolder;
   const rd=document.getElementById('resetdata');
   if (rd) rd.onclick=async ()=>{ LS.del('nw_vault'); LS.del('nw_vault_at'); if(typeof clearVaultDb==='function') await clearVaultDb(); location.reload(); };
@@ -1766,6 +1766,7 @@ async function checkOwner(){
   try{ OWNER=await ownerApi('whoami'); }catch(e){ OWNER={owner:false, err:e.message}; }
   renderAcct(); if(OWNER&&OWNER.owner&&typeof topnav==='function') topnav();
   if(current?.kind==='view'&&current.v==='admin'){ openView('admin',false); }
+  if(current?.kind==='view'&&current.v==='changelog'){ openView('changelog',false); }
 }
 async function submitIssueUrl(rec){
   const link=await shareLink(rec);
@@ -3494,16 +3495,19 @@ function fbAdminEvents(){
     try{ await fbApi({op:'del', id:b.dataset.fbdel}); FBLIST=FBLIST.filter(y=>y.id!==b.dataset.fbdel); toast('Deleted'); openView('admin',false); }catch(e){ toast('Couldn\'t delete it: '+e.message); } });
 }
 
-/* ---------- Changelog: every website update that went live (changelog.txt, written by the helper) ---------- */
+/* ---------- Changelog: every website update that went live (kept by the helper, admins only) ---------- */
 let CLTXT = null, CLERR = '';
+/* admins = the site owner, plus anyone with an editor role */
+function clAdmin(){ return !!((typeof OWNER!=='undefined'&&OWNER&&OWNER.owner)||(typeof ED!=='undefined'&&ED.roles&&ED.roles.length)); }
 function viewChangelog(){
-  if(CLTXT===null){ fetch('changelog.txt?'+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():(r.status===404?'':Promise.reject(new Error('error '+r.status))))
-      .then(t=>{ CLTXT=t; }).catch(e=>{ CLTXT=''; CLERR=e.message; }).finally(()=>{ if(current&&current.v==='changelog') openView('changelog',false); });
+  if(!clAdmin() && typeof dUser==='function' && dUser() && (typeof OWNER==='undefined' || OWNER===null || (typeof ED!=='undefined' && ED.loading))) return '<h1>Changelog</h1><p class="dimtx">Checking your access&hellip;</p>';
+  if(!clAdmin()) return '<h1>Changelog</h1><p class="lede">The changelog is only for the site\'s admins. Log in with Discord on an admin or editor account to see it.</p>';
+  if(CLTXT===null){ edApi({op:'changelog'}).then(d=>{ CLTXT=d.text||''; }).catch(e=>{ CLTXT=''; CLERR=e.message; }).finally(()=>{ if(current&&current.v==='changelog') openView('changelog',false); });
     return '<h1>Changelog</h1><p class="dimtx">Loading&hellip;</p>'; }
   const body=CLTXT.replace(/^New World Vault changelog\n=+\n[^\n]*\n+/,'').trim();
   const blocks=body?body.split(/\n\s*\n/).map(b=>b.split('\n')).filter(b=>b[0].trim()):[];
   return `<h1>Changelog</h1>
-  <p class="lede">Every update to the website that went live, newest first: edits by the site owner and approved updates from editors. <a href="changelog.txt" target="_blank" rel="noopener">Open as a text file</a></p>
+  <p class="lede">Every update to the website that went live, newest first: edits by the site owner and approved updates from editors. Only admins and editors can see this page.</p>
   ${CLERR?`<p class="bad">Couldn't load the changelog: ${esc(CLERR)}</p>`:''}
   ${blocks.length?`<div class="cl">${blocks.map(b=>{ const m=b[0].match(/^(\d{4}-\d\d-\d\d) (\d\d:\d\d) UTC\s+(.*)$/);
       const when=m?new Date(m[1]+'T'+m[2]+':00Z'):null;
@@ -3541,7 +3545,8 @@ function edEnsure(){
   ED.loading=true; const c=LS.get('nw_ed_'+u.id,null); if(c){ ED.roles=c.roles||[]; ED.areas=c.areas||{}; ED.names=c.names||{}; }
   edApi({op:'me'}).then(d=>{ ED={roles:d.roles||[], areas:d.areas||{}, names:d.names||{}, uid:u.id, loading:false}; LS.set('nw_ed_'+u.id,{roles:ED.roles,areas:ED.areas,names:ED.names}); topnav();
       if(current&&current.kind==='view'&&current.v==='editor') openView(ED.roles.length?'editor':'admin',false);
-      else if(edHere()) openView('admin',false); })
+      else if(edHere()) openView('admin',false);
+      else if(current&&current.kind==='view'&&current.v==='changelog') openView('changelog',false); })
     .catch(()=>{ ED.loading=false; ED.uid=u.id; if(edHere()) openView(current.v,false); });
 }
 const edIsOwner = () => !!(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner);
