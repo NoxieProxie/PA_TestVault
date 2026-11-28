@@ -1,5 +1,5 @@
 /* ============ Azoth Vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 14:59';
+const BUILD_AT = '2026-11-28 15:06';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -583,6 +583,30 @@ function openView(v,push=true){
   if(c) c.onclick=()=>{ filt={role:new Set(),mode:new Set(),weapon:new Set()}; openView('builds',false); };
 }
 
+/* ---------- phones: the Menu button ---------- */
+function setNav(open){ document.body.classList.toggle('navopen',open); const b=document.getElementById('navbtn'); if(b) b.setAttribute('aria-expanded',open);
+  if(open){ document.documentElement.style.setProperty('--hdr0',Math.round(document.querySelector('header .bar1').getBoundingClientRect().bottom)+'px'); window.scrollTo(0,0); } }
+(function(){ const bar=document.querySelector('header .bar1'); if(!bar||document.getElementById('navbtn')) return;
+  const b=document.createElement('button'); b.id='navbtn'; b.type='button'; b.setAttribute('aria-controls','topnav'); b.setAttribute('aria-expanded','false');
+  b.innerHTML='<span class="bars" aria-hidden="true"></span>Menu'; b.onclick=e=>{ e.stopPropagation(); setNav(!document.body.classList.contains('navopen')); };
+  const acct=document.getElementById('acct'); bar.insertBefore(b,acct||null);
+  const q=document.getElementById('q'); if(q&&matchMedia('(pointer:coarse)').matches) q.placeholder='Search everything…';
+  addEventListener('popstate',()=>setNav(false));
+  if(q) q.addEventListener('focus',()=>setNav(false));
+})();
+/* phones: hover text (gem names and so on) shows on tap */
+document.addEventListener('click',e=>{
+  document.querySelectorAll('.taptip').forEach(x=>x.remove());
+  if(!matchMedia('(hover:none)').matches) return;
+  const t=e.target.closest('.gci[title]'); if(!t) return;
+  const tip=document.createElement('div'); tip.className='taptip'; tip.textContent=t.getAttribute('title'); document.body.appendChild(tip);
+  const r=t.getBoundingClientRect(), w=tip.offsetWidth, h=tip.offsetHeight;
+  tip.style.left=Math.max(12,Math.min(innerWidth-w-12,r.left+r.width/2-w/2))+'px';
+  tip.style.top=(r.top>h+16?r.top-h-8:r.bottom+8)+'px';
+  setTimeout(()=>tip.remove(),4000);
+},true);
+addEventListener('scroll',()=>document.querySelectorAll('.taptip').forEach(x=>x.remove()),{passive:true});
+
 /* ---------- events ---------- */
 document.addEventListener('click', e=>{
   const dd=e.target.closest('.drop > .nb');
@@ -605,10 +629,10 @@ document.addEventListener('click', e=>{
   const pk=e.target.closest('[data-peek]');
   if(pk){ e.preventDefault(); e.stopPropagation(); if(typeof peekBuild==='function') peekBuild(pk.dataset.peek); return; }
   const n=e.target.closest('[data-note]');
-  if(n){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open'));
+  if(n){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); setNav(false);
     document.getElementById('q').value=''; openNote(n.dataset.note); return; }
   const v=e.target.closest('[data-view]');
-  if(v){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); openView(v.dataset.view); return; }
+  if(v){ e.preventDefault(); document.querySelectorAll('.drop').forEach(x=>x.classList.remove('open')); setNav(false); openView(v.dataset.view); return; }
   const f=e.target.closest('[data-f]');
   if(f){ const k=f.dataset.f,val=f.dataset.v; filt[k].has(val)?filt[k].delete(val):filt[k].add(val); openView('builds',false); return; }
   const b=e.target.closest('[data-bf]');
