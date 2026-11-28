@@ -9,7 +9,7 @@
 <h1>Privacy Policy</h1>
 <p class="date">Last updated 28 November 2026</p>
 
-<p>This policy covers the New World Vault website (project-azoth-vault.pages.dev) and its Discord app and bot, called “the vault” below. The vault is a free fan project run by one person. It is not a company, and it is not run by or connected to Amazon Games or Discord.</p>
+<p>This policy covers the New World Vault website (azothvault.com) and its Discord app and bot, called “the vault” below. The vault is a free fan project run by one person. It is not a company, and it is not run by or connected to Amazon Games or Discord.</p>
 
 <div class="note">The short version: you can read the whole site without logging in, and nothing about you is collected. If you log in with Discord, the vault learns your Discord ID, username, display name and avatar, and nothing else from your account. Your favourites are stored against your Discord ID. Nothing is sold or used for advertising, and there are no trackers or adverts.</div>
 
@@ -19,6 +19,8 @@
 <tbody>
 <tr><td>Your Discord ID, username, display name and avatar</td><td>Only if you press “Log in with Discord”. The vault asks Discord for the <b>identify</b> permission only, which does not include your email address, servers, friends or messages. These details are put into a signed login pass that stays in your own browser for 30 days. Apart from the activity log below, they are not kept on the server.</td></tr>
 <tr><td>Your favourites</td><td>Only if you use Favourites, which needs a Discord login. The folders, the things in them, their names, descriptions, icons and your notes are stored in Cloudflare's key-value storage under your Discord ID, so they show on any device you log in from. Only you can read or change them.</td></tr>
+<tr><td>Your saved loadouts</td><td>If you're logged in with Discord, the loadouts you save under “Your loadouts” are stored in Cloudflare's key-value storage under your Discord ID, so they show on any device you log in from. Only you can read or change them. Without logging in they stay in your browser only.</td></tr>
+<tr><td>Comments and ratings</td><td>Only if you post a comment or rate a build or community loadout, which needs a Discord login. Comments are <b>public</b>: they show your Discord display name and profile picture, the text you wrote and when. Ratings are shown only as an average; the site stores your Discord ID with your star rating so you can change it. Both are kept in Cloudflare's D1 database. If you report a comment, your Discord ID is stored with the report for the site owner.</td></tr>
 <tr><td>Loadouts you submit</td><td>Only if you press Submit on a loadout. It goes to the site owner for review as a GitHub issue that includes the loadout, its name and mode, and your Discord username and ID. The site's GitHub repository is public, so treat a submission as public. If the owner publishes it, it appears on the site under your Discord display name.</td></tr>
 <tr><td>Ideas and problem reports</td><td>Only if you send one from “Ideas and problems”, which needs a Discord login. What you write, the page you were on (if you leave that ticked) and your Discord ID, username and display name are stored in Cloudflare's key-value storage for the site owner. They're also posted to a private channel in the owner's Discord server. They're kept until the owner deletes them.</td></tr>
 <tr><td>Editor updates</td><td>Only for people the owner has made an editor. Updates you suggest, with your Discord ID, username and display name, are stored in Cloudflare's key-value storage until the owner reviews them, and a notice goes to the owner's private Discord channel. Approved updates are saved into the site's GitHub repository with your display name, and appear on the site.</td></tr>
@@ -43,7 +45,7 @@
 <p>The vault uses three services to run, and each has its own privacy policy:</p>
 <ul>
 <li><b>Discord</b>: logging in, the bot and messages (<a href="https://discord.com/privacy">discord.com/privacy</a>).</li>
-<li><b>Cloudflare</b>: hosting the website, the helper that handles logins and favourites, and the storage for favourites (<a href="https://www.cloudflare.com/privacypolicy/">cloudflare.com/privacypolicy</a>).</li>
+<li><b>Cloudflare</b>: hosting the website, the helper that handles logins and favourites, the storage for favourites and saved loadouts, and the database for comments and ratings (<a href="https://www.cloudflare.com/privacypolicy/">cloudflare.com/privacypolicy</a>).</li>
 <li><b>GitHub</b>: storing the site's files, the bot's settings and submitted loadouts (<a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub privacy statement</a>).</li>
 </ul>
 <p>Nothing is sold, rented or shared with anyone else.</p>
@@ -54,6 +56,8 @@
 <li>Favourites are kept until you delete them, either one by one or all at once with “Delete all my favourites” at the bottom of the Favourites page. New World's servers close on 31 January 2027; the vault may close some time after that, and stored favourites will then be deleted.</li>
 <li>Submitted loadouts stay in the GitHub repository until the owner removes them.</li>
 <li>Ideas and problem reports are kept until the owner deletes them; you can ask for yours to be removed.</li>
+<li>Saved loadouts in your account are kept until you delete them.</li>
+<li>Comments stay until you delete them (there's a Delete button on your own comments) or the site owner removes them. You can remove your rating at any time by clicking the same star again.</li>
 <li>The activity log keeps the latest 500 entries; older ones are removed automatically, and the owner can clear it at any time. A block stays until the owner removes it.</li>
 <li>The bot's message memory only lasts until it restarts.</li>
 </ul>

@@ -42,6 +42,7 @@
      "newworld.com",
      "github.io",
      "pages.dev",
+     "azothvault.com",
      "tenor.com",
      "discord.com"
     ],
@@ -70,7 +71,7 @@
  "live": {
   "presence": {
    "type": "playing",
-   "text": "https://project-azoth-vault.pages.dev/"
+   "text": "https://azothvault.com/"
   },
   "spam": {
    "on": true,

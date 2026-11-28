@@ -1,5 +1,5 @@
 /* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 13:10';
+const BUILD_AT = '2026-11-28 13:28';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -377,6 +377,7 @@ let filt={role:new Set(),mode:new Set(),weapon:new Set()}, bfilt={exp:'',dmg:''}
 const buildPaths = () => Object.keys(META).filter(p=>p.startsWith(TOP_BUILDS+'/') && META[p].tags.includes('builds') && !/Builds\.md$|Gear Basics|Gear Rules|Activities/.test(p));
 function kv(body){ const o={}; body.split('\n').forEach(l=>{ const c=splitRow(l); if(c.length===2) o[c[0].replace(/\*/g,'')]=c[1]; }); return o; }
 function viewBuilds(){
+  if(typeof talkSummary==='function') talkSummary();
   const chips=(k,l)=>l.map(([v,t])=>`<button class="chip ${filt[k].has(v)?'on':''}" data-f="${k}" data-v="${v}">${t}</button>`).join('');
   const all=buildPaths();
   const shown=all.filter(p=>{ const t=META[p].tags; const ok=k=>filt[k].size===0||[...filt[k]].every(v=>t.includes(v)); const md=noteModes(META[p].body); const okm=filt.mode.size===0||[...filt.mode].some(v=>md.includes(v)); return ok('role')&&okm&&ok('weapon'); });
@@ -387,7 +388,7 @@ function viewBuilds(){
     return `<div class="card" data-note="${esc(m.name)}">${typeof favBtn==='function'?favBtn('note',m.name,'card'):''}${hasLo?`<button class="peekbtn" data-peek="${esc(m.name)}" title="See the gear" aria-label="See the gear for ${esc(m.name)}"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 4C5.5 4 2.4 7.4 1.4 10c1 2.6 4.1 6 8.6 6s7.6-3.4 8.6-6C17.6 7.4 14.5 4 10 4zm0 10a4 4 0 110-8 4 4 0 010 8zm0-2.2a1.8 1.8 0 100-3.6 1.8 1.8 0 000 3.6z" fill="currentColor"/></svg> Gear</button>`:''}<div class="ct">${inline(title)}</div>
       <div class="cs">${inline(sum.slice(0,165))}</div>
       <div class="cmeta">${['Role','Modes','Armor','Attributes'].filter(k=>q[k]).map(k=>`<span><b>${k}</b> ${inline(q[k])}</span>`).join('')}</div>
-      <div class="ctags">${m.tags.filter(t=>!['new-world','builds'].includes(t)).map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>`; };
+      <div class="ctags">${m.tags.filter(t=>!['new-world','builds'].includes(t)).map(t=>`<span class="tag">${t}</span>`).join('')}${typeof talkBadge==='function'?talkBadge('note:'+m.name):''}</div></div>`; };
   return `<h1>Build browser</h1><p class="lede">${all.length} builds. Stack the filters, then click one.</p>
    <div class="filters" data-h="Filter builds"><div class="frow"><span class="fl">Role</span>${chips('role',ROLES)}</div>
    <div class="frow"><span class="fl">Mode</span>${chips('mode',MODES)}</div>
@@ -516,18 +517,20 @@ function openNote(name, push=true){
        ${m.custom&&typeof canWrite==='function'&&canWrite()?`<div class="addbar"><button class="mini" data-editpage="${esc(m.cid)}">&#9998; Edit this page</button></div>`:''}
        ${!m.custom&&typeof addendumHTML==='function'?addendumHTML(name):''}
        ${m.source?`<div class="srcline">Source: ${esc(m.source)}</div>`:''}
+       ${typeof talkSlot==='function'&&p.startsWith(TOP_BUILDS+'/')&&/\n## Full loadout/.test('\n'+m.body)?talkSlot('note:'+name,name):''}
        ${typeof openFeedback==='function'&&!isHome?`<div class="fbline">Spotted something wrong or out of date on this page? <a href="#" data-fbopen="problem">Report it</a> &middot; <a href="#" data-fbopen="idea">Suggest an idea</a></div>`:''}</article></div>`;
   window.scrollTo(0,0);
   navWrite('#'+slug(name), {kind:'note',name}, push);
   const pb0=document.querySelector('.crumb .pin'); if(pb0) pb0.style.marginLeft='auto';
   if(!isHome && heads.length>2) foldSections(document.querySelector('#main article'));
+  if(typeof talkMount==='function') talkMount(document.getElementById('main'));
 }
 /* pages with an "On this page" list: each ## section folds shut, click its heading to open it */
 function foldSections(art){
   if(!art) return;
   let body=null, n=0;
   for(const el of [...art.children]){
-    if(el.matches('.pager,.addbar,.mine,.srcline,.fbline')) break;
+    if(el.matches('.pager,.addbar,.mine,.srcline,.fbline,.talk')) break;
     if(el.tagName==='H2'){
       const sec=document.createElement('section'); sec.className='sec';
       body=document.createElement('div'); body.className='secb'; body.setAttribute('hidden','until-found');
@@ -1677,9 +1680,38 @@ function loadoutToCalc(g){
 }
 
 /* ================= your loadouts: saved in this browser, shared by link ================= */
-const PUBLIC_SITE=((document.querySelector('meta[name="nw-site"]')||{}).content)||'https://project-azoth-vault.pages.dev/';
+const PUBLIC_SITE=((document.querySelector('meta[name="nw-site"]')||{}).content)||'https://azothvault.com/';
 let MYLO=LS.get('nw_myloadouts',[]);
-const saveMYLO=()=>LS.set('nw_myloadouts',MYLO);
+/* saved loadouts follow your Discord login: kept in this browser, and copied to your account when you're logged in */
+let LOUID=null, LOTIMER=null, LOSTATE='local';
+const saveMYLO=()=>{ LS.set('nw_myloadouts',MYLO); loPush(); };
+async function loApi(body){
+  const r=await fetch(CFG.worker+'/los',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:dPass(),...body})});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(!r.ok) throw Object.assign(new Error(d.error||('error '+r.status)),{status:r.status});
+  return d;
+}
+function loPush(now){
+  if(!LOUID||LOSTATE!=='synced') return; clearTimeout(LOTIMER);
+  const send=()=>loApi({op:'put',data:{los:MYLO}}).catch(e=>toast("Couldn't save your loadouts to Discord: "+e.message));
+  if(now) send(); else LOTIMER=setTimeout(send,1200);
+}
+function loSync(){
+  const u=(typeof CFG!=='undefined'&&CFG.worker&&typeof dUser==='function')?dUser():null;
+  if(!u){ LOUID=null; LOSTATE='local'; return; }
+  if(u.id===LOUID) return; LOUID=u.id; LOSTATE='loading';
+  loApi({op:'get'}).then(d=>{ if(LOUID!==u.id) return;
+    const cloud=(d.data&&Array.isArray(d.data.los))?d.data.los:[]; const byId={};
+    cloud.forEach(x=>byId[x.id]=x);
+    let added=0; MYLO.forEach(x=>{ const c=byId[x.id]; if(!c){ byId[x.id]=x; added++; } else if((x.saved||'')>(c.saved||'')) byId[x.id]=x; });
+    MYLO=Object.values(byId).sort((a,b)=>(b.saved||'').localeCompare(a.saved||'')); LS.set('nw_myloadouts',MYLO); LOSTATE='synced';
+    if(added||MYLO.length!==cloud.length) loPush(true);
+    if(added&&cloud.length) toast(`Added ${added} loadout${added>1?'s':''} from this browser to your account`);
+    topnav(); if(current&&current.kind==='view'&&current.v==='myloadouts') openView('myloadouts',false);
+  }).catch(e=>{ if(LOUID!==u.id) return; LOSTATE=e.status===503?'off':'error'; if(e.status===401) LOUID=null; });
+}
+window.addEventListener('pagehide',()=>{ if(LOTIMER&&LOUID){ clearTimeout(LOTIMER); LOTIMER=null;
+  try{ navigator.sendBeacon&&navigator.sendBeacon(CFG.worker+'/los',new Blob([JSON.stringify({pass:dPass(),op:'put',data:{los:MYLO}})],{type:'text/plain'})); }catch(e){} } });
 function snapG(){ const g=JSON.parse(JSON.stringify(G)); delete g.note; delete g.mode; return g; }
 const LO_TAGS=['Open-world PvE','Open-world PvP','Expeditions (normal)','Mutations M1','Mutations M2','Mutations M3','Raids','Catacombs','Outpost Rush','3v3 Arenas','Capture the Flag','Duels','FFA zone','Wars','Influence races'];
 const loTags=s=>(s||'').split(/\s*[,·]\s*/).map(x=>x.trim()).filter(Boolean);
@@ -2186,6 +2218,7 @@ function viewReview(){
   const tabs=[['subs','&#128229; Submissions'+(SUBS&&SUBS.length?` <span class="admn">${SUBS.length}</span>`:'')],['published','&#127760; Community ('+com.length+')'],['bot','&#129302; Discord bot'],['automod','&#128737; AutoMod'],['advanced','&#129513; Advanced rules'],['live','&#128994; Live bot'],['roles','&#127917; Role menus'],['status','&#128225; Service status'+(STAT&&STAT.some(x=>x.incidents.length)?' <span class="admn">!</span>':'')],['helper','&#9881; Helper & links']];
   if(helper && typeof fbAdminHTML==='function') tabs.splice(1,0,['feedback','&#128172; Ideas and problems'+(fbNewCount()?` <span class="admn">${fbNewCount()}</span>`:'')]);
   if(helper && typeof edAdminHTML==='function') tabs.splice(2,0,['updates','&#128221; Waiting updates'+(edWaiting()?` <span class="admn">${edWaiting()}</span>`:'')],['editors','&#128101; Editors'],['suggest','&#9998; Suggest a change']);
+  if(helper && typeof talkModHTML==='function') tabs.push(['comments','&#128488; Comments']);
   if(helper && typeof secHTML==='function') tabs.push(['security','&#128274; Security'+(SECD&&SECD.health&&SECD.health.some(h=>h.state==='missing'||h.state==='warn')?' <span class="admn">!</span>':'')]);
   if(!tabs.some(x=>x[0]===ADMTAB)) ADMTAB='subs';
   const head=`<h1>Admin</h1>
@@ -2210,6 +2243,7 @@ function viewReview(){
   if(ADMTAB==='bot') body=helper&&OWNER.bot?botCard(OWNER.bot).replace('<h2>Discord bot</h2>',''):`<p class="dimtx">The Discord bot settings need the Discord login (helper Version 5 or newer).</p>`;
   if(ADMTAB==='status') body=statusView();
   if(ADMTAB==='security') body=secHTML();
+  if(ADMTAB==='comments') body=talkModHTML();
   if(ADMTAB==='automod') body=automodView();
   if(ADMTAB==='advanced') body=advView();
   if(ADMTAB==='live') body=liveView();
@@ -2239,6 +2273,7 @@ function reviewEvents(){
   on('subrefresh',refreshSubs);
   if(ADMTAB==='feedback' && typeof fbAdminEvents==='function') fbAdminEvents();
   if(ADMTAB==='security' && typeof secEvents==='function') secEvents();
+  if(ADMTAB==='comments' && typeof talkModEvents==='function') talkModEvents();
   if((ADMTAB==='updates'||ADMTAB==='editors') && typeof edAdminEvents==='function') edAdminEvents();
   if(ADMTAB==='suggest' && typeof editorEvents==='function') editorEvents();
   document.querySelectorAll('[data-admtab]').forEach(el=>el.onclick=()=>{ ADMTAB=el.dataset.admtab; LS.set('nw_admtab',ADMTAB); openView('admin',false); });
@@ -2333,9 +2368,10 @@ function reviewEvents(){
   else if((viaHelper()||ghToken()) && SUBS===null) refreshSubs();
 }
 function myLoMenu(){
+  if(typeof loSync==='function') loSync();
   const com=communityLos();
   return `<a class="mi hi" data-view="myloadouts">&#128190; Manage loadouts</a>`+
-    (MYLO.length?`<div class="mh">Saved on this device</div>`+MYLO.slice(0,15).map(x=>`<a class="mi" data-lo="${esc(x.id)}">${esc(x.name)}</a>`).join(''):`<div class="mn">Nothing saved yet. Build one in Loadout, then Save.</div>`)+
+    (MYLO.length?`<div class="mh">${LOSTATE==='synced'?'Saved to your account':'Saved on this device'}</div>`+MYLO.slice(0,15).map(x=>`<a class="mi" data-lo="${esc(x.id)}">${esc(x.name)}</a>`).join(''):`<div class="mn">Nothing saved yet. Build one in Loadout, then Save.</div>`)+
     (com.length?`<div class="mh">Community</div>`+com.slice(0,15).map((x,i)=>`<a class="mi" data-colo="${i}">${esc(x.name)}${x.mode?` <i class="dimtx">${esc(x.mode)}</i>`:''}</a>`).join(''):'');
 }
 function viewMyLo(){
@@ -2350,18 +2386,21 @@ function viewMyLo(){
     <label class="lof"><span>Made for</span>${loTagSelect('lomode2')}</label>
     <div class="lbtns"><button class="mini go" id="losave2">&#128190; Save current loadout</button></div></div></div>
   <div class="tw"><table><thead><tr><th>You want to&hellip;</th><th>Do this</th><th>Who sees it</th></tr></thead><tbody>
-    <tr><td>Keep it for yourself</td><td><b>Save</b></td><td>Only you, in this browser</td></tr>
+    <tr><td>Keep it for yourself</td><td><b>Save</b></td><td>Only you. ${LOSTATE==='synced'?'Saved to your Discord account, so it shows on every device you log in on':CFG.worker?'In this browser, or on every device once you log in with Discord':'In this browser'}</td></tr>
     <tr><td>Send it to a friend</td><td><b>Share link</b>, then paste it to them</td><td>Whoever has the link</td></tr>
     <tr><td>Put it on the site for everyone</td><td><b>Submit to Community</b> ${CFG.worker?'(log in with Discord first)':'(needs a free GitHub account)'}</td><td>Everyone, once the site owner approves it</td></tr>
   </tbody></table></div>
-  ${CFG.worker&&!dUser()?`<div class="callout note mini-co"><span class="ci">&#128273;</span><div><p><b>Log in</b> with Discord (top right) to share your builds with everyone in Community loadouts. Saving on this device works without logging in.</p></div></div>`:''}
-  <h2>Saved on this device (${MYLO.length})</h2>
+  ${CFG.worker&&!dUser()?`<div class="callout note mini-co"><span class="ci">&#128273;</span><div><p><b>Log in</b> with Discord (top right) to share your builds with everyone in Community loadouts. Logging in also saves your loadouts to your account, so they show on any device. Saving in this browser works without logging in.</p></div></div>`:''}
+  <h2>${LOSTATE==='synced'?'Saved to your Discord account':'Saved on this device'} (${MYLO.length})</h2>${LOSTATE==='synced'?'<p class="dimtx small">These follow your Discord login to any device. Changes save automatically.</p>':LOSTATE==='error'?'<p class="bad small">Couldn\'t reach your account just now, so these are only in this browser for the moment.</p>':''}
   ${MYLO.length?MYLO.map(card).join(''):'<p class="dimtx">Nothing saved yet.</p>'}
   <h2>Community loadouts (${com.length})</h2>
-  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button></div></div>`).join(''):'<p class="dimtx">None yet.</p>'}
+  ${com.length?com.map((x,i)=>`<div class="locard"><div><b>${esc(x.name)}</b><div class="dimtx">${esc(x.by)}${x.mode?' &middot; '+esc(x.mode):''} ${typeof talkBadge==='function'?talkBadge('lo:'+h32(x.code)):''}</div></div><div class="lobtns"><button class="mini go" data-colo="${i}">Open</button>${typeof talkSlot==='function'&&CFG.worker?`<button class="mini" data-cotalk="${i}">&#128172; Ratings and comments</button>`:''}</div></div><div class="cotalk" id="cotalk_${i}" hidden></div>`).join(''):'<p class="dimtx">None yet.</p>'}
   ${(typeof OWNER!=='undefined'&&OWNER&&OWNER.owner)?`<p class="dimtx tiny" style="margin-top:24px"><a class="wl" data-view="admin">&#128736; Admin &rarr;</a></p>`:''}`;
 }
 function myLoEvents(){
+  if(typeof talkSummary==='function') talkSummary();
+  document.querySelectorAll('[data-cotalk]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.cotalk, x=communityLos()[i], box=document.getElementById('cotalk_'+i); if(!x||!box) return;
+    if(!box.hidden){ box.hidden=true; return; } box.hidden=false; if(!box.innerHTML) box.innerHTML=talkSlot('lo:'+h32(x.code),x.name); talkMount(box); });
   const b=document.getElementById('losave2'); if(b) b.onclick=()=>{ if(saveCurrentLoadout(document.getElementById('loname2').value, document.getElementById('lomode2').value)) openView('myloadouts',false); };
   document.querySelectorAll('[data-lodel]').forEach(el=>el.onclick=()=>{ const x=MYLO.find(y=>y.id===el.dataset.lodel); if(!x) return;
     if(el.dataset.sure!=='1'){ el.dataset.sure='1'; el.textContent='Click again to delete'; return; }
@@ -3720,7 +3759,7 @@ const edCanEdit = name => { const p=NAMES[name]; return !!(p && !META[p].custom 
 
 /* the same safety check the helper runs, so problems show while you type */
 const ED_OK_TAGS=['br','sub','sup','b','i','u','kbd','mark','small'];
-const ED_SITES=['nwdb.info','newworld.com','youtube.com','youtu.be','twitch.tv','discord.com','discord.gg','github.com','reddit.com','icy-veins.com','aoeah.com','iggm.com','gamesfuze.com','mein-mmo.de','nw-buddy.de','gaming.tools','pages.dev'];
+const ED_SITES=['azothvault.com','nwdb.info','newworld.com','youtube.com','youtu.be','twitch.tv','discord.com','discord.gg','github.com','reddit.com','icy-veins.com','aoeah.com','iggm.com','gamesfuze.com','mein-mmo.de','nw-buddy.de','gaming.tools','pages.dev'];
 function edCheck(body,title,orig){
   const bad=[],warn=[];
   if(!body.trim()) bad.push('The page is empty');
@@ -4209,6 +4248,91 @@ function confirmInline(btn,msg){
   btn.dataset.armed='1'; const old=btn.textContent; btn.textContent=msg+' Click again'; btn.classList.add('armed');
   setTimeout(()=>{ if(btn.isConnected){ btn.dataset.armed=''; btn.textContent=old; btn.classList.remove('armed'); } },5000);
   return false;
+}
+
+/* ================= Comments and star ratings (builds and community loadouts), stored by the helper in its D1 database ================= */
+let TALKSUM=null, TALKSUMAT=0;
+const TALK={};   // target -> loaded data
+async function talkApi(body){
+  const r=await fetch(CFG.worker+'/talk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pass:(typeof dPass==='function'&&dPass())||undefined,...body})});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(!r.ok) throw Object.assign(new Error(d.error||('error '+r.status)),{status:r.status});
+  return d;
+}
+const talkOn=()=>typeof CFG!=='undefined'&&!!CFG.worker;
+/* star averages for the build browser (refreshed every few minutes) */
+function talkSummary(){
+  if(!talkOn()||(TALKSUM&&Date.now()-TALKSUMAT<180000)) return;
+  TALKSUMAT=Date.now();
+  talkApi({op:'summary'}).then(d=>{ TALKSUM=d.items||{}; if(current&&current.kind==='view'&&current.v==='builds') openView('builds',false); }).catch(()=>{ TALKSUM={}; });
+}
+function talkBadge(target){
+  const s=TALKSUM&&TALKSUM[target]; if(!s||(!s.n&&!s.c)) return '';
+  return `<span class="talkbadge">${s.n?`<span class="stars-s" title="${s.avg} out of 5 from ${s.n} rating${s.n>1?'s':''}">&#9733; ${(+s.avg).toFixed(1)} <i>(${s.n})</i></span>`:''}${s.c?`<span title="${s.c} comment${s.c>1?'s':''}">&#128172; ${s.c}</span>`:''}</span>`;
+}
+/* the widget: a placeholder that fills itself in */
+function talkSlot(target,title){ return talkOn()?`<section class="talk" data-talk="${esc(target)}" data-talktitle="${esc(title||'')}"><p class="dimtx small">Loading ratings and comments&hellip;</p></section>`:''; }
+function talkMount(root){
+  (root||document).querySelectorAll('section.talk[data-talk]').forEach(el=>{
+    const t=el.dataset.talk; if(el.dataset.mounted===t) return; el.dataset.mounted=t;
+    talkApi({op:'get',target:t}).then(d=>{ TALK[t]=d; talkRender(el); }).catch(e=>{ el.innerHTML=e.status===503?'':`<p class="dimtx small">Couldn't load comments (${esc(e.message)}).</p>`; });
+  });
+}
+function talkAgo(t){ const s=(Date.now()-t)/1000; if(s<60) return 'just now'; if(s<3600) return Math.floor(s/60)+' min ago'; if(s<86400) return Math.floor(s/3600)+' h ago'; if(s<86400*30) return Math.floor(s/86400)+' d ago'; return new Date(t).toLocaleDateString(); }
+function talkAv(c){ return c.av?`<img class="talkav" src="https://cdn.discordapp.com/avatars/${esc(c.uid)}/${esc(c.av)}.png?size=64" alt="" loading="lazy">`:`<span class="talkav none">${esc((c.name||'?')[0].toUpperCase())}</span>`; }
+function talkRender(el){
+  const t=el.dataset.talk, d=TALK[t]; if(!d) return;
+  const u=typeof dUser==='function'?dUser():null;
+  const stars=n=>[1,2,3,4,5].map(i=>`<button type="button" class="star ${i<=n?'on':''}" data-talkrate="${i}" aria-label="${i} star${i>1?'s':''}" title="${u?(d.mine===i?'Click again to remove your rating':'Rate '+i+' out of 5'):'Log in with Discord to rate'}">&#9733;</button>`).join('');
+  const avg=d.n?`<span class="stars-big" aria-label="${d.avg} out of 5">${[1,2,3,4,5].map(i=>`<span class="${i<=Math.round(d.avg)?'on':''}">&#9733;</span>`).join('')}</span> <b>${(+d.avg).toFixed(1)}</b> <span class="dimtx">from ${d.n} rating${d.n>1?'s':''}</span>`:'<span class="dimtx">No ratings yet</span>';
+  el.innerHTML=`<h2>Ratings and comments</h2>
+    <div class="talkrate"><div>${avg}</div><div class="talkmine"><span class="fl">${u?(d.mine?'Your rating':'Rate it'):'Rate it'}</span><span class="starrow">${stars(d.mine||0)}</span></div></div>
+    ${u?`<div class="talkform"><textarea maxlength="1000" rows="3" placeholder="Share how it plays, what you changed, or a tip for others…" data-talkbox></textarea>
+        <div class="talkfoot"><span class="dimtx tiny" data-talkcount>0 / 1000</span><button class="mini go" data-talkpost>Post comment</button></div></div>`
+      :`<div class="talkform guest"><p>Log in with Discord to rate this and join the conversation.</p><a class="dbtn" href="${esc(loginHref())}" data-favlogin="1">Log in with Discord</a></div>`}
+    <div class="talklist">${d.comments.length?d.comments.map(c=>`<div class="talkc" data-cid="${c.id}">${talkAv(c)}<div class="talkb">
+        <div class="talkh"><b>${esc(c.name)}</b><span class="dimtx tiny">${talkAgo(c.at)}</span>
+          <span class="talkact">${u&&(c.uid===u.id||d.owner)?`<button class="linkbtn" data-talkdel="${c.id}">Delete</button>`:''}${u&&c.uid!==u.id?`<button class="linkbtn" data-talkrep="${c.id}">Report</button>`:''}</span></div>
+        <div class="talktext">${esc(c.body).replace(/\n/g,'<br>')}</div></div></div>`).join(''):'<p class="dimtx">No comments yet. Be the first.</p>'}</div>
+    <p class="dimtx tiny">Comments are public and show your Discord display name and picture. Be kind: the site owner removes anything abusive.</p>`;
+  talkEvents(el);
+}
+function talkEvents(el){
+  const t=el.dataset.talk, d=TALK[t];
+  const box=el.querySelector('[data-talkbox]'), cnt=el.querySelector('[data-talkcount]');
+  if(box) box.oninput=()=>{ cnt.textContent=box.value.length+' / 1000'; };
+  const post=el.querySelector('[data-talkpost]');
+  if(post) post.onclick=()=>{ const v=box.value.trim(); if(v.length<2){ toast('Write a little more first'); return; } post.disabled=true;
+    talkApi({op:'add',target:t,body:v}).then(r=>{ d.comments.unshift(r.comment); talkRender(el); toast('Comment posted'); TALKSUMAT=0; })
+      .catch(e=>{ toast(e.message); post.disabled=false; }); };
+  el.querySelectorAll('[data-talkrate]').forEach(b=>b.onclick=()=>{
+    if(!(typeof dUser==='function'&&dUser())){ toast('Log in with Discord to rate'); return; }
+    const n=+b.dataset.talkrate, st=d.mine===n?0:n;
+    talkApi({op:'rate',target:t,stars:st}).then(r=>{ Object.assign(d,{avg:r.avg,n:r.n,mine:r.mine}); talkRender(el); toast(st?`Rated ${st} out of 5`:'Rating removed'); TALKSUMAT=0; }).catch(e=>toast(e.message)); });
+  el.querySelectorAll('[data-talkdel]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='Click again to delete'; return; }
+    talkApi({op:'del',id:+b.dataset.talkdel}).then(()=>{ d.comments=d.comments.filter(c=>c.id!==+b.dataset.talkdel); talkRender(el); toast('Comment deleted'); TALKSUMAT=0; }).catch(e=>toast(e.message)); });
+  el.querySelectorAll('[data-talkrep]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='Report to the site owner?'; return; }
+    talkApi({op:'report',id:+b.dataset.talkrep}).then(()=>{ b.replaceWith(Object.assign(document.createElement('span'),{className:'dimtx tiny',textContent:'Reported, thanks'})); }).catch(e=>toast(e.message)); });
+}
+/* Admin tab: newest and reported comments */
+let TALKMOD=null, TALKMODERR='';
+function talkModHTML(){
+  if(!TALKMOD){ talkApi({op:'mod'}).then(d=>{ TALKMOD=d.comments||[]; }).catch(e=>{ TALKMOD=[]; TALKMODERR=e.message; }).finally(()=>{ if(current?.kind==='view'&&current.v==='admin') openView('admin',false); });
+    return '<p class="dimtx">Loading comments&hellip;</p>'; }
+  if(TALKMODERR) return `<p class="bad">${esc(TALKMODERR)}${/switched on/.test(TALKMODERR)?' Add the D1 database binding (DB → nw-vault-talk) to the helper in Cloudflare.':''}</p>`;
+  const where=t=>t.startsWith('note:')?`<a class="wl" data-note="${esc(t.slice(5))}">${esc(t.slice(5))}</a>`:`Community loadout ${esc(t.slice(3))}`;
+  return `<p class="dimtx small">Newest comments first, with anything people reported at the top. Deleting removes it for everyone.</p>
+  <div class="tw"><table><thead><tr><th>When</th><th>Who</th><th>Where</th><th>Comment</th><th></th></tr></thead><tbody>
+  ${TALKMOD.map(c=>`<tr class="${c.reports?'talkreported':''}"><td class="nowrap">${talkAgo(c.at)}</td><td>${esc(c.name)}<div class="dimtx tiny">${esc(c.uid)}</div></td><td class="small">${where(c.target)}</td>
+    <td class="small">${c.reports?`<b class="bad">${c.reports} report${c.reports>1?'s':''}</b> `:''}${esc(c.body)}</td><td><button class="mini danger" data-moddel="${c.id}">Delete</button></td></tr>`).join('')||'<tr><td colspan="5" class="dimtx">No comments yet.</td></tr>'}
+  </tbody></table></div>`;
+}
+function talkModEvents(){
+  document.querySelectorAll('[data-moddel]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='Click again'; return; }
+    talkApi({op:'del',id:+b.dataset.moddel}).then(()=>{ TALKMOD=TALKMOD.filter(c=>c.id!==+b.dataset.moddel); openView('admin',false); toast('Comment deleted'); }).catch(e=>toast(e.message)); });
 }
 
 /* ---------- boot ---------- */
