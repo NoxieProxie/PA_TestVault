@@ -1,6 +1,6 @@
 # Security policy
 
-Thanks for helping keep New World Vault and its visitors safe.
+Thanks for helping keep Azoth Vault and its visitors safe.
 
 ## Reporting a vulnerability
 

@@ -1,5 +1,5 @@
-/* ============ New World vault browser v2 ============ */
-const BUILD_AT = '2026-11-28 13:42';
+/* ============ Azoth Vault browser v2 ============ */
+const BUILD_AT = '2026-11-28 14:35';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -447,7 +447,7 @@ function homeHero(){
            :days===1?'The servers close tomorrow, 31 January 2027.':'The servers closed on 31 January 2027. This vault stays up as a record.';
   const again=recent.filter(n=>NAMES[n]&&n!==(typeof SITE!=='undefined'&&SITE.start||'New World Home')).slice(0,5);
   return `<section class="hero">
-    <h1>New World Vault</h1>
+    <h1>Azoth Vault</h1>
     <p class="sub">Builds, bosses, raids and gear for Season 10, worked out from the game's own data.</p>
     <p class="end">${end}</p>
     <div class="tools">
@@ -1964,7 +1964,7 @@ async function checkOwner(){
 }
 async function submitIssueUrl(rec){
   const link=await shareLink(rec);
-  const body=`**Loadout:** ${rec.name}\n**Weapons:** ${rec.g.w1} + ${rec.g.w2}\n**Mode:** ${rec.mode||'(say which mode it is for)'}\n**By:** (your in-game name)\n\nOpen it: ${link}\n\n_Submitted from the New World vault site. The site owner reviews it before it appears in Community loadouts._`;
+  const body=`**Loadout:** ${rec.name}\n**Weapons:** ${rec.g.w1} + ${rec.g.w2}\n**Mode:** ${rec.mode||'(say which mode it is for)'}\n**By:** (your in-game name)\n\nOpen it: ${link}\n\n_Submitted from the Azoth Vault site. The site owner reviews it before it appears in Community loadouts._`;
   return `https://github.com/${GH.owner}/${GH.repo}/issues/new?title=${encodeURIComponent('[Loadout] '+rec.name)}&body=${encodeURIComponent(body)}`;
 }
 async function listSubmissions(){
@@ -2458,10 +2458,10 @@ async function peekBuild(name, tab){
 
 /* ================= owner content + customise panel ================= */
 let CDB=null, CUSER=null, IS_OWNER=false, CMODE='loading';   // 'db' | 'local' | 'loading'
-const DEFAULT_SITE={brand:'New World Vault', accent:'#cfa557', theme:'dark', font:'m', width:'normal',
+const DEFAULT_SITE={brand:'Azoth Vault', accent:'#cfa557', theme:'dark', font:'m', width:'normal',
   hidden:[], order:[], start:'New World Home', icons:true};
 let SITE=Object.assign({}, DEFAULT_SITE, LS.get('nw_site',{}));
-if(SITE.brand==='New World · S10 Nighthaven'||SITE.brand==='New World vault') SITE.brand=DEFAULT_SITE.brand;   // the old default title
+if(SITE.brand==='New World · S10 Nighthaven'||SITE.brand==='New World vault'||SITE.brand==='New World Vault') SITE.brand=DEFAULT_SITE.brand;   // the old default title
 let CPAGES={}, CADD={}, COVR={};
 /* ---- draft mode: the owner's changes wait in drafts/ (only the owner can read them) until "Publish to live" ---- */
 let DRAFT_ON=LS.get('nw_draftmode', true), DRAFTS={}, LIVE={pages:{},overrides:{},addenda:{},site:null};
@@ -2533,7 +2533,7 @@ function applySite(){
   document.body.classList.remove('fs-s','fs-l'); if(SITE.font!=='m') document.body.classList.add('fs-'+SITE.font);
   document.body.classList.remove('w-wide','w-full'); if(SITE.width!=='normal') document.body.classList.add('w-'+SITE.width);
   document.body.classList.toggle('noicons', !SITE.icons);
-  const b=document.querySelector('.brand'); if(b){ const t=(SITE.brand==='New World · S10 Nighthaven'||SITE.brand==='New World vault'?'':SITE.brand)||DEFAULT_SITE.brand;
+  const b=document.querySelector('.brand'); if(b){ const t=(SITE.brand==='New World · S10 Nighthaven'||SITE.brand==='New World vault'||SITE.brand==='New World Vault'?'':SITE.brand)||DEFAULT_SITE.brand;
     b.innerHTML=esc(t)+(t===DEFAULT_SITE.brand?' <small>Season 10 Nighthaven</small>':'')+`<span class="sstag" id="sstag">${esc(window.NWSEASON?NWSEASON.n:'')}</span>`; }
 }
 async function saveSite(next){
@@ -3708,7 +3708,7 @@ function viewChangelog(){
   if(!clAdmin()) return '<h1>Changelog</h1><p class="lede">The changelog is only for the site\'s admins. Log in with Discord on an admin or editor account to see it.</p>';
   if(CLTXT===null){ edApi({op:'changelog'}).then(d=>{ CLTXT=d.text||''; }).catch(e=>{ CLTXT=''; CLERR=e.message; }).finally(()=>{ if(current&&current.v==='changelog') openView('changelog',false); });
     return '<h1>Changelog</h1><p class="dimtx">Loading&hellip;</p>'; }
-  const body=CLTXT.replace(/^New World Vault changelog\n=+\n[^\n]*\n+/,'').trim();
+  const body=CLTXT.replace(/^(?:New World|Azoth) Vault changelog\n=+\n[^\n]*\n+/,'').trim();
   const blocks=body?body.split(/\n\s*\n/).map(b=>b.split('\n')).filter(b=>b[0].trim()):[];
   return `<h1>Changelog</h1>
   <p class="lede">Every update to the website that went live, newest first: edits by the site owner and approved updates from editors. Only admins and editors can see this page.</p>
@@ -3802,7 +3802,7 @@ function edDiffHTML(a,b){
 function edAIPrompt(isNew, path, title, body){
   const isBuild=path.startsWith('Builds');
   const names=Object.keys(META).filter(p=>!META[p].custom&&(edAreaOf(p)||/^1 References\//.test(p))).map(p=>META[p].name).sort();
-  return `I'm editing a page for the New World Vault, a fan website for New World: Aeternum (Season 10). ${isNew?`Write a new page called "${title||'(page name)'}" for the folder "${path}".`:'Rewrite the page below with my changes.'} Give me back ONLY the finished page, in one markdown code block, ready to paste.
+  return `I'm editing a page for the Azoth Vault, a fan website for New World: Aeternum (Season 10). ${isNew?`Write a new page called "${title||'(page name)'}" for the folder "${path}".`:'Rewrite the page below with my changes.'} Give me back ONLY the finished page, in one markdown code block, ready to paste.
 
 My changes: [DESCRIBE WHAT YOU WANT ADDED OR CHANGED HERE]
 

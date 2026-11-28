@@ -1,8 +1,8 @@
-# New World Vault
+# Azoth Vault
 
 **[azothvault.com](https://azothvault.com)** · A free fan site for **New World: Aeternum** (Season 10): builds, loadouts, bosses, expeditions, crafting and tradeskill planning in one place.
 
-![New World Vault home page](screenshot.png)
+![Azoth Vault home page](screenshot.png)
 
 ## What's on the site
 
@@ -28,4 +28,4 @@
 
 ## Disclaimer
 
-New World Vault is an unofficial fan site. It is not made, endorsed or supported by Amazon Games. New World and New World: Aeternum are trademarks of Amazon.com, Inc. or its affiliates. Game images and data belong to their owners.
+Azoth Vault is an unofficial fan site. It is not made, endorsed or supported by Amazon Games. New World and New World: Aeternum are trademarks of Amazon.com, Inc. or its affiliates. Game images and data belong to their owners.

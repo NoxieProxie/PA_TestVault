@@ -1,6 +1,6 @@
 # Contributing
 
-New World Vault is run by one person, so the easiest way to help is to tell us what's wrong or missing.
+Azoth Vault is run by one person, so the easiest way to help is to tell us what's wrong or missing.
 
 ## Spotted wrong data?
 
