@@ -2,7 +2,7 @@
    Azoth Vault (https://azothvault.com) · © 2026 NoxieProxie. All rights reserved.
    Copying or re-hosting this code, design or the written guides is not allowed without permission. azv-2ue53jgfm6
    ================================================== */
-const BUILD_AT = '2026-11-28 15:31';
+const BUILD_AT = '2026-11-28 16:13';
 let DATA = {}, META = {}, NAMES = {}, SRC = 'snapshot', SRC_AT = BUILD_AT;
 let current = null, hist = [], recent = [];
 
@@ -1395,7 +1395,13 @@ function perksFor(opt){
     return false;
   });
 }
-const perkByName = n => n ? ((PERKS||[]).find(p=>p.n===n)||(PERKS||[]).find(p=>p.n.startsWith(n+'  '))) : null;
+/* Season 10 names: the official Nighthaven patch notes name these four charms differently from the game data, so the site
+   uses the patch-note names everywhere and still understands the old ones in saved loadouts and share links. */
+const S10NAMES={'Empowering Burnout II':'Fortifying Burnout II','Fortifying Incinerate II':'Empowering Incinerate II','Fire Harnessing II':'Flame Harnessing II','Intangible Charge II':'Refreshing Charge II'};
+const S10RX=new RegExp('\\b('+Object.keys(S10NAMES).join('|')+')','g');
+function s10Names(){ (PERKS||[]).forEach(p=>{ if(S10NAMES[p.n]) p.n=S10NAMES[p.n]; }); }
+const s10Fix=v=>typeof v==='string'?v.replace(S10RX,m=>S10NAMES[m]):Array.isArray(v)?v.map(s10Fix):(v&&typeof v==='object')?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,s10Fix(x)])):v;
+const perkByName = n => { if(!n) return null; n=s10Fix(n); return (PERKS||[]).find(p=>p.n===n)||(PERKS||[]).find(p=>p.n.startsWith(n+'  '))||null; };
 function dl(id, list){
   return `<datalist id="${id}">${list.slice(0,900).map(p=>`<option value="${esc(p.n)}">${esc(p.d.slice(0,90))}</option>`).join('')}</datalist>`;
 }
@@ -1780,6 +1786,7 @@ function cleanLo(g){
   return out;
 }
 function applyLo(g,label){
+  g=s10Fix(g);
   LS.set('nw_gear_prev', snapG());   // keep what was in the builder, just in case
   const mode=G.mode; Object.keys(G).forEach(k=>delete G[k]); Object.assign(G, cleanLo(g), {mode});
   ARMOR_SLOTS.forEach(s=>{ if(G.armor[s].ch===undefined) G.armor[s].ch=''; }); JEW_SLOTS.forEach(s=>{ if(G.jew[s].ch===undefined) G.jew[s].ch=''; });
@@ -4517,7 +4524,7 @@ function talkModEvents(){
     catch(err){ document.getElementById('main').innerHTML='<h1>Could not load the data</h1><p class="lede">'+err+'</p>'; return; }
   }
   try { CALC = await (await fetch('calc.json')).json(); } catch(e){ CALC = null; }
-  try { PERKS = await (await fetch('gear_perks.json')).json(); } catch(e){ PERKS = null; }
+  try { PERKS = await (await fetch('gear_perks.json')).json(); if(typeof s10Names==='function') s10Names(); } catch(e){ PERKS = null; }
   try { ICO = await (await fetch('icons.json')).json(); ICO.img = await sliceSprite('icons_0.webp', ICO); } catch(e){ ICO = null; }
   try { ITEMDB = await (await fetch('items.json')).json();
         for(let k=0;k<ITEMDB.sheets;k++) SPRITES.push('items_'+k+'.webp?v='+(ITEMDB.ver||ITEMDB.tile)); } catch(e){ ITEMDB = null; }
